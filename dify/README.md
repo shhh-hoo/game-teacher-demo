@@ -1,6 +1,12 @@
-# Dify v6 setup — Progressive World + Explicit Teaching
+# Dify workflow — Progressive World + v8 experiment contracts
 
-v6 keeps the architectural boundary visible in the Chatflow:
+> **Current experiment policy (2026-08-22):** generated Dify workflow exports are local/deployment artifacts and are not stored in this repository. The durable v8 behavioral/runtime contract is in [`dify/v8/README.md`](./v8/README.md), with optimization priorities in [`dify/v8/SLIMMING.md`](./v8/SLIMMING.md).
+>
+> Optimize serial LLM work and context size without weakening the action-first loop, listener/world authority boundaries, runtime identity, or learner-facing acceptance.
+
+## Historical progressive-world setup
+
+The readable source below documents the progressive-world architecture that the current v8 line evolved from. It is useful context, not a claim that a generated v8 DSL lives in Git.
 
 ```text
 Student speech / game click
@@ -35,6 +41,8 @@ Do not collapse the phase routing into the Code node. **Dify chooses pedagogy; t
 - `practice_success_count` — successful guided applications
 - `independent_success_count` — optional fresh-listener performance evidence
 
+The current v8 contract strengthens one important point: `listener_model_json` is resettable Jamie memory and must not be reconstructed each turn by blindly copying all durable student evidence back into it.
+
 ## AI Listener + World Builder
 
 Use `interpreter-prompt.md` in a Parameter Extractor. It should expose:
@@ -61,7 +69,7 @@ The important semantic rule is:
 
 > AI may infer incidental presentation details. It may not invent gameplay-relevant logic.
 
-A partial world is valid. The AI should not make the interface artificially complete by guessing a missing rule.
+A partial world is valid. The AI should not make the interface artificially complete by guessing a missing rule. Visible `status`, gameplay state, readiness, ownership, score/turn meaning, and action affordances are semantic outputs and require grounding; they are not automatically harmless presentation details.
 
 ## Visible pedagogy routing
 
@@ -75,30 +83,32 @@ Global guardrails run first:
    - first vague correction → ask which part was wrong
    - repeated vague correction → show the actual build/action trace
 
+A specific correction must supersede the contradictory active listener rule rather than merely appending another conflicting instruction.
+
 Then route by lesson phase:
 
-- `experience`: keep building/acting until the first real blocking communication gap. At that first gap, show the main Teach Moment immediately rather than entering an indefinite clarification loop.
-- `teach`: let the child apply the listener-centered principle immediately, then move to guided practice.
-- `practice`: allow at most one additional micro-teach. After sufficient successful guided application, preserve the playable world, clear Jamie's learned rules, reset the physical state, and introduce a fresh listener.
-- `independent`: no teaching scaffold. Jamie gives only natural listener feedback. One sufficiently complete fresh-listener performance can move to transfer.
-- `transfer`: ask what the child should think about before explaining a different game to someone new; finish when the response shows listener-centered transfer.
+- `experience`: keep building/acting until the first real blocking communication gap.
+- `teach`: let the child apply one listener-centered idea, then move back toward play.
+- `practice`: allow limited scaffolding; count success by learner turn/episode, not by the number of atomic animation actions.
+- `independent`: clear Jamie's learned rules while preserving the play environment and baseline; no teaching scaffold.
+- `transfer`: ask what the child should think about before explaining a different game to someone new.
 
 ## World Engine
 
-Copy `lesson-engine.py` into the deterministic Code node *after* the selected pedagogy-policy aggregator.
+Copy `lesson-engine.py` into the deterministic Code node *after* the selected pedagogy-policy aggregator when using this historical source layout.
 
 The engine may:
 
-- sanitize/merge the declarative world patch;
+- sanitize/merge declarative world patches;
 - merge only student-taught semantic rule updates;
 - validate object IDs and atomic actions;
 - capture the first playable baseline before play mutates it;
 - preserve the exact pre-action scene for replay;
 - build the repair trace;
-- execute the Dify-selected policy's permitted actions;
-- reset the world for the fresh-listener performance.
+- execute permitted atomic actions;
+- reset the world for fresh-listener performance.
 
-It must not decide whether to teach, micro-teach, fade scaffolds, transfer, or finish. Those decisions remain visible Dify branches.
+It must not manufacture pedagogy or game rules.
 
 ## Browser world protocol
 
