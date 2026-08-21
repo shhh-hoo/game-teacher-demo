@@ -16,6 +16,12 @@ This repo intentionally keeps responsibilities separate:
 
 Matching Pairs is the fully implemented path. The home screen keeps the multi-game model visible so more games can reuse the same protocol later.
 
+The repo includes the Dify node source under `dify/`:
+
+- `dify/interpreter-prompt.md`
+- `dify/lesson-engine.py`
+- `dify/README.md` with the exact Chatflow wiring
+
 ## Run locally
 
 For the UI-only preview, any static server works:
@@ -25,6 +31,8 @@ python3 -m http.server 4173
 ```
 
 Then open `http://localhost:4173`.
+
+The UI falls back to a small local preview script if `/api/chat` is unavailable, so reviewers can still exercise the main interaction without credentials.
 
 For the real Dify integration, use Vercel dev so `/api/chat` is available:
 
@@ -36,7 +44,7 @@ Create `.env.local` from `.env.example` and set your Dify API key.
 
 ## Dify
 
-Import `dify/matching-pairs-chatflow.yml` into Dify, configure the LLM node with a model available in your workspace, publish the Chatflow, and copy the app API key into `DIFY_API_KEY`.
+Create/import a Chatflow using the wiring in `dify/README.md`. The LLM node uses `dify/interpreter-prompt.md`; the deterministic Code node uses `dify/lesson-engine.py`.
 
 The frontend expects the Chatflow answer to be JSON with this shape:
 
@@ -56,6 +64,8 @@ The frontend expects the Chatflow answer to be JSON with this shape:
 }
 ```
 
+The earlier importable Dify DSL for this same Matching Pairs Chatflow can be used directly; the source files here are kept readable so the behavior is easy to review and modify.
+
 ## Deploy
 
 Import this repository into Vercel and add:
@@ -64,3 +74,7 @@ Import this repository into Vercel and add:
 - optional `DIFY_API_BASE_URL` (defaults to `https://api.dify.ai/v1`)
 
 No Dify key is shipped to the client.
+
+## Design boundary
+
+The browser never decides that a student's explanation is right or wrong. It only executes `ui_action` commands. Dify owns Jamie's knowledge state and lesson progression.
