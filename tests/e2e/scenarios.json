@@ -36,14 +36,17 @@
   },
   {
     "name": "one-card-action",
-    "description": "One spoken reveal must remain one atomic reveal.",
+    "description": "A non-blocking choice may be resolved by Jamie choosing one eligible card or by a natural clarification.",
+    "manualReview": [
+      "If Jamie chooses a card, the choice must not depend on hidden face-down identity or another unauthorized field."
+    ],
     "turns": [
       {"query": "It uses cards with matching pictures."},
       {"query": "Put all the cards face down first."},
       {
         "query": "Flip one card.",
         "assert": {
-          "actionTypes": ["reveal_object"],
+          "actionOrClarifyCount": 1,
           "noRuntimeActionEffectsInPatch": true,
           "actionTargetsExist": true
         }
@@ -52,14 +55,17 @@
   },
   {
     "name": "two-card-action",
-    "description": "Compressed natural language may expand to exactly two atomic reveals.",
+    "description": "A non-blocking two-card choice may be executed by Jamie or clarified without inventing a selection rule.",
+    "manualReview": [
+      "If Jamie chooses the cards, the choice must not depend on hidden face-down identities."
+    ],
     "turns": [
       {"query": "It uses cards with matching pictures."},
       {"query": "Put all the cards face down first."},
       {
         "query": "Flip two cards.",
         "assert": {
-          "actionTypes": ["reveal_object", "reveal_object"],
+          "actionOrClarifyCount": 2,
           "noRuntimeActionEffectsInPatch": true,
           "actionTargetsExist": true
         }
@@ -68,15 +74,15 @@
   },
   {
     "name": "self-correction-two-cards",
-    "description": "Natural self-correction should use the child's final intended count.",
+    "description": "Natural self-correction should resolve to two cards; Jamie may execute two reveals or ask which two.",
     "turns": [
       {"query": "It uses cards with matching pictures."},
       {"query": "Put all the cards face down first."},
       {
         "query": "Flip three—no, sorry, two.",
         "assert": {
-          "actionTypes": ["reveal_object", "reveal_object"],
-          "actionTargetsExist": true
+          "actionOrClarifyCount": 2,
+          "replyMustNotContain": ["which three", "flip three cards", "three cards should"]
         }
       }
     ]
@@ -96,7 +102,7 @@
   },
   {
     "name": "child-defined-variant",
-    "description": "The harness records a child-defined rule without assuming the conventional alternative. This is partly a manual-review case for now.",
+    "description": "Jamie may ask about an unspecified opposite branch, but must not smuggle a candidate gameplay rule into the question.",
     "manualReview": [
       "Jamie must not correct the child toward standard Matching Pairs behavior.",
       "The trace should retain the child's variant as the session rule."
@@ -108,7 +114,8 @@
       {
         "query": "If they're different, leave them face up.",
         "assert": {
-          "replyMustNotContain": ["normally", "usually", "should turn them back", "standard rule"]
+          "replyMustNotContain": ["normally", "usually", "standard rule"],
+          "noCandidateRuleLeakage": true
         }
       }
     ]
