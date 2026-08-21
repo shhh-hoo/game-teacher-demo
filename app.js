@@ -19,20 +19,24 @@ const state = {
   conversationId: sessionStorage.getItem('gameTeacherConversationId') || '',
   userId: sessionStorage.getItem('gameTeacherUserId') || crypto.randomUUID(),
   phase: 'choose',
-  mode: 'preview',
+  mode: 'required',
   loading: false,
+  apiError: '',
   cards: CARD_FACES.map((face, index) => ({ id: index + 1, face, flipped: false, matched: false })),
   turn: 'jamie',
   repairSupport: null,
   messages: [],
-  mock: {
-    knowledge: new Set(),
-    repairCount: 0,
-  },
 };
 sessionStorage.setItem('gameTeacherUserId', state.userId);
 
 function render() {
+  const statusText =
+    state.mode === 'dify'
+      ? 'Dify connected'
+      : state.mode === 'error'
+        ? 'Dify unavailable'
+        : 'Dify required';
+
   app.innerHTML = `
     <div class="app-shell">
       <header class="topbar">
@@ -41,7 +45,7 @@ function render() {
           <p>Explain it your way. Jamie will try to play from what you actually say.</p>
         </div>
         <div class="status-pill ${state.mode === 'dify' ? 'live' : ''}">
-          ${state.mode === 'dify' ? 'Dify connected' : 'Local preview'}
+          ${statusText}
         </div>
       </header>
       ${renderProgress()}
@@ -54,6 +58,7 @@ function render() {
 function renderProgress() {
   const visiblePhase = state.phase === 'retry' ? 'repair' : state.phase;
   const currentIndex = Math.max(0, PHASES.indexOf(visiblePhase));
+
   return `
     <div class="progress">
       ${PHASES.map((phase, index) => `
@@ -124,14 +129,24 @@ function renderLesson() {
             <small>Your friend · new to this game</small>
           </div>
         </div>
+
         <div class="chat-log" id="chatLog">
           ${state.messages.map(message => `
             <div class="message ${message.role === 'student' ? 'student' : 'ai'}">${escapeHtml(message.text)}</div>
           `).join('')}
         </div>
+
         <div class="composer">
-          <textarea id="studentInput" placeholder="Tell Jamie what to do next…" ${state.loading || state.phase === 'complete' ? 'disabled' : ''}></textarea>
-          <button class="primary" id="sendButton" ${state.loading || state.phase === 'complete' ? 'disabled' : ''}>${state.loading ? '…' : 'Send'}</button>
+          <textarea
+            id="studentInput"
+            placeholder="Tell Jamie what to do next…"
+            ${state.loading || state.phase === 'complete' ? 'disabled' : ''}
+          ></textarea>
+          <button
+            class="primary"
+            id="sendButton"
+            ${state.loading || state.phase === 'complete' ? 'disabled' : ''}
+          >${state.loading ? '…' : 'Send'}</button>
         </div>
       </aside>
 
@@ -155,10 +170,10 @@ function renderLesson() {
           <button class="secondary" id="restartButton">Start over</button>
         </div>
 
-        <div class="helper-text">
+        <div class="helper-text" aria-live="polite">
           <div>
-            <strong>What to notice</strong><br />
-            <span>${helperText()}</span>
+            <strong>${state.apiError ? 'Dify API error' : 'What to notice'}</strong><br />
+            <span>${state.apiError ? escapeHtml(state.apiError) : helperText()}</span>
           </div>
         </div>
       </div>
@@ -170,7 +185,11 @@ function renderMemoryBoard() {
   return `
     <div class="memory-board">
       ${state.cards.map(card => `
-        <button class="memory-card ${card.flipped ? 'flipped' : ''} ${card.matched ? 'matched' : ''}" aria-label="Card ${card.id}" disabled>
+        <button
+          class="memory-card ${card.flipped ? 'flipped' : ''} ${card.matched ? 'matched' : ''}"
+          aria-label="Card ${card.id}"
+          disabled
+        >
           <span class="face back"></span>
           <span class="face front">${card.face}</span>
         </button>
@@ -207,14 +226,22 @@ function renderComplete() {
 
 function helperText() {
   switch (state.phase) {
-    case 'explain': return 'Explain enough for Jamie to start. You do not need to list every rule at once.';
-    case 'try': return 'Watch what Jamie does. Does the action match what you meant?';
-    case 'repair': return 'If something is wrong, locate the part Jamie misunderstood and explain that part again.';
-    case 'retry': return 'Now check whether your new explanation changes Jamie’s action.';
-    case 'play': return 'Jamie can play more independently now. Add only the next rule that becomes useful.';
-    case 'tip': return 'Rules help someone play. A strategy can help someone play better.';
-    case 'complete': return 'The lesson ends when the friend can act on the explanation—not when every possible rule has been recited.';
-    default: return 'Start from a game you already know.';
+    case 'explain':
+      return 'Explain enough for Jamie to start. You do not need to list every rule at once.';
+    case 'try':
+      return 'Watch what Jamie does. Does the action match what you meant?';
+    case 'repair':
+      return 'If something is wrong, locate the part Jamie misunderstood and explain that part again.';
+    case 'retry':
+      return 'Now check whether your new explanation changes Jamie’s action.';
+    case 'play':
+      return 'Jamie can play more independently now. Add only the next rule that becomes useful.';
+    case 'tip':
+      return 'Rules help someone play. A strategy can help someone play better.';
+    case 'complete':
+      return 'The lesson ends when the friend can act on the explanation—not when every possible rule has been recited.';
+    default:
+      return 'Start from a game you already know.';
   }
 }
 
@@ -232,6 +259,7 @@ function bindEvents() {
   document.querySelectorAll('[data-repair-index]').forEach(button => {
     button.addEventListener('click', () => chooseRepairStep(Number(button.dataset.repairIndex)));
   });
+
   requestAnimationFrame(() => {
     const log = document.querySelector('#chatLog');
     if (log) log.scrollTop = log.scrollHeight;
@@ -243,14 +271,14 @@ function startMatchingPairs() {
   state.selectedGame = 'matching_pairs';
   state.phase = 'explain';
   state.turn = 'jamie';
+  state.mode = 'required';
+  state.apiError = '';
   state.conversationId = '';
   sessionStorage.removeItem('gameTeacherConversationId');
   state.cards = freshCards();
   state.repairSupport = null;
-  state.mock.knowledge = new Set();
-  state.mock.repairCount = 0;
   state.messages = [
-    { role: 'ai', text: "I've never played Matching Pairs before. Can you teach me?" }
+    { role: 'ai', text: "I've never played Matching Pairs before. Can you teach me?" },
   ];
   render();
   document.querySelector('#studentInput')?.focus();
@@ -261,24 +289,26 @@ function restartLesson() {
   state.selectedGame = null;
   state.phase = 'choose';
   state.turn = 'jamie';
+  state.mode = 'required';
+  state.apiError = '';
   state.conversationId = '';
   state.repairSupport = null;
   state.messages = [];
   state.cards = freshCards();
-  state.mock.knowledge = new Set();
-  state.mock.repairCount = 0;
   sessionStorage.removeItem('gameTeacherConversationId');
   render();
 }
 
 async function submitMessage() {
   if (state.loading || state.phase === 'complete') return;
+
   const input = document.querySelector('#studentInput');
   const message = input?.value.trim();
   if (!message) return;
 
   state.messages.push({ role: 'student', text: message });
   state.loading = true;
+  state.apiError = '';
   state.repairSupport = null;
   render();
 
@@ -287,12 +317,16 @@ async function submitMessage() {
     result = await sendToDify(message);
     state.mode = 'dify';
   } catch (error) {
-    console.info('Dify unavailable; using local preview script.', error);
-    result = mockTurn(message);
-    state.mode = 'preview';
+    state.loading = false;
+    state.mode = 'error';
+    state.apiError = formatDifyError(error);
+    console.error('Dify request failed.', error);
+    render();
+    return;
   }
 
   state.loading = false;
+
   if (result.conversationId) {
     state.conversationId = result.conversationId;
     sessionStorage.setItem('gameTeacherConversationId', result.conversationId);
@@ -300,28 +334,79 @@ async function submitMessage() {
 
   state.phase = result.phase || state.phase;
   if (result.reply) state.messages.push({ role: 'ai', text: result.reply });
-  await applyAction(result.ui_action || { type: 'none', payload: {} }, result.support || null);
+
+  await applyAction(
+    result.ui_action || { type: 'none', payload: {} },
+    result.support || null,
+  );
+
   render();
 }
 
 async function sendToDify(message) {
-  const response = await fetch('/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message,
-      gameId: state.selectedGame,
-      conversationId: state.conversationId,
-      userId: state.userId,
-    }),
-  });
+  let response;
 
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Chat API ${response.status}: ${detail}`);
+  try {
+    response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        gameId: state.selectedGame,
+        conversationId: state.conversationId,
+        userId: state.userId,
+      }),
+    });
+  } catch (cause) {
+    const error = new Error('The /api/chat endpoint could not be reached.');
+    error.code = 'NETWORK';
+    error.cause = cause;
+    throw error;
   }
 
-  return response.json();
+  if (!response.ok) {
+    const raw = await response.text();
+    let detail = raw;
+
+    try {
+      const parsed = JSON.parse(raw);
+      detail = parsed.detail || parsed.error || raw;
+    } catch {
+      // Keep the raw response body.
+    }
+
+    const error = new Error(String(detail || `HTTP ${response.status}`));
+    error.status = response.status;
+    throw error;
+  }
+
+  const payload = await response.json();
+
+  if (!payload || typeof payload !== 'object') {
+    const error = new Error('The Dify proxy returned an invalid response.');
+    error.code = 'INVALID_RESPONSE';
+    throw error;
+  }
+
+  return payload;
+}
+
+function formatDifyError(error) {
+  const message = error instanceof Error ? error.message : String(error || '');
+
+  if (error?.status === 503 || /DIFY_API_KEY/i.test(message)) {
+    return 'Dify is not configured. Add DIFY_API_KEY to .env.local (or your Vercel environment) and run the app through Vercel.';
+  }
+
+  if (error?.status === 404 || /\/api\/chat.*not.*reach/i.test(message)) {
+    return 'The Dify API proxy is not available. Run this project with `npx vercel dev` locally, or deploy it to Vercel.';
+  }
+
+  if (error?.code === 'NETWORK') {
+    return 'The Dify API proxy could not be reached. Check that the local Vercel server is running.';
+  }
+
+  return `Could not reach Dify: ${message}`;
 }
 
 async function applyAction(action, support) {
@@ -392,6 +477,7 @@ async function applyAction(action, support) {
 function chooseRepairStep(index) {
   const step = state.repairSupport?.steps?.[index];
   if (!step) return;
+
   state.repairSupport = null;
   state.messages.push({ role: 'student', text: `I think this step went wrong: ${step}` });
   state.messages.push({ role: 'ai', text: 'Okay—tell me what I should do instead.' });
@@ -414,7 +500,12 @@ function unflipCards(ids) {
 }
 
 function freshCards() {
-  return CARD_FACES.map((face, index) => ({ id: index + 1, face, flipped: false, matched: false }));
+  return CARD_FACES.map((face, index) => ({
+    id: index + 1,
+    face,
+    flipped: false,
+    matched: false,
+  }));
 }
 
 function wait(ms) {
@@ -428,111 +519,6 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
-}
-
-// This small fallback exists only so the repo is reviewable without Dify credentials.
-// The production lesson logic belongs in the imported Dify Chatflow.
-function mockTurn(message) {
-  const m = message.toLowerCase();
-  const K = state.mock.knowledge;
-  const recognized = [];
-
-  if (/face down|facedown|down first|cards.*down/.test(m)) recognized.push('setup.face_down');
-  if (/flip|turn over|turn.*card/.test(m) && /(two|2)/.test(m)) recognized.push('turn.flip_two');
-  if (/match|same/.test(m) && /(keep|take|pair)/.test(m)) recognized.push('result.match_keep');
-  if (/(don.t match|do not match|different|not the same)/.test(m) && /(turn.*back|flip.*back|face down|put.*back)/.test(m)) recognized.push('result.no_match_flip_back');
-  if (/your turn|my turn|other player|switch|take turns/.test(m)) recognized.push('turn.switch');
-  if (/most pairs|more pairs|whoever.*pairs|win/.test(m)) recognized.push('goal.most_pairs');
-  if (/remember|memory|where.*card/.test(m)) recognized.push('strategy.memory');
-  recognized.forEach(rule => K.add(rule));
-
-  const lowCorrection = /^(no+|no[,!. ]+that.s wrong|that.s wrong|don.t do that)[!., ]*$/i.test(message.trim());
-
-  if (state.phase === 'explain') {
-    if (!K.has('turn.flip_two')) {
-      return {
-        reply: K.has('setup.face_down') ? 'Okay, the cards start face down. What do I do on my turn?' : 'What do I do first?',
-        phase: 'explain',
-        ui_action: K.has('setup.face_down') ? { type: 'setup_cards', payload: { count: 8, face_down: true } } : { type: 'none', payload: {} },
-      };
-    }
-
-    if (!K.has('result.no_match_flip_back')) {
-      return {
-        reply: "I flipped two cards. They don't match. What do I do with these now?",
-        phase: 'repair',
-        ui_action: { type: 'flip_cards', payload: { cards: [1, 6], match: false, keep_face_up: true } },
-      };
-    }
-
-    return {
-      reply: 'Okay—I flipped two different cards and turned them back over. What happens after my turn?',
-      phase: 'try',
-      ui_action: { type: 'flip_two_then_flip_back', payload: { cards: [1, 6], match: false } },
-    };
-  }
-
-  if (state.phase === 'repair') {
-    if (K.has('result.no_match_flip_back')) {
-      state.mock.repairCount = 0;
-      return {
-        reply: "Oh! If they don't match, I turn both cards face down again. Let me fix that.",
-        phase: 'retry',
-        ui_action: { type: 'flip_back', payload: { cards: [1, 6] } },
-      };
-    }
-
-    if (lowCorrection) {
-      state.mock.repairCount += 1;
-      if (state.mock.repairCount >= 2) {
-        const support = {
-          type: 'locate_step',
-          prompt: 'Which step should Jamie change?',
-          steps: ['Flip two cards', 'Check whether they match', 'Leave both cards face up', 'End the turn'],
-        };
-        return {
-          reply: 'Can you point to the step I should change?',
-          phase: 'repair',
-          support,
-          ui_action: { type: 'show_repair_steps', payload: support },
-        };
-      }
-      return { reply: 'Which part did I get wrong?', phase: 'repair', ui_action: { type: 'none', payload: {} } };
-    }
-
-    return { reply: "What should I do with the two cards when they don't match?", phase: 'repair', ui_action: { type: 'none', payload: {} } };
-  }
-
-  if (state.phase === 'retry') {
-    return {
-      reply: "That worked! I flipped two, they didn't match, so I turned them back. Whose turn is it now?",
-      phase: K.has('turn.switch') ? 'play' : 'try',
-      ui_action: { type: 'retry_turn', payload: { cards: [2, 7], match: false, turn_back_after: true } },
-    };
-  }
-
-  if (state.phase === 'try') {
-    if (K.has('turn.switch')) {
-      return { reply: "Got it—after my turn, it's your turn. What if the two cards are the same?", phase: 'play', ui_action: { type: 'switch_turn', payload: { to: 'student' } } };
-    }
-    return { reply: 'What happens after I finish my turn?', phase: 'try', ui_action: { type: 'none', payload: {} } };
-  }
-
-  if (state.phase === 'play') {
-    if (!K.has('result.match_keep')) {
-      return { reply: 'What if the two cards are the same?', phase: 'play', ui_action: { type: 'preview_match', payload: { cards: [3, 5], match: true } } };
-    }
-    if (!K.has('goal.most_pairs')) {
-      return { reply: 'Okay, I keep matching pairs. How do we know who wins?', phase: 'play', ui_action: { type: 'none', payload: {} } };
-    }
-    return { reply: "I think I've got it! Do you have one tip that could help me play better?", phase: 'tip', ui_action: { type: 'complete_play', payload: {} } };
-  }
-
-  if (state.phase === 'tip') {
-    return { reply: 'Thanks! I can play now. Your explanation helped me know what to do when the cards did not match.', phase: 'complete', ui_action: { type: 'lesson_complete', payload: {} } };
-  }
-
-  return { reply: 'Tell me what I should do next.', phase: state.phase, ui_action: { type: 'none', payload: {} } };
 }
 
 render();
