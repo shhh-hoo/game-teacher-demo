@@ -105,11 +105,41 @@ function safeStamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');
 }
 
+function classifyRuntimeError(error) {
+  const message = String(error?.message || error || '');
+  if (/fetch failed/i.test(message)) return 'infra';
+  if (/Model .* not exist/i.test(message)) return 'infra';
+  if (/provider|credential|api key|rate limit|quota|service unavailable|gateway|timeout/i.test(message)) return 'infra';
+  return 'runtime';
+}
+
+function usageFrom(data) {
+  const usage = data?.metadata?.usage || {};
+  return {
+    promptTokens: Number(usage.prompt_tokens || 0),
+    completionTokens: Number(usage.completion_tokens || 0),
+    totalTokens: Number(usage.total_tokens || 0),
+    modelLatencyMs: Number(usage.latency || 0) * 1000,
+    timeToFirstTokenMs: Number(usage.time_to_first_token || 0) * 1000,
+  };
+}
+
+function addMetrics(target, elapsedMs, usage) {
+  target.elapsedMs += Number(elapsedMs || 0);
+  target.promptTokens += usage.promptTokens;
+  target.completionTokens += usage.completionTokens;
+  target.totalTokens += usage.totalTokens;
+  target.successfulTurns += 1;
+}
+
 const traceRoot = path.resolve(process.cwd(), '.artifacts', 'dify-e2e');
 await fs.mkdir(traceRoot, { recursive: true });
 
-let totalFailures = 0;
+let totalBehaviorFailures = 0;
+let totalInfraErrors = 0;
+let totalRuntimeErrors = 0;
 let totalTurns = 0;
+const aggregateMetrics = { elapsedMs: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, successfulTurns: 0 };
 const runSummary = [];
 
 console.log('Dify E2E regression run');
@@ -124,7 +154,10 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
     let world = blankWorld();
     let baseline = null;
     const turnsTrace = [];
-    let scenarioFailures = 0;
+    let scenarioBehaviorFailures = 0;
+    let scenarioInfraErrors = 0;
+    let scenarioRuntimeErrors = 0;
+    const scenarioMetrics = { elapsedMs: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, successfulTurns: 0 };
 
     console.log(`▶ ${scenario.name}${repeat > 1 ? ` [${iteration}/${repeat}]` : ''}`);
 
@@ -148,16 +181,20 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
           actions,
         });
         const failures = assertionResults.filter(result => !result.ok);
-        scenarioFailures += failures.length;
-        totalFailures += failures.length;
+        scenarioBehaviorFailures += failures.length;
+        totalBehaviorFailures += failures.length;
+        const turnUsage = usageFrom(result.data);
+        addMetrics(scenarioMetrics, result.elapsedMs, turnUsage);
+        addMetrics(aggregateMetrics, result.elapsedMs, turnUsage);
         const mark = failures.length ? 'FAIL' : 'PASS';
-        console.log(`  ${mark} ${index + 1}. ${turn.query} (${(result.elapsedMs / 1000).toFixed(1)}s)`);
+        console.log(`  ${mark} ${index + 1}. ${turn.query} (${(result.elapsedMs / 1000).toFixed(1)}s, ${turnUsage.totalTokens.toLocaleString()} tok)`);
         for (const failure of failures) console.log(`       ✗ ${failure.name}: ${failure.detail}`);
 
         turnsTrace.push({
           index: index + 1,
           query: turn.query,
           elapsedMs: result.elapsedMs,
+          usage: turnUsage,
           conversationId,
           messageId: result.data.message_id,
           rawDifyResponse: result.data,
@@ -169,11 +206,22 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
           baseline,
         });
       } catch (error) {
-        scenarioFailures += 1;
-        totalFailures += 1;
-        console.log(`  FAIL ${index + 1}. ${turn.query}`);
-        console.log(`       ✗ runtime: ${error.message}`);
-        turnsTrace.push({ index: index + 1, query: turn.query, runtimeError: error.stack || error.message });
+        const category = classifyRuntimeError(error);
+        if (category === 'infra') {
+          scenarioInfraErrors += 1;
+          totalInfraErrors += 1;
+        } else {
+          scenarioRuntimeErrors += 1;
+          totalRuntimeErrors += 1;
+        }
+        console.log(`  ${category === 'infra' ? 'INFRA' : 'ERROR'} ${index + 1}. ${turn.query}`);
+        console.log(`       ✗ ${category}: ${error.message}`);
+        turnsTrace.push({
+          index: index + 1,
+          query: turn.query,
+          errorCategory: category,
+          runtimeError: error.stack || error.message,
+        });
         break;
       }
     }
@@ -186,7 +234,11 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
       iteration,
       startedUser: user,
       finalConversationId: conversationId,
-      failures: scenarioFailures,
+      failures: scenarioBehaviorFailures,
+      behaviorFailures: scenarioBehaviorFailures,
+      infraErrors: scenarioInfraErrors,
+      runtimeErrors: scenarioRuntimeErrors,
+      metrics: scenarioMetrics,
       turns: turnsTrace,
     };
     const traceName = `${safeStamp()}__${versionLabel.replace(/[^a-zA-Z0-9_.-]/g, '_')}__${scenario.name}__${iteration}.json`;
@@ -196,10 +248,27 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
     if (scenario.manualReview?.length) {
       console.log(`  → manual review: ${scenario.manualReview.join(' | ')}`);
     }
+    if (scenarioMetrics.successfulTurns) {
+      console.log(`  → metrics: ${(scenarioMetrics.elapsedMs / 1000).toFixed(1)}s, ${scenarioMetrics.totalTokens.toLocaleString()} tokens`);
+    }
     console.log('');
-    runSummary.push({ scenario: scenario.name, iteration, failures: scenarioFailures, tracePath });
+    runSummary.push({
+      scenario: scenario.name,
+      iteration,
+      behaviorFailures: scenarioBehaviorFailures,
+      infraErrors: scenarioInfraErrors,
+      runtimeErrors: scenarioRuntimeErrors,
+      metrics: scenarioMetrics,
+      tracePath,
+    });
   }
 }
 
-console.log(`Finished: ${runSummary.length} scenario run(s), ${totalTurns} turn(s), ${totalFailures} failed check(s).`);
-if (totalFailures) process.exit(1);
+const averageMs = aggregateMetrics.successfulTurns ? aggregateMetrics.elapsedMs / aggregateMetrics.successfulTurns : 0;
+const averageTokens = aggregateMetrics.successfulTurns ? aggregateMetrics.totalTokens / aggregateMetrics.successfulTurns : 0;
+console.log(`Finished: ${runSummary.length} scenario run(s), ${totalTurns} attempted turn(s).`);
+console.log(`Behavior failures: ${totalBehaviorFailures}; infra errors: ${totalInfraErrors}; runtime errors: ${totalRuntimeErrors}.`);
+if (aggregateMetrics.successfulTurns) {
+  console.log(`Successful turns: ${aggregateMetrics.successfulTurns}; avg ${(averageMs / 1000).toFixed(1)}s/turn; avg ${Math.round(averageTokens).toLocaleString()} tokens/turn; total ${aggregateMetrics.totalTokens.toLocaleString()} tokens.`);
+}
+if (totalBehaviorFailures || totalInfraErrors || totalRuntimeErrors) process.exit(1);
