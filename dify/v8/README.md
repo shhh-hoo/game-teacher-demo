@@ -1,22 +1,24 @@
-# v8 rollback baseline
+# v8 behavioral baseline
 
-## Decision
+## Purpose
 
-The slim/flash v8 experiment is rejected as the active lesson flow. Restore the pre-slim `v8-revised` workflow before making further acceptance-test or latency changes.
+`v8-revised` is the verified behavioral baseline for future v8 slimming. The failed slim/flash experiment does **not** mean slimming should stop; it means node-count reduction must preserve the semantics that made the full flow work.
 
-The regression is behavioral, not copy-only: the slim run can collapse the planner result to an empty plan, leaving Jamie with no executable actions and falling through to generic `ask_open_next` responses. That breaks the intended loop:
+The failed experiment exposed a concrete regression: an executable learner instruction could collapse to an empty plan and then fall through to generic `ask_open_next` behavior. Any new slim candidate must prevent that class of silent degradation.
+
+The behavior to preserve is:
 
 `child explains -> Jamie acts -> world changes -> real next-step gap -> child repairs -> reality changes`
 
-## Canonical rollback artifact
+## Canonical baseline artifact
 
-The exact uploaded pre-slim Dify export is stored as three deterministic gzip parts so the repository copy can be integrity-checked without relying on a large single connector upload:
+The exact uploaded `v8-revised` Dify export is stored as three deterministic gzip parts so the repository copy can be integrity-checked without relying on a large single connector upload:
 
 - `gakku-game-teacher-v8-revised.yml.gz.part-01` — 9000 bytes — SHA-256 `3f140122cd8209446dadcf04204ba8eaee831b1404e485ee02b4b552d9a5bdb7`
 - `gakku-game-teacher-v8-revised.yml.gz.part-02` — 9000 bytes — SHA-256 `9af842a0514d74888bdb710560c45733489f4b8e3db3e96c01491989409f77b0`
 - `gakku-game-teacher-v8-revised.yml.gz.part-03` — 7627 bytes — SHA-256 `89410aedf1384187511ff4f52ceeace54065d640dc9b9748e6d640101d8530af`
 
-Reconstructed deterministic gzip:
+Reconstructed deterministic gzip SHA-256:
 
 `4b5c4e6ba0ce224d6b7b5f7458149c50a51f62ea52ac711a98ba7fc413ec5d6e`
 
@@ -24,7 +26,7 @@ Original YAML SHA-256:
 
 `7c7048cc9d42daac9f45529da5d11404903f2aa840d277813cf479bc2119e4b8`
 
-Restore and verify:
+Reconstruct and verify:
 
 ```bash
 cat dify/v8/gakku-game-teacher-v8-revised.yml.gz.part-* > /tmp/gakku-game-teacher-v8-revised.yml.gz
@@ -36,17 +38,25 @@ shasum -a 256 dify/v8/gakku-game-teacher-v8-revised.yml
 # expected: 7c7048cc9d42daac9f45529da5d11404903f2aa840d277813cf479bc2119e4b8
 ```
 
-Then import `dify/v8/gakku-game-teacher-v8-revised.yml` into Dify and publish that workflow.
+## Non-negotiable slim equivalence
 
-## Required behavior before any new optimization
-
-The golden path must prove all of these before slimming work resumes:
+Every slim candidate must preserve these observable semantics:
 
 1. A taught executable instruction causes Jamie to act immediately.
-2. `On your turn, flip any two cards.` produces two reveal actions.
-3. Jamie may act and then expose a `post_action_gap` in the same turn.
-4. The question after acting is grounded in the visible result, not a generic request for the next rule.
-5. A repair such as `turn both of those cards face down again` changes the existing world state.
-6. No planner parse/output failure may silently degrade to an empty plan and continue as if the turn succeeded.
+2. `On your turn, flip any two cards.` can produce two reveal actions without importing an outcome rule.
+3. `action_ready=true` and `post_action_gap!=null` may coexist in one turn.
+4. The question after acting is grounded in the visible result, not a generic request for another rule.
+5. A repair can immediately change the existing world state.
+6. A normal player choice among equivalent eligible options is not automatically a communication breakdown.
+7. A planner/JSON/schema failure must fail closed or surface a runtime diagnostic; it must never silently become an empty valid plan.
+8. Familiar-game prior knowledge must not become session rules.
 
-Do not tune the golden-path acceptance scenario around the broken slim runtime. Restore runtime behavior first, then evaluate the scenario.
+PR #14 is an independent learner-facing acceptance improvement. Slimming should be evaluated against the stronger golden path rather than treating that PR as a workaround for a failed runtime.
+
+## Slimming target
+
+Optimize **serial LLM calls and prompt/output volume**, not the behavioral state model. The full `v8-revised` flow currently has a normal-turn LLM chain roughly equivalent to:
+
+`Listener Interpreter -> World Builder -> World Guard -> Action Planner -> Gap Evaluator -> one Jamie response generator -> Response Guard`
+
+The next design should remove unconditional validation calls and redundant passes while keeping explicit action planning, pending-gap lifecycle, pedagogy control, and deterministic packing intact.
