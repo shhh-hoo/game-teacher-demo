@@ -238,7 +238,7 @@ function looksLikeChoiceClarification(reply, expectedCount) {
   return lower.includes(String(expectedCount)) && /[?]/.test(lower);
 }
 
-function assertActionOrClarifyCount(reply, actions, expectedCount) {
+function assertActionOrClarifyCount(reply, actions, expectedCount, patch) {
   const reveals = actions.filter(action => action.type === 'reveal_object');
   const otherActions = actions.filter(action => action.type !== 'reveal_object' && action.type !== 'wait');
 
@@ -247,7 +247,16 @@ function assertActionOrClarifyCount(reply, actions, expectedCount) {
   }
 
   if (actions.length === 0 && looksLikeChoiceClarification(reply, expectedCount)) {
-    return pass('turn.action-or-clarify-count', `clarified an underspecified choice for ${expectedCount} card(s)`);
+    const runtimeStateUpdates = (patch?.update_objects || []).filter(update =>
+      update?.state === 'face_up' || update?.state === 'removed'
+    );
+    if (runtimeStateUpdates.length || (patch?.remove_object_ids || []).length) {
+      return fail(
+        'turn.action-or-clarify-count',
+        `Jamie asked for a choice clarification but world_patch already applied a runtime choice/effect: ${JSON.stringify(runtimeStateUpdates.length ? runtimeStateUpdates : patch.remove_object_ids)}`,
+      );
+    }
+    return pass('turn.action-or-clarify-count', `clarified an underspecified choice for ${expectedCount} card(s) without pre-applying the choice`);
   }
 
   return fail(
@@ -282,7 +291,7 @@ export function runAssertions({ expected = {}, payload, previousWorld, worldAfte
   }
 
   if (Number.isFinite(expected.actionOrClarifyCount)) {
-    results.push(assertActionOrClarifyCount(reply, actions, expected.actionOrClarifyCount));
+    results.push(assertActionOrClarifyCount(reply, actions, expected.actionOrClarifyCount, payload?.world_patch || {}));
   }
 
   if (typeof expected.captureBaseline === 'boolean') {
