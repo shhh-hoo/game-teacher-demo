@@ -1,0 +1,116 @@
+[
+  {
+    "name": "matching-pairs-basic",
+    "description": "Protect the stable three-turn v7-fixed2 baseline.",
+    "turns": [
+      {
+        "query": "It uses cards with matching pictures.",
+        "assert": {
+          "noGameplayLeakage": true,
+          "actionTypes": [],
+          "minObjects": 2,
+          "captureBaseline": false
+        }
+      },
+      {
+        "query": "You should put the faces down first before we can play",
+        "assert": {
+          "actionTypes": [],
+          "allObjectUpdatesOnly": ["state"],
+          "allUpdatedStates": "face_down",
+          "captureBaseline": false,
+          "trueDelta": true
+        }
+      },
+      {
+        "query": "Flip one card and then another.",
+        "assert": {
+          "actionTypes": ["reveal_object", "reveal_object"],
+          "captureBaseline": true,
+          "noRuntimeActionEffectsInPatch": true,
+          "actionTargetsExist": true,
+          "trueDelta": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "one-card-action",
+    "description": "One spoken reveal must remain one atomic reveal.",
+    "turns": [
+      {"query": "It uses cards with matching pictures."},
+      {"query": "Put all the cards face down first."},
+      {
+        "query": "Flip one card.",
+        "assert": {
+          "actionTypes": ["reveal_object"],
+          "noRuntimeActionEffectsInPatch": true,
+          "actionTargetsExist": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "two-card-action",
+    "description": "Compressed natural language may expand to exactly two atomic reveals.",
+    "turns": [
+      {"query": "It uses cards with matching pictures."},
+      {"query": "Put all the cards face down first."},
+      {
+        "query": "Flip two cards.",
+        "assert": {
+          "actionTypes": ["reveal_object", "reveal_object"],
+          "noRuntimeActionEffectsInPatch": true,
+          "actionTargetsExist": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "self-correction-two-cards",
+    "description": "Natural self-correction should use the child's final intended count.",
+    "turns": [
+      {"query": "It uses cards with matching pictures."},
+      {"query": "Put all the cards face down first."},
+      {
+        "query": "Flip three—no, sorry, two.",
+        "assert": {
+          "actionTypes": ["reveal_object", "reveal_object"],
+          "actionTargetsExist": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "leading-question-leakage",
+    "description": "A familiar matching relation must not cause Jamie to propose the gameplay rule.",
+    "turns": [
+      {
+        "query": "They have matching pictures.",
+        "assert": {
+          "noGameplayLeakage": true,
+          "actionTypes": []
+        }
+      }
+    ]
+  },
+  {
+    "name": "child-defined-variant",
+    "description": "The harness records a child-defined rule without assuming the conventional alternative. This is partly a manual-review case for now.",
+    "manualReview": [
+      "Jamie must not correct the child toward standard Matching Pairs behavior.",
+      "The trace should retain the child's variant as the session rule."
+    ],
+    "turns": [
+      {"query": "It uses cards with matching pictures."},
+      {"query": "Put all the cards face down first."},
+      {"query": "Flip two cards."},
+      {
+        "query": "If they're different, leave them face up.",
+        "assert": {
+          "replyMustNotContain": ["normally", "usually", "should turn them back", "standard rule"]
+        }
+      }
+    ]
+  }
+]
