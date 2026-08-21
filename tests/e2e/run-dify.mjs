@@ -158,6 +158,7 @@ const traceRoot = path.resolve(process.cwd(), '.artifacts', 'dify-e2e');
 await fs.mkdir(traceRoot, { recursive: true });
 
 let totalBehaviorFailures = 0;
+let totalAssertionFailures = 0;
 let totalInfraErrors = 0;
 let totalRuntimeErrors = 0;
 let totalTurns = 0;
@@ -181,6 +182,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
     const turnsTrace = [];
     const dialogue = [];
     let scenarioBehaviorFailures = 0;
+    let scenarioAssertionFailures = 0;
     let scenarioInfraErrors = 0;
     let scenarioRuntimeErrors = 0;
     const scenarioMetrics = { elapsedMs: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, successfulTurns: 0 };
@@ -207,8 +209,12 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
           actions,
         });
         const failures = assertionResults.filter(result => !result.ok);
-        scenarioBehaviorFailures += failures.length;
-        totalBehaviorFailures += failures.length;
+        if (failures.length) {
+          scenarioBehaviorFailures += 1;
+          totalBehaviorFailures += 1;
+          scenarioAssertionFailures += failures.length;
+          totalAssertionFailures += failures.length;
+        }
         const turnUsage = usageFrom(result.data);
         addMetrics(scenarioMetrics, result.elapsedMs, turnUsage);
         addMetrics(aggregateMetrics, result.elapsedMs, turnUsage);
@@ -245,6 +251,11 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
           worldAfterActions: world,
           baseline,
         });
+
+        if (failures.length && turn.stopScenarioOnFailure) {
+          console.log('  ↳ stop · prerequisite turn failed; later state-dependent turns skipped');
+          break;
+        }
       } catch (error) {
         const category = classifyRuntimeError(error);
         if (category === 'infra') {
@@ -277,6 +288,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
       finalConversationId: conversationId,
       failures: scenarioBehaviorFailures,
       behaviorFailures: scenarioBehaviorFailures,
+      assertionFailures: scenarioAssertionFailures,
       infraErrors: scenarioInfraErrors,
       runtimeErrors: scenarioRuntimeErrors,
       metrics: scenarioMetrics,
@@ -301,6 +313,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
       scenario: scenario.name,
       iteration,
       behaviorFailures: scenarioBehaviorFailures,
+      assertionFailures: scenarioAssertionFailures,
       infraErrors: scenarioInfraErrors,
       runtimeErrors: scenarioRuntimeErrors,
       metrics: scenarioMetrics,
@@ -315,6 +328,9 @@ const averageMs = aggregateMetrics.successfulTurns ? aggregateMetrics.elapsedMs 
 const averageTokens = aggregateMetrics.successfulTurns ? aggregateMetrics.totalTokens / aggregateMetrics.successfulTurns : 0;
 
 console.log(`Result · ${totalBehaviorFailures} behavior · ${totalInfraErrors} infra · ${totalRuntimeErrors} runtime`);
+if (totalAssertionFailures) {
+  console.log(`Checks · ${totalAssertionFailures} failed assertion${totalAssertionFailures === 1 ? '' : 's'}`);
+}
 if (aggregateMetrics.successfulTurns) {
   console.log(`Perf   · ${(averageMs / 1000).toFixed(1)}s/turn · ${Math.round(averageTokens).toLocaleString()} tok/turn`);
 }
