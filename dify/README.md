@@ -1,8 +1,8 @@
 # Dify workflow
 
-> **Current rollback decision (2026-08-22):** the slim/flash v8 experiment is not the active baseline. Restore and validate the pre-slim `v8-revised` workflow first. The canonical rollback artifact and acceptance gate are in [`dify/v8/README.md`](./v8/README.md).
+> **v8 optimization baseline (2026-08-22):** preserve the verified `v8-revised` workflow as the behavioral reference while continuing to slim the runtime. The exact baseline artifact and equivalence requirements are in [`dify/v8/README.md`](./v8/README.md).
 >
-> Do not optimize node count/latency by removing the action-planning and post-action-gap semantics. Runtime behavior must remain `explain -> act -> encounter gap -> repair`.
+> Optimize serial LLM work and prompt/output volume; do not remove the semantics that allow `action_ready`, physical actions, `post_action_gap`, and repair to coexist correctly. Runtime behavior must remain `explain -> act -> encounter gap -> repair`.
 
 # Dify v6 setup — Progressive World + Explicit Teaching
 
