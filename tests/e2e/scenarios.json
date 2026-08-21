@@ -2,8 +2,8 @@
   {
     "name": "golden-path-learning-loop",
     "suite": "must-run",
-    "demoRole": "Prove the core product idea and learning loop in one short path.",
-    "description": "The child's explanation should progressively create a playable world, let Jamie act, expose a real next-step gap, and let the child's repair change reality before a brief listener-centered teaching moment.",
+    "demoRole": "Prove the core learner-facing loop, not merely world/action mechanics.",
+    "description": "The child supplies enough setup to create a real Matching Pairs world, Jamie acts on the child's instruction, reaches a genuine missing outcome rule, receives a listener-centered Teach Moment, and then immediately applies the child's repair to visible reality.",
     "prd": {
       "stage": "Experience → Notice & Teach → Guided Practice",
       "hypotheses": [
@@ -12,28 +12,29 @@
         "H3",
         "H4"
       ],
-      "learningPurpose": "Show that AI can turn the child's own explanation into visible consequences and convert a genuine communication breakdown into learning.",
+      "learningPurpose": "Show the core insight: what is obvious in the child's head is not yet available to the listener, and adding the missing information changes what Jamie can actually do.",
       "acceptance": [
-        "The world forms progressively from the child's explanation; harmless presentation details may be filled in by AI, but gameplay rules may not be invented.",
-        "When enough information is available for a move, Jamie acts instead of grading the child.",
-        "Jamie reaches the first real missing next-step information only after completing what the child actually taught.",
-        "The first breakdown is experienced as listener feedback, not an immediate lecture or supplied rule.",
-        "When the child repairs the gap, Jamie's world or action changes immediately.",
-        "Only after a genuine repair does a short Teach Moment connect the success to what the listener needed to know, then return to play."
+        "The learner, not AI prior knowledge, supplies gameplay-relevant setup: six cards and the fact that each picture appears twice.",
+        "The visible world forms progressively; AI may choose harmless presentation details such as the picture symbols, but may not add move, outcome, turn, or win rules.",
+        "When the child says to flip any two cards, Jamie flips exactly two cards instead of grading the explanation.",
+        "After those two cards are revealed, Jamie must hit a real next-step gap because the child has not said what happens after seeing the pair.",
+        "That first real gap must move the lesson into Notice & Teach with a listener-centered Teach Moment; it must not silently supply a Matching Pairs rule or reduce the moment to generic praise.",
+        "The child's repair supplies both outcome branches. Jamie then applies the branch that matches the actually revealed cards, so visible reality changes immediately.",
+        "After the successful repair, the flow returns to guided practice rather than staying in an explanation checklist."
       ]
     },
     "manualReview": [
-      "This is the primary take-home demo path. Judge the learner experience first, not the JSON mechanics.",
-      "After Jamie flips two cards, the response should expose the next missing piece naturally and should not complete Matching Pairs from prior knowledge.",
-      "The repair turn should visibly change reality by turning the two revealed cards face down again.",
-      "Any Teach Moment should be brief, listener-centered, and explain why the repair helped; simple praise is not enough.",
-      "The interaction should still feel like playing with a friend, not answering a tutoring checklist."
+      "This is the primary take-home demo path. A green protocol trace is not sufficient if the dialogue does not feel like a believable child teaching a friend.",
+      "After Jamie flips two cards, Jamie should naturally communicate that it cannot continue because it does not know what happens after seeing the two cards.",
+      "The Teach Moment should name the listener need briefly and should not propose either Matching Pairs outcome branch for the child.",
+      "On the repair turn, inspect the actual revealed pair: a matching pair should be removed; a non-matching pair should be turned face down. Either branch is valid, but doing nothing is not.",
+      "The interaction should still feel like playing with a capable friend, not answering a tutoring checklist."
     ],
     "turns": [
       {
-        "query": "It's a card game with matching pictures.",
+        "query": "It's a card game with six cards. Every picture appears on exactly two cards.",
         "assert": {
-          "minObjects": 2,
+          "exactObjectCount": 6,
           "noGameplayLeakage": true,
           "actionTypes": [],
           "replyMustNotContain": [
@@ -46,9 +47,10 @@
         }
       },
       {
-        "query": "Put all the cards face down to start.",
+        "query": "Put all six cards face down to start.",
         "assert": {
           "actionTypes": [],
+          "minObjectUpdates": 6,
           "allObjectUpdatesOnly": [
             "state"
           ],
@@ -72,6 +74,19 @@
           "captureBaseline": true,
           "noRuntimeActionEffectsInPatch": true,
           "actionTargetsExist": true,
+          "phase": "teach",
+          "supportType": "teach_moment",
+          "supportFocus": "completeness",
+          "supportListenerGapNonEmpty": true,
+          "replyMustContainAny": [
+            "what happens",
+            "what do I",
+            "what should I",
+            "what now",
+            "not sure",
+            "don't know"
+          ],
+          "noCandidateRuleLeakage": true,
           "replyMustNotContain": [
             "correct",
             "incorrect",
@@ -82,13 +97,21 @@
         }
       },
       {
-        "query": "Then turn both of those cards face down again.",
+        "query": "If they match, take both cards out. If they don't match, turn both cards face down again.",
         "assert": {
-          "actionTypes": [
-            "hide_object",
-            "hide_object"
+          "actionTypesOneOf": [
+            [
+              "remove_object",
+              "remove_object"
+            ],
+            [
+              "hide_object",
+              "hide_object"
+            ]
           ],
+          "noRuntimeActionEffectsInPatch": true,
           "actionTargetsExist": true,
+          "phase": "practice",
           "replyMustNotContain": [
             "correct",
             "incorrect",
@@ -125,10 +148,10 @@
     ],
     "turns": [
       {
-        "query": "It's a card game with matching pictures."
+        "query": "It's a card game with six cards. Every picture appears on exactly two cards."
       },
       {
-        "query": "Put all the cards face down to start."
+        "query": "Put all six cards face down to start."
       },
       {
         "query": "Flip three—no, sorry, two of them.",
@@ -176,10 +199,10 @@
     ],
     "turns": [
       {
-        "query": "It's a card game with matching pictures."
+        "query": "It's a card game with six cards. Every picture appears on exactly two cards."
       },
       {
-        "query": "Put all the cards face down to start."
+        "query": "Put all six cards face down to start."
       },
       {
         "query": "Flip any two cards.",
@@ -236,10 +259,10 @@
     ],
     "turns": [
       {
-        "query": "It's a card game with matching pictures."
+        "query": "It's a card game with six cards. Every picture appears on exactly two cards."
       },
       {
-        "query": "Put all the cards face down to start."
+        "query": "Put all six cards face down to start."
       },
       {
         "query": "Flip any two cards.",
