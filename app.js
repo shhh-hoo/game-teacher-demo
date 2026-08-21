@@ -26,6 +26,10 @@ function blankWorld() {
   };
 }
 
+function normalizePhase(phase) {
+  return phase === 'guided' ? 'practice' : phase;
+}
+
 const state = {
   screen: 'home',
   conversationId: sessionStorage.getItem('gameTeacherConversationId') || '',
@@ -66,9 +70,10 @@ function render() {
 }
 
 function renderProgress() {
-  const currentIndex = state.phase === 'complete'
+  const currentPhase = normalizePhase(state.phase);
+  const currentIndex = currentPhase === 'complete'
     ? PHASES.length
-    : Math.max(0, PHASES.indexOf(state.phase));
+    : Math.max(0, PHASES.indexOf(currentPhase));
 
   return `
     <div class="progress" aria-label="Lesson progress">
@@ -94,6 +99,7 @@ function renderHome() {
 
 function renderLesson() {
   const voiceLabel = state.listening ? 'Listening…' : '🎙️ Speak';
+  const visiblePhase = normalizePhase(state.phase);
   return `
     <section class="card lesson">
       <aside class="chat-pane">
@@ -101,7 +107,7 @@ function renderLesson() {
           <div class="avatar">🙂</div>
           <div>
             <b>Jamie</b>
-            <small>${state.phase === 'independent' ? 'A fresh listener · knows none of your rules yet' : 'Your friend · learning from your explanation'}</small>
+            <small>${visiblePhase === 'independent' ? 'A fresh listener · knows none of your rules yet' : 'Your friend · learning from your explanation'}</small>
           </div>
         </div>
 
@@ -115,20 +121,20 @@ function renderLesson() {
           <textarea
             id="studentInput"
             placeholder="Explain it to Jamie…"
-            ${state.loading || state.phase === 'complete' ? 'disabled' : ''}
+            ${state.loading || visiblePhase === 'complete' ? 'disabled' : ''}
           >${escapeHtml(state.inputDraft)}</textarea>
 
           <button
             class="secondary"
             id="micButton"
             title="${state.voiceSupported ? 'Speak instead of typing' : 'Speech recognition is not supported in this browser'}"
-            ${!state.voiceSupported || state.loading || state.phase === 'complete' ? 'disabled' : ''}
+            ${!state.voiceSupported || state.loading || visiblePhase === 'complete' ? 'disabled' : ''}
           >${voiceLabel}</button>
 
           <button
             class="primary"
             id="sendButton"
-            ${state.loading || state.phase === 'complete' ? 'disabled' : ''}
+            ${state.loading || visiblePhase === 'complete' ? 'disabled' : ''}
           >${state.loading ? '…' : 'Send'}</button>
         </div>
       </aside>
@@ -140,7 +146,7 @@ function renderLesson() {
             <h3>${escapeHtml(state.world.name || 'Your game')}</h3>
             <p>Visual details may be filled in. Game logic only comes from what you explain.</p>
           </div>
-          <div class="phase-pill">${PHASE_LABELS[state.phase] || state.phase}</div>
+          <div class="phase-pill">${PHASE_LABELS[visiblePhase] || visiblePhase}</div>
         </div>
 
         <div class="world-shell">
@@ -203,7 +209,7 @@ function renderWorldObject(object) {
   const kind = normalizeKind(object.kind);
   const objectState = String(object.state || 'available');
   const faceDown = objectState === 'face_down';
-  const interactive = Boolean(object.interactive) && ['practice', 'independent'].includes(state.phase) && !state.loading;
+  const interactive = Boolean(object.interactive) && ['practice', 'independent'].includes(normalizePhase(state.phase)) && !state.loading;
   const symbol = faceDown ? '' : String(object.symbol || object.label || '');
   const title = String(object.label || object.symbol || object.id || 'Game object');
   const positionStyle = buildObjectPositionStyle(object);
@@ -344,7 +350,7 @@ function restartLesson() {
 }
 
 async function submitMessage(overrideMessage = '') {
-  if (state.loading || state.phase === 'complete') return;
+  if (state.loading || normalizePhase(state.phase) === 'complete') return;
 
   const input = document.querySelector('#studentInput');
   const message = (overrideMessage || input?.value || state.inputDraft).trim();
@@ -360,7 +366,7 @@ async function submitMessage(overrideMessage = '') {
 }
 
 async function submitWorldEvent(event) {
-  if (state.loading || state.phase === 'complete') return;
+  if (state.loading || normalizePhase(state.phase) === 'complete') return;
   state.messages.push({ role: 'action', text: describeWorldEvent(event) });
   await requestLessonTurn({ event });
 }
@@ -391,8 +397,8 @@ async function requestLessonTurn({ message = '', event = null, speech = null }) 
     sessionStorage.setItem('gameTeacherConversationId', result.conversationId);
   }
 
-  const previousPhase = state.phase;
-  state.phase = result.phase || state.phase;
+  const previousPhase = normalizePhase(state.phase);
+  state.phase = normalizePhase(result.phase || state.phase);
 
   if (result.world_patch) applyWorldPatch(result.world_patch);
   if (result.capture_baseline) state.worldBaseline = cloneWorld(state.world);
@@ -495,7 +501,7 @@ function applyWorldPatch(patch) {
   if (patch.surface && typeof patch.surface === 'object') {
     state.world.surface = {
       ...state.world.surface,
-      ...sanitizeSurface(patch.surface),
+      ...sanitizeSurfacePatch(patch.surface),
     };
   }
 
@@ -518,16 +524,27 @@ function applyWorldPatch(patch) {
 }
 
 function upsertWorldObject(raw, mergeExisting) {
+  if (!raw || typeof raw !== 'object' || !raw.id) return;
+  const id = String(raw.id).slice(0, 64);
+  const index = state.world.objects.findIndex(item => String(item.id) === id);
+
+  if (mergeExisting) {
+    if (index === -1) return;
+    state.world.objects[index] = {
+      ...state.world.objects[index],
+      ...normalizeWorldObjectPatch(raw),
+      id,
+    };
+    return;
+  }
+
   const object = normalizeWorldObject(raw);
   if (!object) return;
-  const index = state.world.objects.findIndex(item => String(item.id) === String(object.id));
   if (index === -1) {
     if (state.world.objects.length < 36) state.world.objects.push(object);
     return;
   }
-  state.world.objects[index] = mergeExisting
-    ? { ...state.world.objects[index], ...object }
-    : object;
+  state.world.objects[index] = object;
 }
 
 async function applyUiAction(action) {
@@ -630,7 +647,7 @@ async function updateObjectState(id, objectState, delay) {
 }
 
 function toggleVoiceInput() {
-  if (!state.voiceSupported || state.loading || state.phase === 'complete') return;
+  if (!state.voiceSupported || state.loading || normalizePhase(state.phase) === 'complete') return;
 
   if (state.listening) {
     stopRecognition();
@@ -730,6 +747,19 @@ function sanitizeSurface(raw) {
     rows: clampNumber(raw?.rows, 0, 8, 0),
     columns: clampNumber(raw?.columns, 0, 8, type === 'grid' ? 3 : 0),
   };
+}
+
+function sanitizeSurfacePatch(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  const patch = {};
+  if ('type' in raw && ['table', 'grid'].includes(raw.type)) patch.type = raw.type;
+  if ('rows' in raw && raw.rows !== null && raw.rows !== '') {
+    patch.rows = clampNumber(raw.rows, 0, 8, 0);
+  }
+  if ('columns' in raw && raw.columns !== null && raw.columns !== '') {
+    patch.columns = clampNumber(raw.columns, 0, 8, 0);
+  }
+  return patch;
 }
 
 function normalizeWorldObject(raw) {
