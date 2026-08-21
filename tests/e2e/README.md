@@ -8,7 +8,7 @@ The demo has three jobs:
 2. show why AI is useful in this learning experience;
 3. show that the idea can be prototyped into a coherent student-facing interaction.
 
-The primary question is therefore learner-facing: does a Grade 3–4 child experience a believable loop of explain → world forms → Jamie acts → a real communication gap appears → repair changes reality → learning becomes explicit? Protocol checks remain underneath that product behavior as smoke tests.
+The primary question is therefore learner-facing: does a Grade 3–4 child experience a believable loop of explain → world forms → Jamie acts → a real communication gap appears → Notice & Teach → repair changes reality → guided play resumes? Protocol checks remain underneath that product behavior as smoke tests.
 
 ## Run
 
@@ -35,6 +35,8 @@ The repair probe is optional:
 ```bash
 node tests/e2e/run-dify.mjs --label v8 --scenario repair-locate-not-guess
 ```
+
+The `breadth-*` scenarios are secondary architecture probes. Do not optimize the take-home around them before the learner-facing golden path is credible.
 
 List scenarios:
 
@@ -65,9 +67,24 @@ Generated artifacts should not be committed.
 
 ### 1. `golden-path-learning-loop`
 
-This is the actual demo acceptance path. It should make the core product mechanism visible in a few turns:
+This is the actual demo acceptance path, not a card-animation smoke test.
 
-child explains → progressive world forms → Jamie can act → Jamie reaches a real missing next step → child repairs the explanation → reality changes → a short listener-centered Teach Moment can occur.
+The scripted learner now explicitly supplies the gameplay-relevant setup: six cards, with every picture appearing exactly twice. AI may choose harmless symbols or layout, but the test no longer asks AI to invent an unspecified card count just to make the world render.
+
+The intended path is:
+
+child describes concrete setup → world forms → child teaches one executable move → Jamie flips exactly two cards → Jamie reaches the first genuine missing outcome rule → the lesson enters Notice & Teach → the child supplies the missing matching/non-matching branches → Jamie immediately applies the correct branch to the currently revealed cards → guided practice resumes.
+
+The automated assertions deliberately check learner-facing state, not only protocol mechanics:
+
+- exactly six visible game objects after the learner supplies six cards;
+- all six cards become face down when the learner teaches setup;
+- exactly two cards are revealed for the taught move;
+- the first genuine blockage moves the frontend to `phase=teach`;
+- `support.type=teach_moment`, with `focus=completeness` and a non-empty listener gap;
+- Jamie's dialogue must naturally expose that it does not know the next step, without proposing a candidate Matching Pairs rule;
+- after the child teaches both outcome branches, Jamie must either remove the matching pair or hide the non-matching pair, depending on the actual revealed cards;
+- the repaired turn must move the lesson into `phase=practice`.
 
 This path is the most important evidence for H1 and H2. If it does not feel like a plausible learning interaction, passing lower-level protocol assertions does not make the prototype successful.
 
@@ -76,6 +93,8 @@ This path is the most important evidence for H1 and H2. If it does not feel like
 This shows one side of the AI value proposition: Jamie can understand messy, age-appropriate speech and self-correction without manufacturing fake learning problems. Normal child language should not be treated as a bad answer simply because it is not formally complete.
 
 Jamie may make an ordinary player choice or ask a natural clarification when the ambiguity is non-blocking.
+
+The setup also explicitly supplies six cards so this probe does not depend on the model inventing an arbitrary game size.
 
 ### 3. `faithful-listener-not-answer-key`
 
@@ -86,6 +105,8 @@ Together, scenarios 2 and 3 support the central AI design claim: Jamie should be
 ## Optional depth probe
 
 `repair-locate-not-guess` demonstrates the global Notice → Locate → Repair design. When the child only says “No, that's wrong,” Jamie should help locate the mismatch rather than guess the intended rule. It is useful evidence of interaction-design depth, but it is not required before the take-home demo is credible.
+
+Its setup likewise supplies a concrete six-card world rather than relying on AI to invent an unspecified card count.
 
 ## Manual PRD acceptance
 
@@ -108,6 +129,8 @@ The runner still protects obvious technical contradictions where they directly d
 - a clarification question while the world has already silently made the supposedly unresolved choice;
 - obvious unstated gameplay-rule leakage;
 - basic baseline/action consistency.
+
+The harness also supports product-facing expectations such as exact object counts, phase transitions, teaching-support type/focus, a grounded listener gap, natural positive dialogue evidence, and one-of action branches when the correct physical result depends on the current world state.
 
 These checks are evidence underneath the demo, not the reason the demo exists.
 
