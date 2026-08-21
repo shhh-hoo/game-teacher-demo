@@ -1,91 +1,119 @@
-# Dify setup
+# Dify v6 setup — Progressive World + Explicit Teaching
 
-The frontend is intentionally thin. Dify owns lesson state and returns structured `ui_action` commands.
-
-Use a **Chatflow** with this shape:
+v6 keeps the architectural boundary visible in the Chatflow:
 
 ```text
-Start
-  ↓
-Interpret Student (LLM)
-  ↓
-Lesson + Game Engine (Code)
-  ↓
-Save Jamie State (Variable Assigner)
-  ↓
-Return Frontend JSON (Answer)
+Student speech / game click
+        ↓
+AI Listener + World Builder
+        ↓
+Dify guardrails + phase routing
+        ↓
+Visible Pedagogy Policy
+        ↓
+World Engine + Global Repair
+        ↓
+Save deterministic lesson state
+        ↓
+AI Jamie response
+        ↓
+Frontend JSON
 ```
+
+Do not collapse the phase routing into the Code node. **Dify chooses pedagogy; the Code node validates world reality.**
 
 ## Conversation variables
 
-Create these variables:
+- `phase` — `experience` → `teach` → `practice` → `independent` → `transfer` → `complete`
+- `world_json` — current declarative game world
+- `listener_model_json` — only rules/instructions the current Jamie has actually been taught
+- `baseline_world_json` — first playable setup, retained for the fresh-listener reset
+- `scene_snapshot_json` — exact world immediately before the latest physical action sequence
+- `last_action_trace_json` — recent world-construction / play trace for global repair
+- `repair_count` — repeated vague corrections
+- `teach_count` — main Teach Moment plus at most one extra micro-teach
+- `practice_success_count` — successful guided applications
+- `independent_success_count` — optional fresh-listener performance evidence
 
-- `game_id` — string, default `matching_pairs`
-- `phase` — string, default `explain`
-- `friend_knowledge_json` — string, default `{}`
-- `game_state_json` — string, default `{"cards_initialized": false, "face_up": [], "matched": [], "turn": "jamie"}`
-- `last_action_trace_json` — string, default `[]`
-- `repair_count` — number, default `0`
+## AI Listener + World Builder
 
-## LLM node
+Use `interpreter-prompt.md` in a Parameter Extractor. It should expose:
 
-Use `interpreter-prompt.md` as the system prompt. Pass the current child message as `{{#sys.query#}}`.
+- `student_intent`
+- `correction_specificity`
+- `repair_target`
+- `off_topic`
+- `asr_uncertain`
+- `communication_blocking`
+- `communication_focus`
+- `gap_reason`
+- `world_patch_json`
+- `rule_updates_json`
+- `listener_summary`
+- `jamie_can_act`
+- `proposed_actions_json`
+- `world_ready`
+- `guided_success`
+- `independent_success`
+- `transfer_evidence`
 
-The LLM output is consumed by the Code node. It should return JSON only.
+The important semantic rule is:
 
-## Code node
+> AI may infer incidental presentation details. It may not invent gameplay-relevant logic.
 
-Copy `lesson-engine.py` into a Python Code node.
+A partial world is valid. The AI should not make the interface artificially complete by guessing a missing rule.
 
-Inputs:
+## Visible pedagogy routing
 
-- `interpreter_text` ← Interpret Student / text
-- `student_message` ← `sys.query`
-- `phase` ← conversation variable
-- `friend_knowledge_json` ← conversation variable
-- `game_state_json` ← conversation variable
-- `last_action_trace_json` ← conversation variable
-- `repair_count` ← conversation variable
+Global guardrails run first:
 
-Outputs:
+1. ASR uncertainty → ask to repeat; do not create a communication-teaching failure from recognizer uncertainty.
+2. Off topic → brief redirect.
+3. Correction → global repair, regardless of lesson phase.
+   - specific world correction → patch the rendered world
+   - specific action correction → restore the pre-action scene and replay
+   - first vague correction → ask which part was wrong
+   - repeated vague correction → show the actual build/action trace
 
-- `reply` string
-- `phase` string
-- `friend_knowledge_json` string
-- `game_state_json` string
-- `last_action_trace_json` string
-- `repair_count` number
-- `ui_action_json` string
-- `response_json` string
+Then route by lesson phase:
 
-## Variable Assigner
+- `experience`: keep building/acting until the first real blocking communication gap. At that first gap, show the main Teach Moment immediately rather than entering an indefinite clarification loop.
+- `teach`: let the child apply the listener-centered principle immediately, then move to guided practice.
+- `practice`: allow at most one additional micro-teach. After sufficient successful guided application, preserve the playable world, clear Jamie's learned rules, reset the physical state, and introduce a fresh listener.
+- `independent`: no teaching scaffold. Jamie gives only natural listener feedback. One sufficiently complete fresh-listener performance can move to transfer.
+- `transfer`: ask what the child should think about before explaining a different game to someone new; finish when the response shows listener-centered transfer.
 
-Overwrite the conversation variables with the corresponding outputs from the Code node.
+## World Engine
 
-## Answer node
+Copy `lesson-engine.py` into the deterministic Code node *after* the selected pedagogy-policy aggregator.
 
-Return only:
+The engine may:
 
-```text
-{{#<your-code-node-id>.response_json#}}
-```
+- sanitize/merge the declarative world patch;
+- merge only student-taught semantic rule updates;
+- validate object IDs and atomic actions;
+- capture the first playable baseline before play mutates it;
+- preserve the exact pre-action scene for replay;
+- build the repair trace;
+- execute the Dify-selected policy's permitted actions;
+- reset the world for the fresh-listener performance.
 
-The Vercel `/api/chat` proxy parses this JSON and forwards it to the browser.
+It must not decide whether to teach, micro-teach, fade scaffolds, transfer, or finish. Those decisions remain visible Dify branches.
 
-## Frontend action protocol
+## Browser world protocol
 
-Currently supported actions:
+The world is declarative. Supported surface types are `table` and `grid`. Supported object types are `card`, `token`, `piece`, `cell`, `marker`, and generic `object`.
 
-- `none`
-- `setup_cards`
-- `flip_cards`
-- `flip_two_then_flip_back`
-- `flip_back`
-- `retry_turn`
-- `switch_turn`
-- `show_repair_steps`
-- `preview_match`
-- `complete_play`
-- `lesson_complete`
+Supported atomic actions are:
 
-The important boundary is: **Dify decides what Jamie knows and what should happen; the browser only renders the result.**
+- `update_object`
+- `reveal_object`
+- `hide_object`
+- `remove_object`
+- `set_turn`
+- `set_counter`
+- `set_status`
+- `wait`
+- `reset_to_baseline`
+
+The browser also sends object clicks back as `[[GAME_TEACHER_EVENT]]` requests so the rendered world can become genuinely playable during guided or independent play.
