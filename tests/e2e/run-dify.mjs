@@ -154,6 +154,100 @@ function transcriptText(dialogue) {
     .join('\n\n');
 }
 
+function visiblePair(world) {
+  const revealed = (world?.objects || []).filter(object => object?.state === 'face_up');
+  if (revealed.length !== 2) {
+    throw new Error(`Expected exactly two revealed objects before repair; got ${revealed.length}.`);
+  }
+  const identity = object => {
+    for (const key of ['symbol', 'caption', 'label']) {
+      const value = String(object?.[key] ?? '').trim();
+      if (value) return `${key}:${value}`;
+    }
+    return null;
+  };
+  const a = identity(revealed[0]);
+  const b = identity(revealed[1]);
+  if (!a || !b) throw new Error('Cannot determine whether the revealed pair matches from visible object identity.');
+  return { objects: revealed, matches: a === b, identity: [a, b] };
+}
+
+function resolveTurnQuery(turn, world) {
+  if (typeof turn.query === 'string') return turn.query;
+  if (turn.queryFromWorld === 'repair-revealed-pair') {
+    const pair = visiblePair(world);
+    return pair.matches
+      ? 'If they match, take both cards out.'
+      : "If they don't match, turn both cards face down again.";
+  }
+  throw new Error(`Turn has no supported query source: ${JSON.stringify(turn)}`);
+}
+
+function normalizedActionTypes(actions) {
+  return actions.filter(action => action.type !== 'wait').map(action => action.type);
+}
+
+function visibleWorldText(patch) {
+  const text = [];
+  for (const key of ['name', 'status']) {
+    if (patch?.[key] != null) text.push(String(patch[key]));
+  }
+  for (const listName of ['add_objects', 'update_objects']) {
+    for (const object of patch?.[listName] || []) {
+      for (const key of ['label', 'caption']) {
+        if (object?.[key] != null) text.push(String(object[key]));
+      }
+    }
+  }
+  return text.join(' ');
+}
+
+function extraAssertions({ expected, payload, previousWorld, actions }) {
+  const results = [];
+  const pass = (name, detail = '') => ({ name, ok: true, detail });
+  const fail = (name, detail) => ({ name, ok: false, detail });
+
+  if (Array.isArray(expected.worldTextMustNotContain)) {
+    const text = visibleWorldText(payload?.world_patch || {});
+    const lower = text.toLowerCase();
+    const bad = expected.worldTextMustNotContain.filter(token => lower.includes(String(token).toLowerCase()));
+    results.push(bad.length
+      ? fail('turn.world-visible-text-leakage', `Visible world text contains unstated gameplay language: ${bad.join(', ')}. Text=${JSON.stringify(text)}`)
+      : pass('turn.world-visible-text-leakage'));
+  }
+
+  if (expected.listenerGapAfterAction) {
+    const actionPlanGap = payload?.debug?.action_plan?.post_action_gap;
+    const pendingGap = payload?.debug?.controller?.pending_gap;
+    const gap = actionPlanGap || pendingGap;
+    const missing = String(gap?.missing_for_next_action || '').trim();
+    results.push(missing
+      ? pass('turn.listener-gap-after-action', missing)
+      : fail('turn.listener-gap-after-action', 'Jamie acted, but no grounded post-action/pending listener gap was recorded.'));
+  }
+
+  if (expected.actionTypesMatchRevealedPair) {
+    let pair;
+    try {
+      pair = visiblePair(previousWorld);
+    } catch (error) {
+      results.push(fail('turn.repair-branch', String(error?.message || error)));
+      pair = null;
+    }
+    if (pair) {
+      const expectedTypes = pair.matches
+        ? ['remove_object', 'remove_object']
+        : ['hide_object', 'hide_object'];
+      const actual = normalizedActionTypes(actions);
+      results.push(JSON.stringify(actual) === JSON.stringify(expectedTypes)
+        ? pass('turn.repair-branch', `${pair.matches ? 'matching' : 'non-matching'} pair → ${actual.join(', ')}`)
+        : fail('turn.repair-branch', `Revealed pair was ${pair.matches ? 'matching' : 'non-matching'} (${pair.identity.join(' vs ')}); expected ${JSON.stringify(expectedTypes)}, got ${JSON.stringify(actual)}`));
+    }
+  }
+
+  return results;
+}
+
 const traceRoot = path.resolve(process.cwd(), '.artifacts', 'dify-e2e');
 await fs.mkdir(traceRoot, { recursive: true });
 
@@ -193,21 +287,32 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
       totalTurns += 1;
       const turn = scenario.turns[index];
       const previousWorld = JSON.parse(JSON.stringify(world));
+      let query = '';
       try {
-        const result = await sendTurn({ query: turn.query, conversationId, user });
+        query = resolveTurnQuery(turn, previousWorld);
+        const result = await sendTurn({ query, conversationId, user });
         conversationId = result.data.conversation_id || conversationId;
         const payload = result.payload;
         const actions = flattenActions(payload.ui_action);
         const worldAfterPatch = applyWorldPatch(world, payload.world_patch);
         if (payload.capture_baseline && !baseline) baseline = JSON.parse(JSON.stringify(worldAfterPatch));
         world = applyActions(worldAfterPatch, actions, baseline);
-        const assertionResults = runAssertions({
-          expected: turn.assert || {},
-          payload,
-          previousWorld,
-          worldAfterPatch,
-          actions,
-        });
+
+        const assertionResults = [
+          ...runAssertions({
+            expected: turn.assert || {},
+            payload,
+            previousWorld,
+            worldAfterPatch,
+            actions,
+          }),
+          ...extraAssertions({
+            expected: turn.assert || {},
+            payload,
+            previousWorld,
+            actions,
+          }),
+        ];
         const failures = assertionResults.filter(result => !result.ok);
         if (failures.length) {
           scenarioBehaviorFailures += 1;
@@ -215,6 +320,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
           scenarioAssertionFailures += failures.length;
           totalAssertionFailures += failures.length;
         }
+
         const turnUsage = usageFrom(result.data);
         addMetrics(scenarioMetrics, result.elapsedMs, turnUsage);
         addMetrics(aggregateMetrics, result.elapsedMs, turnUsage);
@@ -229,16 +335,17 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
             console.log(`    ${failure.name}: ${failure.detail}`);
           }
         } else if (verbose) {
-          console.log(`    Student: ${turn.query}`);
+          console.log(`    Student: ${query}`);
           console.log(`    Jamie: ${String(payload?.reply || '')}`);
         }
 
         const jamieReply = String(payload?.reply || '');
-        dialogue.push({ student: turn.query, jamie: jamieReply });
+        dialogue.push({ student: query, jamie: jamieReply });
 
         turnsTrace.push({
           index: index + 1,
-          query: turn.query,
+          query,
+          querySource: turn.queryFromWorld || 'literal',
           elapsedMs: result.elapsedMs,
           usage: turnUsage,
           conversationId,
@@ -270,7 +377,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
 
         turnsTrace.push({
           index: index + 1,
-          query: turn.query,
+          query: query || turn.query || `[${turn.queryFromWorld || 'unresolved query'}]`,
           errorCategory: category,
           runtimeError: error.stack || error.message,
         });
