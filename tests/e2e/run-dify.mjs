@@ -21,6 +21,7 @@ const getArg = name => {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : null;
 };
+const verbose = args.includes('--verbose');
 
 if (args.includes('--list')) {
   for (const scenario of scenarios) console.log(scenario.name);
@@ -38,8 +39,7 @@ if (!apiKey) {
   process.exit(1);
 }
 if (!versionLabel) {
-  console.error('Missing version label. Use --label v7-fixed2 (or set DIFY_TEST_VERSION).');
-  console.error('The label is recorded in traces so runs cannot silently become anonymous/mis-versioned.');
+  console.error('Missing version label. Use --label v8 (or set DIFY_TEST_VERSION).');
   process.exit(1);
 }
 
@@ -113,6 +113,22 @@ function classifyRuntimeError(error) {
   return 'runtime';
 }
 
+function conciseError(error) {
+  const message = String(error?.message || error || '');
+  const difyStatus = message.match(/\bDify\s+(\d{3})\b/i);
+  const jsonMessage = message.match(/"message"\s*:\s*"([^"]+)"/i);
+  if (difyStatus && jsonMessage) return `Dify ${difyStatus[1]} · ${jsonMessage[1]}`;
+
+  const htmlTitle = message.match(/<title>\s*[^|<]*\|\s*(?:\d{3}:\s*)?([^<]+)<\/title>/i);
+  if (difyStatus && htmlTitle) return `Dify ${difyStatus[1]} · ${htmlTitle[1].trim()}`;
+  if (difyStatus) return `Dify ${difyStatus[1]}`;
+
+  if (/fetch failed/i.test(message)) return 'fetch failed';
+
+  const firstLine = message.split('\n').find(line => line.trim()) || 'Unknown error';
+  return firstLine.trim().slice(0, 220);
+}
+
 function usageFrom(data) {
   const usage = data?.metadata?.usage || {};
   return {
@@ -132,6 +148,12 @@ function addMetrics(target, elapsedMs, usage) {
   target.successfulTurns += 1;
 }
 
+function transcriptText(dialogue) {
+  return dialogue
+    .map(turn => `Student: ${turn.student}\nJamie: ${turn.jamie}`)
+    .join('\n\n');
+}
+
 const traceRoot = path.resolve(process.cwd(), '.artifacts', 'dify-e2e');
 await fs.mkdir(traceRoot, { recursive: true });
 
@@ -141,11 +163,14 @@ let totalRuntimeErrors = 0;
 let totalTurns = 0;
 const aggregateMetrics = { elapsedMs: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, successfulTurns: 0 };
 const runSummary = [];
+const completedDialogues = [];
 
-console.log('Dify E2E regression run');
-console.log(`Version label: ${versionLabel}`);
-console.log(`Scenarios: ${selected.length} × ${repeat}`);
-console.log(`Base URL: ${baseUrl}\n`);
+console.log(`Dify E2E · ${versionLabel}`);
+if (verbose) {
+  console.log(`Scenarios: ${selected.length} × ${repeat}`);
+  console.log(`Base URL: ${baseUrl}`);
+}
+console.log('');
 
 for (let iteration = 1; iteration <= repeat; iteration += 1) {
   for (const scenario of selected) {
@@ -154,6 +179,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
     let world = blankWorld();
     let baseline = null;
     const turnsTrace = [];
+    const dialogue = [];
     let scenarioBehaviorFailures = 0;
     let scenarioInfraErrors = 0;
     let scenarioRuntimeErrors = 0;
@@ -186,9 +212,23 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
         const turnUsage = usageFrom(result.data);
         addMetrics(scenarioMetrics, result.elapsedMs, turnUsage);
         addMetrics(aggregateMetrics, result.elapsedMs, turnUsage);
-        const mark = failures.length ? 'FAIL' : 'PASS';
-        console.log(`  ${mark} ${index + 1}. ${turn.query} (${(result.elapsedMs / 1000).toFixed(1)}s, ${turnUsage.totalTokens.toLocaleString()} tok)`);
-        for (const failure of failures) console.log(`       ✗ ${failure.name}: ${failure.detail}`);
+
+        const mark = failures.length ? '✗' : '✓';
+        const perf = verbose
+          ? `${(result.elapsedMs / 1000).toFixed(1)}s · ${turnUsage.totalTokens.toLocaleString()} tok`
+          : `${(result.elapsedMs / 1000).toFixed(1)}s`;
+        console.log(`  ${mark} turn ${index + 1} · ${perf}`);
+        if (failures.length) {
+          for (const failure of failures) {
+            console.log(`    ${failure.name}: ${failure.detail}`);
+          }
+        } else if (verbose) {
+          console.log(`    Student: ${turn.query}`);
+          console.log(`    Jamie: ${String(payload?.reply || '')}`);
+        }
+
+        const jamieReply = String(payload?.reply || '');
+        dialogue.push({ student: turn.query, jamie: jamieReply });
 
         turnsTrace.push({
           index: index + 1,
@@ -214,8 +254,9 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
           scenarioRuntimeErrors += 1;
           totalRuntimeErrors += 1;
         }
-        console.log(`  ${category === 'infra' ? 'INFRA' : 'ERROR'} ${index + 1}. ${turn.query}`);
-        console.log(`       ✗ ${category}: ${error.message}`);
+        console.log(`  ${category === 'infra' ? '!' : '✗'} turn ${index + 1} · ${conciseError(error)}`);
+        if (verbose) console.log(`    ${String(error?.message || error).slice(0, 1200)}`);
+
         turnsTrace.push({
           index: index + 1,
           query: turn.query,
@@ -239,19 +280,23 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
       infraErrors: scenarioInfraErrors,
       runtimeErrors: scenarioRuntimeErrors,
       metrics: scenarioMetrics,
+      conversation: dialogue,
       turns: turnsTrace,
     };
-    const traceName = `${safeStamp()}__${versionLabel.replace(/[^a-zA-Z0-9_.-]/g, '_')}__${scenario.name}__${iteration}.json`;
-    const tracePath = path.join(traceRoot, traceName);
+
+    const stem = `${safeStamp()}__${versionLabel.replace(/[^a-zA-Z0-9_.-]/g, '_')}__${scenario.name}__${iteration}`;
+    const tracePath = path.join(traceRoot, `${stem}.json`);
+    const conversationPath = path.join(traceRoot, `${stem}__conversation.txt`);
     await fs.writeFile(tracePath, JSON.stringify(trace, null, 2));
-    console.log(`  → trace: ${path.relative(process.cwd(), tracePath)}`);
-    if (scenario.manualReview?.length) {
-      console.log(`  → manual review: ${scenario.manualReview.join(' | ')}`);
-    }
-    if (scenarioMetrics.successfulTurns) {
-      console.log(`  → metrics: ${(scenarioMetrics.elapsedMs / 1000).toFixed(1)}s, ${scenarioMetrics.totalTokens.toLocaleString()} tokens`);
+    await fs.writeFile(conversationPath, `${transcriptText(dialogue)}${dialogue.length ? '\n' : ''}`);
+
+    console.log(`  trace · ${path.relative(process.cwd(), tracePath)}`);
+    console.log(`  text  · ${path.relative(process.cwd(), conversationPath)}`);
+    if (verbose && scenario.manualReview?.length) {
+      console.log(`  manual review · ${scenario.manualReview.length} item(s)`);
     }
     console.log('');
+
     runSummary.push({
       scenario: scenario.name,
       iteration,
@@ -260,15 +305,23 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
       runtimeErrors: scenarioRuntimeErrors,
       metrics: scenarioMetrics,
       tracePath,
+      conversationPath,
     });
+    completedDialogues.push(dialogue);
   }
 }
 
 const averageMs = aggregateMetrics.successfulTurns ? aggregateMetrics.elapsedMs / aggregateMetrics.successfulTurns : 0;
 const averageTokens = aggregateMetrics.successfulTurns ? aggregateMetrics.totalTokens / aggregateMetrics.successfulTurns : 0;
-console.log(`Finished: ${runSummary.length} scenario run(s), ${totalTurns} attempted turn(s).`);
-console.log(`Behavior failures: ${totalBehaviorFailures}; infra errors: ${totalInfraErrors}; runtime errors: ${totalRuntimeErrors}.`);
+
+console.log(`Result · ${totalBehaviorFailures} behavior · ${totalInfraErrors} infra · ${totalRuntimeErrors} runtime`);
 if (aggregateMetrics.successfulTurns) {
-  console.log(`Successful turns: ${aggregateMetrics.successfulTurns}; avg ${(averageMs / 1000).toFixed(1)}s/turn; avg ${Math.round(averageTokens).toLocaleString()} tokens/turn; total ${aggregateMetrics.totalTokens.toLocaleString()} tokens.`);
+  console.log(`Perf   · ${(averageMs / 1000).toFixed(1)}s/turn · ${Math.round(averageTokens).toLocaleString()} tok/turn`);
 }
+
+if (completedDialogues.length === 1 && completedDialogues[0].length) {
+  console.log('\nConversation\n');
+  console.log(transcriptText(completedDialogues[0]));
+}
+
 if (totalBehaviorFailures || totalInfraErrors || totalRuntimeErrors) process.exit(1);
