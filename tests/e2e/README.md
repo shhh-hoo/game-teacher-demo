@@ -42,7 +42,24 @@ List scenarios:
 node tests/e2e/run-dify.mjs --list
 ```
 
-Generated traces are written to `.artifacts/dify-e2e/` and should not be committed.
+## Output
+
+Default terminal output is intentionally concise. It shows only turn status, short failure/error summaries, artifact paths, and one overall performance summary. Provider HTML error pages and full raw responses stay in the JSON trace instead of flooding the terminal.
+
+For detailed terminal diagnostics, add:
+
+```bash
+--verbose
+```
+
+Every scenario writes two artifacts under `.artifacts/dify-e2e/`:
+
+- `*.json` — complete technical trace for debugging and review;
+- `*__conversation.txt` — only the Student/Jamie dialogue, ready to copy into the take-home as an example.
+
+When exactly one scenario is run, the same clean conversation is also printed at the very end of the terminal output.
+
+Generated artifacts should not be committed.
 
 ## What the three must-run scenarios prove
 
