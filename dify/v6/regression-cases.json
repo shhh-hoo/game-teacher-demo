@@ -1,0 +1,55 @@
+[
+  {
+    "name": "matching relation without gameplay leakage",
+    "input": "It uses cards with matching pictures.",
+    "must_allow": [
+      "multiple card objects",
+      "repeated symbols/pictures",
+      "presentation layout inference"
+    ],
+    "must_not_infer": [
+      "cards start face down",
+      "flip cards",
+      "find pairs",
+      "keep matches",
+      "most pairs wins"
+    ],
+    "safe_reply_pattern": "Open question such as 'What do I do with the cards?'"
+  },
+  {
+    "name": "atomic one-card action",
+    "input": "Flip one card.",
+    "must_allow": [
+      "exactly one reveal action"
+    ],
+    "must_not_infer": [
+      "a second reveal action"
+    ]
+  },
+  {
+    "name": "compressed two-card action",
+    "input": "Flip two cards.",
+    "must_allow": [
+      "two consecutive reveal actions"
+    ],
+    "must_not_infer": [
+      "what happens after the two cards are revealed"
+    ]
+  },
+  {
+    "name": "child-defined variant",
+    "input": "If they're different, leave them face up.",
+    "must_allow": [
+      "store the child-defined conditional rule"
+    ],
+    "must_not_infer": [
+      "standard matching-game non-match behavior"
+    ]
+  },
+  {
+    "name": "leading-question leakage",
+    "input": "They have matching pictures.",
+    "unsafe_reply": "Do we get to flip them over and try to find the pairs?",
+    "expected_guard_behavior": "rewrite to a non-leading question grounded only in visible/known facts"
+  }
+]
