@@ -24,23 +24,17 @@ The repo includes the Dify node source under `dify/`:
 
 ## Run locally
 
-For the UI-only preview, any static server works:
+This demo intentionally has **no local lesson-logic mock**. The browser requires the real Dify-backed `/api/chat` endpoint.
 
-```bash
-python3 -m http.server 4173
-```
-
-Then open `http://localhost:4173`.
-
-The UI falls back to a small local preview script if `/api/chat` is unavailable, so reviewers can still exercise the main interaction without credentials.
-
-For the real Dify integration, use Vercel dev so `/api/chat` is available:
+Create `.env.local` from `.env.example` and set your Dify API key, then run:
 
 ```bash
 npx vercel dev
 ```
 
-Create `.env.local` from `.env.example` and set your Dify API key.
+Open the local URL printed by Vercel.
+
+If `/api/chat` is unavailable or `DIFY_API_KEY` is missing, the UI reports a Dify connection error and does not simulate a response locally.
 
 ## Dify
 
@@ -64,7 +58,7 @@ The frontend expects the Chatflow answer to be JSON with this shape:
 }
 ```
 
-The earlier importable Dify DSL for this same Matching Pairs Chatflow can be used directly; the source files here are kept readable so the behavior is easy to review and modify.
+The importable Dify DSL for this same Matching Pairs Chatflow can be used directly; the source files here are kept readable so the behavior is easy to review and modify.
 
 ## Deploy
 
