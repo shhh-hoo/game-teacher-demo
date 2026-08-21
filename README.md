@@ -64,7 +64,32 @@ The frontend expects the Chatflow answer to be JSON with this shape:
 }
 ```
 
-The earlier importable Dify DSL for this same Matching Pairs Chatflow can be used directly; the source files here are kept readable so the behavior is easy to review and modify.
+The Vercel `/api/chat` proxy parses this JSON and forwards it to the browser.
+
+## Tests
+
+The deterministic lesson/game engine can be tested without an LLM or Dify account:
+
+```bash
+python tests/test_lesson_engine.py
+```
+
+GitHub Actions runs the same checks on every push. These tests cover partial explanations, specific repair, repeated vague `No`, no forced friction for a complete explanation, and off-topic turns.
+
+`tests/grade3-4-scenarios.md` contains deliberately messy child-like language for live interpreter testing. It is meant to catch the two most important model failures: silently filling in rules the child never said, and being too strict about understandable Grade 3–4 language.
+
+After the Chatflow is published and `DIFY_API_KEY` is available, run a real multi-turn smoke test directly against Dify:
+
+```bash
+node scripts/smoke-dify.mjs
+```
+
+That script verifies this sequence:
+
+1. partial explanation → Jamie exposes a real rule gap;
+2. first vague `No` → one clarification question;
+3. second vague `No` → repair-step locator;
+4. specific repair → Jamie updates and retries.
 
 ## Deploy
 
