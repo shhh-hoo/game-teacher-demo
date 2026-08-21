@@ -150,22 +150,45 @@ function assertProtocol(payload, actions, worldAfterPatch) {
   if (!payload || typeof payload !== 'object') {
     return [fail('protocol.payload-object', 'Parsed answer is not an object.')];
   }
+
   for (const key of ['reply', 'phase', 'world_patch', 'ui_action', 'capture_baseline']) {
     if (!Object.prototype.hasOwnProperty.call(payload, key)) {
       results.push(fail(`protocol.${key}`, `Missing top-level field: ${key}`));
     }
   }
+
+  const pipelineErrors = payload?.debug?.pipeline_errors;
+  if (Array.isArray(pipelineErrors) && pipelineErrors.length) {
+    results.push(fail('protocol.pipeline-errors', `Internal pipeline reported: ${pipelineErrors.join(', ')}`));
+  }
+
+  const actionPlan = payload?.debug?.action_plan;
+  if (actionPlan !== undefined) {
+    const isObject = actionPlan && typeof actionPlan === 'object' && !Array.isArray(actionPlan);
+    const hasPlannerShape = isObject
+      && typeof actionPlan.action_ready === 'boolean'
+      && Array.isArray(actionPlan.actions);
+    const looksLikeFrontendResponse = isObject
+      && ['reply', 'world_patch', 'ui_action', 'debug'].some(key => Object.prototype.hasOwnProperty.call(actionPlan, key));
+
+    if (!hasPlannerShape || looksLikeFrontendResponse) {
+      results.push(fail(
+        'protocol.action-plan-shape',
+        `debug.action_plan is not a planner result. Expected {action_ready:boolean, actions:array, ...}; got keys=${isObject ? Object.keys(actionPlan).join(',') : typeof actionPlan}`,
+      ));
+    }
+  }
+
   for (const action of actions) {
     if (!ALLOWED_ACTION_TYPES.has(action.type)) {
       results.push(fail('protocol.allowed-action-type', `Unsupported/legacy action type: ${action.type}`));
     }
-  }
-  for (const action of actions) {
     if (['reveal_object', 'hide_object', 'remove_object', 'update_object'].includes(action.type)) {
       const exists = (worldAfterPatch.objects || []).some(object => String(object.id) === String(action.object_id));
       if (!exists) results.push(fail('protocol.action-target-exists', `${action.type} targets missing object ${action.object_id}`));
     }
   }
+
   if (!results.length) results.push(pass('protocol.core'));
   return results;
 }
@@ -305,6 +328,14 @@ export function runAssertions({ expected = {}, payload, previousWorld, worldAfte
     results.push(count >= expected.minObjects
       ? pass('turn.min-objects', String(count))
       : fail('turn.min-objects', `Expected at least ${expected.minObjects} objects; got ${count}`));
+  }
+
+  if (typeof expected.allObjectStates === 'string') {
+    const objects = worldAfterPatch.objects || [];
+    const bad = objects.filter(object => object?.state !== expected.allObjectStates);
+    results.push(objects.length > 0 && bad.length === 0
+      ? pass('turn.all-object-states', expected.allObjectStates)
+      : fail('turn.all-object-states', `Expected every rendered object state to be ${expected.allObjectStates}; bad=${bad.map(object => `${object?.id}:${object?.state}`).join(', ') || 'no objects'}`));
   }
 
   if (expected.trueDelta) results.push(...assertTrueDelta(previousWorld, payload?.world_patch || {}));
