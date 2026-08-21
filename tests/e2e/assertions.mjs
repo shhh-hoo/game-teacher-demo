@@ -20,6 +20,15 @@ const GAMEPLAY_LEAK_PATTERNS = [
   /\bwho wins?\b/i,
 ];
 
+const CANDIDATE_RULE_PATTERNS = [
+  /\b(?:keep|take|collect|remove) (?:them|the cards?|the pair)\b/i,
+  /\b(?:flip|turn) (?:them|the cards?) back\b/i,
+  /\b(?:get|score|earn) (?:a |one )?(?:point|points)\b/i,
+  /\b(?:go|play|take) again\b/i,
+  /\b(?:another|extra) turn\b/i,
+  /\b(?:win|winner)\b/i,
+];
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -212,6 +221,41 @@ function assertNoRuntimeActionEffectsInPatch(patch, actions) {
   return failures.length ? failures : [pass('turn.world-action-separation')];
 }
 
+function looksLikeChoiceClarification(reply, expectedCount) {
+  const lower = String(reply || '').toLowerCase();
+  if (!/[?]|\bwhich\b|\bwhat\b|\bchoose\b|\bpick\b/.test(lower)) return false;
+  if (expectedCount === 1) {
+    return /\bwhich (?:one|card)\b/.test(lower)
+      || /\bwhat card\b/.test(lower)
+      || /\bwhich one should i\b/.test(lower)
+      || (/\bone card\b/.test(lower) && /[?]/.test(lower));
+  }
+  if (expectedCount === 2) {
+    return /\bwhich two\b/.test(lower)
+      || /\bwhat two\b/.test(lower)
+      || (/\btwo cards?\b/.test(lower) && /[?]/.test(lower));
+  }
+  return lower.includes(String(expectedCount)) && /[?]/.test(lower);
+}
+
+function assertActionOrClarifyCount(reply, actions, expectedCount) {
+  const reveals = actions.filter(action => action.type === 'reveal_object');
+  const otherActions = actions.filter(action => action.type !== 'reveal_object' && action.type !== 'wait');
+
+  if (reveals.length === expectedCount && otherActions.length === 0) {
+    return pass('turn.action-or-clarify-count', `executed ${expectedCount} reveal_object action(s)`);
+  }
+
+  if (actions.length === 0 && looksLikeChoiceClarification(reply, expectedCount)) {
+    return pass('turn.action-or-clarify-count', `clarified an underspecified choice for ${expectedCount} card(s)`);
+  }
+
+  return fail(
+    'turn.action-or-clarify-count',
+    `Expected either ${expectedCount} reveal_object action(s) or a natural clarification preserving count=${expectedCount}; got actions=${JSON.stringify(actions.map(action => action.type))}, reply=${JSON.stringify(reply)}`,
+  );
+}
+
 export function runAssertions({ expected = {}, payload, previousWorld, worldAfterPatch, actions }) {
   const results = [...assertProtocol(payload, actions, worldAfterPatch)];
   const reply = String(payload?.reply || '');
@@ -223,11 +267,22 @@ export function runAssertions({ expected = {}, payload, previousWorld, worldAfte
       : pass('turn.no-gameplay-leakage'));
   }
 
+  if (expected.noCandidateRuleLeakage) {
+    const leaked = CANDIDATE_RULE_PATTERNS.filter(pattern => pattern.test(reply)).map(pattern => pattern.source);
+    results.push(leaked.length
+      ? fail('turn.no-candidate-rule-leakage', `Clarification appears to supply a candidate gameplay rule: ${reply}`)
+      : pass('turn.no-candidate-rule-leakage'));
+  }
+
   if (Array.isArray(expected.actionTypes)) {
     const actual = actions.map(action => action.type);
     results.push(JSON.stringify(actual) === JSON.stringify(expected.actionTypes)
       ? pass('turn.action-types', actual.join(', ') || 'none')
       : fail('turn.action-types', `Expected ${JSON.stringify(expected.actionTypes)}; got ${JSON.stringify(actual)}`));
+  }
+
+  if (Number.isFinite(expected.actionOrClarifyCount)) {
+    results.push(assertActionOrClarifyCount(reply, actions, expected.actionOrClarifyCount));
   }
 
   if (typeof expected.captureBaseline === 'boolean') {
