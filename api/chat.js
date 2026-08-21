@@ -1,3 +1,41 @@
+function parseDifyAnswer(answer) {
+  if (answer && typeof answer === 'object') return answer;
+  if (typeof answer !== 'string') {
+    throw new Error(`Dify answer has unexpected type: ${typeof answer}`);
+  }
+
+  const original = answer;
+  const trimmed = original.trim();
+  const candidates = [trimmed];
+
+  // Dify Answer nodes should return raw JSON, but tolerate an accidental Markdown fence.
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenced) candidates.push(fenced[1].trim());
+
+  // Also tolerate surrounding text while debugging by trying the outermost JSON object.
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    candidates.push(trimmed.slice(firstBrace, lastBrace + 1));
+  }
+
+  for (const candidate of [...new Set(candidates)]) {
+    try {
+      let parsed = JSON.parse(candidate);
+      // Handle an accidentally double-encoded JSON string once.
+      if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  const preview = original.length > 1200 ? `${original.slice(0, 1200)}…` : original;
+  const error = new Error('Dify answer was not valid frontend JSON');
+  error.rawAnswer = preview;
+  throw error;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -15,7 +53,6 @@ export default async function handler(req, res) {
     message,
     conversationId = '',
     userId = 'game-teacher-demo-user',
-    gameId = 'matching_pairs',
   } = req.body || {};
 
   if (!message || typeof message !== 'string') {
@@ -30,9 +67,9 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: {
-          game_id: gameId,
-        },
+        // The current imported Chatflow has no Start input variables.
+        // game_id is a conversation variable inside Dify, so do not send it here.
+        inputs: {},
         query: message,
         response_mode: 'blocking',
         conversation_id: conversationId || '',
@@ -49,18 +86,26 @@ export default async function handler(req, res) {
       });
     }
 
-    const data = JSON.parse(raw);
-    let lessonPayload = data.answer;
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return res.status(502).json({
+        error: 'Dify API response was not JSON',
+        detail: raw.slice(0, 1200),
+      });
+    }
 
-    if (typeof lessonPayload === 'string') {
-      try {
-        lessonPayload = JSON.parse(lessonPayload);
-      } catch {
-        return res.status(502).json({
-          error: 'Dify answer was not valid JSON',
-          answer: data.answer,
-        });
-      }
+    let lessonPayload;
+    try {
+      lessonPayload = parseDifyAnswer(data.answer);
+    } catch (error) {
+      return res.status(502).json({
+        error: 'Dify answer was not valid frontend JSON',
+        detail: `${error.message}. Raw Dify answer: ${error.rawAnswer ?? String(data.answer)}`,
+        conversationId: data.conversation_id,
+        messageId: data.message_id,
+      });
     }
 
     return res.status(200).json({
