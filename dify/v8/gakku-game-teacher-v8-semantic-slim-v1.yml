@@ -1,0 +1,3238 @@
+app:
+  description: GAKKU v8 revised stable semantics: explicit player agency vs rule authority, deterministic clarify invariant, pending gap lifecycle, repair-based reflection, and light scaffold. v8 semantic-preserving simplification: deterministic guards/eval + compact context.
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  mode: advanced-chat
+  name: GAKKU Game Teacher v8 Revised
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/deepseek:0.0.7@4ac062cb8c2cb3d00834131bab821e8a2012210f586f1234c44c5c73bc9563ac
+kind: app
+version: 0.4.0
+workflow:
+  conversation_variables:
+  - description: ''
+    id: a8c4e6d7-3ec5-4e9a-8e3a-e0bc56533710
+    name: phase
+    selector:
+    - conversation
+    - phase
+    value: experience
+    value_type: string
+  - description: ''
+    id: b7e3fb33-36a0-4eb1-8399-ec7ad4262ac6
+    name: student_model_json
+    selector:
+    - conversation
+    - student_model_json
+    value: '{"facts": [], "instructions": [], "messages": [], "turn_count": 0}'
+    value_type: string
+  - description: ''
+    id: 9d7bbf8b-cfe9-4078-aee7-4581826c893b
+    name: render_model_json
+    selector:
+    - conversation
+    - render_model_json
+    value: '{"surface": null, "objects": [], "provenance": []}'
+    value_type: string
+  - description: ''
+    id: 8db44ee0-78ac-4f16-abca-05bca46efe81
+    name: listener_model_json
+    selector:
+    - conversation
+    - listener_model_json
+    value: '{"facts": [], "instructions": []}'
+    value_type: string
+  - description: ''
+    id: e332a59d-4e2c-4756-b7ea-4f5787ba4605
+    name: game_state_json
+    selector:
+    - conversation
+    - game_state_json
+    value: '{"objects": [], "turn": null, "completed": false}'
+    value_type: string
+  - description: ''
+    id: 8dd1ff4b-9548-4cd1-a9a6-1482793c1339
+    name: pedagogy_state_json
+    selector:
+    - conversation
+    - pedagogy_state_json
+    value: '{"main_teach_used": false, "micro_teach_count": 0, "reflection_count": 0, "scaffold_count": 0, "guided_successful_actions": 0, "independent_successful_actions": 0}'
+    value_type: string
+  - description: ''
+    id: 2e8b1c14-f7ea-4a5d-9a53-0ca8ae595ea4
+    name: eval_state_json
+    selector:
+    - conversation
+    - eval_state_json
+    value: '{"baseline_captured": false, "baseline_student_model_json": null, "baseline_turn_count": null, "independent_clarifications": 0}'
+    value_type: string
+  - description: ''
+    id: 731d02b7-0f3c-4de9-a1cb-bbd90c4e23d7
+    name: last_action_trace_json
+    selector:
+    - conversation
+    - last_action_trace_json
+    value: '[]'
+    value_type: string
+  - description: ''
+    id: 52ad20ee-7d6f-4826-877b-ae4820a9db64
+    name: repair_count
+    selector:
+    - conversation
+    - repair_count
+    value: 0
+    value_type: number
+  - description: ''
+    id: 508f773c-e492-4c9b-b096-298a69fd8ec2
+    name: draft_reply
+    selector:
+    - conversation
+    - draft_reply
+    value: ''
+    value_type: string
+  - description: ''
+    id: 8bb443b0-8e58-45b1-a13f-b44d790857cd
+    name: gap_state_json
+    selector:
+    - conversation
+    - gap_state_json
+    value: '{"pending": null, "last_outcome": "none", "history": []}'
+    value_type: string
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        image_file_size_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: Hi! Teach me a game you know. I only know what you tell me.
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: 1000-source-1100-target
+      selected: false
+      source: '1000'
+      sourceHandle: source
+      target: '1100'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1100-source-1200-target
+      selected: false
+      source: '1100'
+      sourceHandle: source
+      target: '1200'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: 1200-source-1300-target
+      selected: false
+      source: '1200'
+      sourceHandle: source
+      target: '1300'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1300-source-1400-target
+      selected: false
+      source: '1300'
+      sourceHandle: source
+      target: '1400'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: 1400-source-1500-target
+      selected: false
+      source: '1400'
+      sourceHandle: source
+      target: '1500'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: if-else
+      id: 1600-source-1650-target
+      selected: false
+      source: '1600'
+      sourceHandle: source
+      target: '1650'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: assigner
+      id: 1700-source-1710-target
+      selected: false
+      source: '1700'
+      sourceHandle: source
+      target: '1710'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: llm
+      id: 1710-source-1800-target
+      selected: false
+      source: '1710'
+      sourceHandle: source
+      target: '1800'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: assigner
+      id: 1720-source-1730-target
+      selected: false
+      source: '1720'
+      sourceHandle: source
+      target: '1730'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: llm
+      id: 1730-source-1800-target
+      selected: false
+      source: '1730'
+      sourceHandle: source
+      target: '1800'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: assigner
+      id: 1740-source-1750-target
+      selected: false
+      source: '1740'
+      sourceHandle: source
+      target: '1750'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: llm
+      id: 1750-source-1800-target
+      selected: false
+      source: '1750'
+      sourceHandle: source
+      target: '1800'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1800-source-1900-target
+      selected: false
+      source: '1800'
+      sourceHandle: source
+      target: '1900'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: assigner
+      id: 1900-source-1950-target
+      selected: false
+      source: '1900'
+      sourceHandle: source
+      target: '1950'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: answer
+      id: 1950-source-2000-target
+      selected: false
+      source: '1950'
+      sourceHandle: source
+      target: '2000'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1500-source-1550-target
+      selected: false
+      source: '1500'
+      sourceHandle: source
+      target: '1550'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: code
+      id: 1550-source-1600-target
+      selected: false
+      source: '1550'
+      sourceHandle: source
+      target: '1600'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: llm
+      id: 1650-reflection_case-1700-target
+      selected: false
+      source: '1650'
+      sourceHandle: reflection_case
+      target: '1700'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: llm
+      id: 1650-scaffold_case-1760-target
+      selected: false
+      source: '1650'
+      sourceHandle: scaffold_case
+      target: '1760'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: assigner
+      id: 1760-source-1770-target
+      selected: false
+      source: '1760'
+      sourceHandle: source
+      target: '1770'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: llm
+      id: 1770-source-1800-target
+      selected: false
+      source: '1770'
+      sourceHandle: source
+      target: '1800'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: llm
+      id: 1650-repair_case-1720-target
+      selected: false
+      source: '1650'
+      sourceHandle: repair_case
+      target: '1720'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: llm
+      id: 1650-false-1740-target
+      selected: false
+      source: '1650'
+      sourceHandle: 'false'
+      target: '1740'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: ''
+        selected: false
+        title: Start
+        type: start
+        variables: []
+      height: 53
+      id: '1000'
+      position:
+        x: 0
+        y: 0
+      positionAbsolute:
+        x: 0
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+      zIndex: 0
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: false
+            size: 50
+        model:
+          completion_params:
+            temperature: 0.1
+            max_tokens: 700
+          mode: chat
+          name: deepseek-chat
+          provider: langgenius/deepseek/deepseek
+        prompt_template:
+        - id: 8b1a4c98-fc6c-43a0-bf3f-df594495982e
+          role: system
+          text: |-
+            You are the hidden Listener Interpreter for a Grade 3–4 lesson called "Teach Me a Game".
+
+            Your job is to extract ONLY what the child actually communicated in the CURRENT message.
+            You are not Jamie. You are not a game expert. You do not teach or complete the rules.
+
+            CRITICAL GROUNDING RULE
+            Recognizing a familiar game is NOT evidence that the child taught its rules.
+            A game name, familiar object, or familiar pattern must never unlock unstated gameplay knowledge.
+
+            Examples:
+            - "It uses cards with matching pictures." allows:
+              - there are cards
+              - some pictures match other pictures
+              It does NOT allow:
+              - cards start face down
+              - players flip cards
+              - players try to find pairs
+              - matching cards are kept
+              - most pairs wins
+            - "You get three in a row." allows the goal/result "three in a row".
+              It does NOT tell you what objects are placed, where they are placed, or how a turn works.
+            - "Flip two." communicates an action with count=2 even if the child omits "cards" when the referent is clear from the current grounded model.
+            - Self-corrections use the child's final intended version.
+            - Minor grammar errors, fragments, contractions, slang, fillers, and normal child speech are fine if meaning is reasonably clear.
+
+            Do not translate missing information into a candidate rule.
+            Do not phrase unknowns as guesses such as "maybe flip two?".
+            Mark a blocking ambiguity only when the child's words cannot support a single reasonable next interpretation.
+
+            Current phase:
+            {{#conversation.phase#}}
+
+            Grounded listener memory so far (student-taught facts/instructions only):
+            {{#conversation.listener_model_json#}}
+
+            Current rendered world:
+            {{#conversation.render_model_json#}}
+
+            Last visible action trace:
+            {{#conversation.last_action_trace_json#}}
+
+            Return VALID JSON ONLY:
+            {
+              "explicit_facts": [
+                {
+                  "kind": "entity|relation|state|goal|rule|constraint|strategy",
+                  "statement": "plain-language fact the child actually communicated",
+                  "evidence": "short exact phrase from the current message"
+                }
+              ],
+              "instructions": [
+                {
+                  "trigger": "now|plain-language condition",
+                  "action_type": "set_state|reveal|hide|collect|move|remove|switch_turn|keep_turn|finish|custom",
+                  "target_description": "what the action applies to",
+                  "count": null,
+                  "state": null,
+                  "description": "plain-language instruction",
+                  "evidence": "short exact phrase from the current message"
+                }
+              ],
+              "correction": {
+                "is_correction": false,
+                "specificity": "none|low|specific",
+                "target": null,
+                "replacement": null
+              },
+              "off_topic": false,
+              "blocking_ambiguity": null,
+              "student_intent": "teach|correct|strategy|other"
+            }
+
+            Keep explicit_facts and instructions empty when the child did not actually communicate new game information.
+        - id: c9ab2315-a00f-42c9-8579-1d00246014a1
+          role: user
+          text: |-
+            Current child message:
+            {{#sys.query#}}
+        selected: false
+        title: AI · Listener Interpreter
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 148
+      id: '1100'
+      position:
+        x: 320
+        y: 0
+      positionAbsolute:
+        x: 320
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        code: |-
+          import json, re
+
+          def loads(value, default):
+              if value is None:
+                  return default
+              if isinstance(value, (dict, list)):
+                  return value
+              try:
+                  return json.loads(value)
+              except Exception:
+                  s = str(value).strip()
+                  s = re.sub(r"^```(?:json)?\s*", "", s, flags=re.I)
+                  s = re.sub(r"\s*```$", "", s)
+                  m = re.search(r"\{.*\}", s, flags=re.S)
+                  if m:
+                      try:
+                          return json.loads(m.group(0))
+                      except Exception:
+                          pass
+                  return default
+
+          def uniq(items, keys):
+              seen = set()
+              out = []
+              for item in items:
+                  if not isinstance(item, dict):
+                      continue
+                  sig = tuple(str(item.get(k, "")).strip().lower() for k in keys)
+                  if sig in seen:
+                      continue
+                  seen.add(sig)
+                  out.append(item)
+              return out
+
+          def copy_list(items):
+              return [dict(x) for x in items if isinstance(x, dict)]
+
+          def main(interpreter_text: str, student_model_json: str, listener_model_json: str, student_message: str) -> dict:
+              interp = loads(interpreter_text, {})
+              model = loads(student_model_json, {"facts": [], "instructions": [], "messages": [], "turn_count": 0})
+              model.setdefault("facts", [])
+              model.setdefault("instructions", [])
+              model.setdefault("messages", [])
+              model["turn_count"] = int(model.get("turn_count", 0) or 0) + 1
+
+              new_facts = interp.get("explicit_facts", []) if isinstance(interp.get("explicit_facts"), list) else []
+              new_instructions = interp.get("instructions", []) if isinstance(interp.get("instructions"), list) else []
+
+              for fact in new_facts:
+                  if isinstance(fact, dict):
+                      item = dict(fact)
+                      item["source"] = "student"
+                      item["turn"] = model["turn_count"]
+                      model["facts"].append(item)
+
+              for inst in new_instructions:
+                  if isinstance(inst, dict):
+                      item = dict(inst)
+                      item["source"] = "student"
+                      item["turn"] = model["turn_count"]
+                      model["instructions"].append(item)
+
+              model["facts"] = uniq(model["facts"], ["kind", "statement"])
+              model["instructions"] = uniq(model["instructions"], ["trigger", "action_type", "description"])
+              model["messages"].append({"turn": model["turn_count"], "text": student_message})
+              model["messages"] = model["messages"][-6:]
+
+              listener = {"facts": copy_list(model["facts"]), "instructions": copy_list(model["instructions"])}
+
+              correction = interp.get("correction") if isinstance(interp.get("correction"), dict) else {}
+              summary = {
+                  "turn_count": model["turn_count"],
+                  "new_fact_count": len(new_facts),
+                  "new_instruction_count": len(new_instructions),
+                  "has_instruction": len(new_instructions) > 0,
+                  "off_topic": bool(interp.get("off_topic", False)),
+                  "blocking_ambiguity": interp.get("blocking_ambiguity"),
+                  "student_intent": interp.get("student_intent", "teach"),
+                  "correction": {
+                      "is_correction": bool(correction.get("is_correction", False)),
+                      "specificity": correction.get("specificity", "none"),
+                      "target": correction.get("target"),
+                      "replacement": correction.get("replacement")
+                  }
+              }
+
+              return {
+                  "student_model_json": json.dumps(model, ensure_ascii=False),
+                  "listener_model_json": json.dumps(listener, ensure_ascii=False),
+                  "summary_json": json.dumps(summary, ensure_ascii=False)
+              }
+        code_language: python3
+        desc: ''
+        outputs:
+          listener_model_json:
+            children: null
+            type: string
+          student_model_json:
+            children: null
+            type: string
+          summary_json:
+            children: null
+            type: string
+        selected: false
+        title: Ground Student + Listener Model
+        type: code
+        variables:
+        - value_selector:
+          - '1100'
+          - text
+          variable: interpreter_text
+        - value_selector:
+          - conversation
+          - student_model_json
+          variable: student_model_json
+        - value_selector:
+          - conversation
+          - listener_model_json
+          variable: listener_model_json
+        - value_selector:
+          - sys
+          - query
+          variable: student_message
+      height: 112
+      id: '1200'
+      position:
+        x: 640
+        y: 0
+      positionAbsolute:
+        x: 640
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: false
+            size: 50
+        model:
+          completion_params:
+            temperature: 0.1
+            max_tokens: 1800
+          mode: chat
+          name: deepseek-chat
+          provider: langgenius/deepseek/deepseek
+        prompt_template:
+        - id: f5f4a0c0-a0d5-4c4c-b5e6-13a3e9844cc7
+          role: system
+          text: |-
+            You are the World Builder for "Teach Me a Game".
+
+            You receive a GROUNDED student model. Build only a visual/playable representation of information the child has actually taught.
+
+            You MAY infer presentation details that do not change how the game works:
+            - colors, symbols, art style
+            - a reasonable small demo quantity when quantity is unspecified
+            - layout / rows / columns
+            - labels and decorative choices
+            - which specific equivalent object Jamie chooses when the student allows any one
+
+            You MUST NOT infer gameplay logic:
+            - what a player does on a turn
+            - whether cards are face up/down unless taught
+            - what counts as success
+            - what happens after a match/non-match
+            - turn order
+            - win/end conditions
+            - legal/illegal actions
+            - strategy
+
+            The renderer may make a relation visible. Example:
+            If the child taught "cards with matching pictures", you may create several cards with repeated symbols. This visualizes the stated relation. It does not imply a goal of finding pairs.
+
+            Do not delete or recreate existing objects unnecessarily. Prefer a small patch.
+
+            PATCH SEMANTICS
+            This is a delta, not a snapshot.
+            - For an existing object, include only `id` plus fields whose meaning changed because of the CURRENT child message.
+            - Do not rewrite an existing symbol, label, row, column, owner, or other field just because it already exists.
+            - If layout/surface did not change, preserve it rather than replacing it.
+            - Runtime effects of something Jamie is about to DO belong to the Action Planner, not this world patch.
+
+            Grounded listener memory (student-taught facts/instructions only):
+            {{#1200.listener_model_json#}}
+
+            Current render model:
+            {{#conversation.render_model_json#}}
+
+
+            Return VALID JSON ONLY:
+            {
+              "proposed_world_patch": {
+                "name": "Your game",
+                "surface": {
+                  "type": "table|board|play_area",
+                  "rows": null,
+                  "columns": null
+                },
+                "status": "short description of what is visibly represented",
+                "ready": false,
+                "turn": null,
+                "add_objects": [
+                  {
+                    "id": "stable_unique_id",
+                    "kind": "card|token|marker|tile|piece|zone|other",
+                    "label": "",
+                    "symbol": "",
+                    "caption": "",
+                    "state": "available",
+                    "row": null,
+                    "column": null,
+                    "owner": null,
+                    "interactive": false
+                  }
+                ],
+                "update_objects": [],
+                "remove_object_ids": [],
+                "counters": []
+              },
+              "presentation_inferences": [
+                {
+                  "field": "what was inferred",
+                  "value": "chosen value",
+                  "reason": "why it is presentation-only"
+                }
+              ]
+            }
+
+            If nothing new needs to be rendered, return empty patch arrays and preserve the current surface.
+        - id: e85cc470-ddd6-4e4f-ae7d-b604177bbef8
+          role: user
+          text: |-
+            Current child message:
+            {{#sys.query#}}
+        selected: false
+        title: AI · World Builder
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 148
+      id: '1300'
+      position:
+        x: 960
+        y: 0
+      positionAbsolute:
+        x: 960
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        code: |-
+          import json, re, copy
+
+          NEUTRAL_STATES = {"available", "empty", ""}
+          GAME_STATES = {"face_up", "face_down", "active", "claimed", "removed"}
+
+          def loads_status(value):
+              if isinstance(value, dict):
+                  return copy.deepcopy(value), True, None
+              if value is None:
+                  return {}, False, "missing input"
+              s = str(value).strip()
+              candidates = [s]
+              s2 = re.sub(r"^```(?:json)?\s*", "", s, flags=re.I)
+              s2 = re.sub(r"\s*```$", "", s2)
+              if s2 != s:
+                  candidates.append(s2)
+              m = re.search(r"\{.*\}", s2, flags=re.S)
+              if m:
+                  candidates.append(m.group(0))
+              for candidate in candidates:
+                  try:
+                      obj = json.loads(candidate)
+                      if isinstance(obj, dict):
+                          return obj, True, None
+                  except Exception:
+                      pass
+              return {}, False, "World Builder output was not valid JSON"
+
+          def loads(value, default):
+              if isinstance(value, (dict, list)):
+                  return copy.deepcopy(value)
+              try:
+                  return json.loads(value) if value is not None else copy.deepcopy(default)
+              except Exception:
+                  return copy.deepcopy(default)
+
+          def current_turn(model):
+              turn = int(model.get("turn_count", 0) or 0)
+              facts = [
+                  x for x in model.get("facts", [])
+                  if isinstance(x, dict) and int(x.get("turn", 0) or 0) == turn
+              ]
+              instructions = [
+                  x for x in model.get("instructions", [])
+                  if isinstance(x, dict) and int(x.get("turn", 0) or 0) == turn
+              ]
+              return turn, facts, instructions
+
+          def has_action(instructions, *types):
+              wanted = set(types)
+              return any(str(x.get("action_type") or "") in wanted for x in instructions)
+
+          def has_state_fact(facts):
+              return any(str(x.get("kind") or "") == "state" for x in facts)
+
+          def mentions_score(facts, instructions):
+              text = " ".join(
+                  [str(x.get("statement") or "") for x in facts]
+                  + [str(x.get("description") or "") for x in instructions]
+              ).lower()
+              return any(word in text for word in ("score", "point", "counter"))
+
+          def add_violation(items, field, reason):
+              items.append({"field": field, "reason": reason})
+
+          def sanitize_new_object(obj, allow_state, violations):
+              if not isinstance(obj, dict) or obj.get("id") is None:
+                  return None
+              out = {k: copy.deepcopy(v) for k, v in obj.items() if v is not None}
+              # Interactivity is gameplay authority, not presentation.
+              if out.get("interactive") is True:
+                  out["interactive"] = False
+                  add_violation(violations, f"add_objects.{obj.get('id')}.interactive", "interactivity was not student-grounded")
+              state = str(out.get("state") or "")
+              if state in GAME_STATES and not allow_state:
+                  out["state"] = "available"
+                  add_violation(violations, f"add_objects.{obj.get('id')}.state", "gameplay state was not student-grounded")
+              # Ownership is gameplay-relevant; never infer a non-empty owner on a new object.
+              if out.get("owner") not in (None, ""):
+                  out["owner"] = None
+                  add_violation(violations, f"add_objects.{obj.get('id')}.owner", "ownership was not student-grounded")
+              return out
+
+          def main(world_builder_text: str, student_model_json: str, render_model_json: str, summary_json: str) -> dict:
+              builder, parse_ok, parse_error = loads_status(world_builder_text)
+              student = loads(student_model_json, {"facts": [], "instructions": [], "turn_count": 0})
+              render = loads(render_model_json, {"surface": None, "objects": []})
+              summary = loads(summary_json, {})
+              _, facts, instructions = current_turn(student)
+
+              raw = builder.get("proposed_world_patch")
+              if not isinstance(raw, dict):
+                  raw = {}
+
+              violations = []
+              provenance = []
+
+              allow_state = has_action(instructions, "set_state") or has_state_fact(facts)
+              allow_turn = has_action(instructions, "switch_turn", "keep_turn")
+              allow_remove = has_action(instructions, "remove")
+              allow_counters = mentions_score(facts, instructions)
+
+              patch = {}
+
+              # Harmless representation metadata may be inferred.
+              for key in ("name", "status"):
+                  if raw.get(key) not in (None, ""):
+                      patch[key] = raw.get(key)
+                      provenance.append({"field": key, "source": "presentation_inference", "evidence": ""})
+
+              if isinstance(raw.get("surface"), dict):
+                  patch["surface"] = copy.deepcopy(raw["surface"])
+                  for key in raw["surface"]:
+                      provenance.append({"field": f"surface.{key}", "source": "presentation_inference", "evidence": ""})
+
+              # "ready" may become true only after the child has actually supplied an instruction.
+              if "ready" in raw:
+                  requested = bool(raw.get("ready"))
+                  if requested and not instructions:
+                      add_violation(violations, "ready", "ready=true without a student-grounded instruction")
+                  else:
+                      patch["ready"] = requested
+                      if requested:
+                          provenance.append({"field": "ready", "source": "student", "evidence": ""})
+
+              if raw.get("turn") is not None:
+                  if allow_turn:
+                      patch["turn"] = raw.get("turn")
+                      provenance.append({"field": "turn", "source": "student", "evidence": ""})
+                  else:
+                      add_violation(violations, "turn", "turn state was not student-grounded")
+
+              adds = []
+              for obj in raw.get("add_objects", []) or []:
+                  clean = sanitize_new_object(obj, allow_state, violations)
+                  if clean:
+                      adds.append(clean)
+                      oid = clean.get("id")
+                      provenance.append({"field": f"add_objects.{oid}", "source": "presentation_inference", "evidence": ""})
+                      if allow_state and "state" in clean:
+                          provenance.append({"field": f"add_objects.{oid}.state", "source": "student", "evidence": ""})
+              if adds:
+                  patch["add_objects"] = adds
+
+              updates = []
+              for obj in raw.get("update_objects", []) or []:
+                  if not isinstance(obj, dict) or obj.get("id") is None:
+                      continue
+                  oid = str(obj.get("id"))
+                  clean = {"id": obj.get("id")}
+                  for key, value in obj.items():
+                      if key == "id" or value is None:
+                          continue
+                      if key == "interactive":
+                          add_violation(violations, f"update_objects.{oid}.interactive", "interactivity changes require gameplay authority")
+                          continue
+                      if key == "state":
+                          if allow_state:
+                              clean[key] = value
+                              provenance.append({"field": f"update_objects.{oid}.state", "source": "student", "evidence": ""})
+                          else:
+                              add_violation(violations, f"update_objects.{oid}.state", "state update was not student-grounded")
+                          continue
+                      if key == "owner":
+                          add_violation(violations, f"update_objects.{oid}.owner", "ownership update was not student-grounded")
+                          continue
+                      # Presentation fields are allowed only as proposed deltas; Pack World still prevents
+                      # overwriting an existing non-empty presentation choice without student provenance.
+                      clean[key] = copy.deepcopy(value)
+                      provenance.append({"field": f"update_objects.{oid}.{key}", "source": "presentation_inference", "evidence": ""})
+                  if len(clean) > 1:
+                      updates.append(clean)
+              if updates:
+                  patch["update_objects"] = updates
+
+              removes = raw.get("remove_object_ids", []) or []
+              if removes:
+                  if allow_remove:
+                      patch["remove_object_ids"] = copy.deepcopy(removes)
+                      for oid in removes:
+                          provenance.append({"field": f"{oid}.remove", "source": "student", "evidence": ""})
+                  else:
+                      add_violation(violations, "remove_object_ids", "object removal was not student-grounded")
+
+              if raw.get("counters") is not None:
+                  if allow_counters:
+                      patch["counters"] = copy.deepcopy(raw.get("counters") or [])
+                      provenance.append({"field": "counters", "source": "student", "evidence": ""})
+                  elif raw.get("counters"):
+                      add_violation(violations, "counters", "score/counter meaning was not student-grounded")
+
+              result = {
+                  "world_patch": patch,
+                  "provenance": provenance,
+                  "violations": violations,
+                  "parse_ok": parse_ok,
+                  "parse_error": parse_error,
+                  "builder_had_patch": bool(raw),
+                  "builder_add_object_count": len(raw.get("add_objects", []) or []) if isinstance(raw, dict) else 0,
+                  "guard_add_object_count": len(patch.get("add_objects", []) or [])
+              }
+              return {"text": json.dumps(result, ensure_ascii=False)}
+        code_language: python3
+        desc: Deterministic grounding guard. Keeps presentation inference while rejecting ungrounded gameplay state without an extra LLM call.
+        outputs:
+          text:
+            children: null
+            type: string
+        selected: false
+        title: Deterministic World Leakage Guard
+        type: code
+        variables:
+        - value_selector:
+          - '1300'
+          - text
+          variable: world_builder_text
+        - value_selector:
+          - '1200'
+          - student_model_json
+          variable: student_model_json
+        - value_selector:
+          - conversation
+          - render_model_json
+          variable: render_model_json
+        - value_selector:
+          - '1200'
+          - summary_json
+          variable: summary_json
+      height: 148
+      id: '1400'
+      position:
+        x: 1280
+        y: 0
+      positionAbsolute:
+        x: 1280
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: false
+            size: 50
+        model:
+          completion_params:
+            temperature: 0.1
+            max_tokens: 1200
+          mode: chat
+          name: deepseek-chat
+          provider: langgenius/deepseek/deepseek
+        prompt_template:
+        - id: fa294f64-a1ee-42ff-9090-d619a993823b
+          role: system
+          text: |-
+            You are the Action Planner for "Teach Me a Game".
+
+            Plan visible atomic runtime actions using ONLY rules/instructions the child has actually taught.
+            Do not use game knowledge from memory. Do not treat rendered presentation choices as rules.
+
+            Grounded listener memory (student-taught facts/instructions only):
+            {{#1200.listener_model_json#}}
+
+            Current child message:
+            {{#sys.query#}}
+
+            Sanitized world patch for this turn:
+            {{#1400.text#}}
+
+
+            Current game state:
+            {{#conversation.game_state_json#}}
+
+            CORE DISTINCTION: RULE AUTHORITY VS PLAYER AGENCY
+            - The CHILD defines the session's game rules.
+            - JAMIE may make ordinary player choices inside those taught rules.
+            - Missing a player choice is not automatically a communication failure.
+            - If several currently eligible options are equivalent under everything the child has taught, Jamie may either choose one OR ask a natural clarification.
+            - Neither path should become a blocking gap by itself.
+            - Jamie's own choice may use ONLY observable / authorized information. Never use hidden world state to choose. For example, when a card is face down, do not use its hidden `symbol` or `caption` to decide which card to reveal.
+            - If different choices could change legality, a state transition, ownership, turn structure, scoring, termination, or another gameplay meaning, the ambiguity IS blocking unless the child has already supplied a selection rule.
+
+            PROTOCOL
+
+            1. `action_ready`
+            True only when at least one physical/runtime action is justified and executable now.
+
+            2. `blocked_now`
+            Use ONLY when the child has taught or attempted a current instruction, but Jamie cannot safely execute it because one essential RULE-RELEVANT piece is still missing or ambiguous.
+            Do NOT use `blocked_now` for an ordinary player choice among currently equivalent legal options.
+            Do NOT create `blocked_now` merely because the child has not taught an action yet.
+            For example, after "It uses cards with matching pictures", Jamie simply needs to ask what to do; this is not yet a breakdown event.
+
+            3. `non_blocking_underspecification`
+            Use when the child has authorized an action but left a detail unspecified that does NOT currently change legality or gameplay meaning.
+            Typical example: "Flip one card" when several face-down cards are equally eligible.
+            Choose ONE resolution:
+            - `listener_choice`: Jamie makes the player choice and executes the action.
+            - `clarify`: Jamie naturally asks which option the child wants; the deferred player choice MUST NOT execute yet.
+            This field is NOT a pending communication gap and must not trigger scaffold/repair by itself.
+
+            DETERMINISTIC CLARIFY CONTRACT
+            If `non_blocking_underspecification.resolution == "clarify"`:
+            - `action_ready` MUST be false.
+            - `actions` MUST be an empty array.
+            - `post_action_gap` MUST be null for the deferred choice, because no runtime action has happened yet.
+            - Include `deferred_action` inside `non_blocking_underspecification` describing the action that is waiting for the player's choice. Do NOT choose a target just to fill this field.
+            - The world patch was produced before this planner decision. Never treat a runtime-looking state change already present in that patch as permission to execute. A later deterministic packing layer will remove any deferred runtime effect that conflicts with `clarify`.
+
+            4. `post_action_gap`
+            Use ONLY when:
+            - at least one action will execute now, AND
+            - after executing ALL returned actions, Jamie has reached a real state where no taught instruction is sufficient for the next state transition.
+
+            This is the internal meaning of a natural "Now what?" moment.
+            `action_ready=true` and `post_action_gap!=null` are compatible: Jamie knows what to do now, but will be stuck after doing it.
+
+            5. `student_evidence`
+            Include ONLY evidence that directly licenses the returned physical actions.
+            Do not include merely related facts. If the returned actions are two reveals, "matching pictures" is NOT action evidence; "flip one card and then another" is.
+
+            GENERAL RULES
+            - Treat the sanitized world patch as world-definition/setup updates before planning runtime actions.
+            - If the patch already represents a setup/world instruction, do not duplicate it as an action.
+            - Runtime action effects belong here, not in world_patch.
+            - Presentation-only or neutral render state is not evidence of gameplay state.
+            - "flip one" licenses count=1. Jamie may reveal one eligible card OR ask which one; do not invent a second reveal.
+            - "flip two" licenses count=2. Jamie may reveal two distinct eligible cards OR ask which two; do not invent what happens after they are revealed.
+            - Natural self-correction uses the child's final intended instruction (for example "three—no, sorry, two" means count=2).
+            - Conditional instructions can be stored without executing until their condition is present.
+            - Do not execute a conventional rule merely because the game looks familiar.
+            - If the current student message only describes objects/world/setup and no runtime action is taught, return no actions.
+            - Never invent repetition. If the child has not taught that a sequence repeats, reaching the end of the known sequence can legitimately create a post-action gap.
+
+            FRONTEND ATOMIC ACTIONS ONLY
+            - {"type":"update_object","object_id":"id","patch":{}}
+            - {"type":"reveal_object","object_id":"id"}
+            - {"type":"hide_object","object_id":"id"}
+            - {"type":"remove_object","object_id":"id"}
+            - {"type":"set_turn","to":"player label"}
+            - {"type":"set_counter","counter_id":"id","label":"optional","value":0}
+            - {"type":"set_status","text":"short status"}
+            - {"type":"wait","ms":300}
+
+            Use `update_object` for movement, collection/claiming, or another supported state change by changing only the relevant object fields.
+
+            Return VALID JSON ONLY:
+            {
+              "action_ready": false,
+              "actions": [],
+              "stored_conditions": [],
+              "blocked_now": null,
+              "non_blocking_underspecification": null,
+              "post_action_gap": null,
+              "student_evidence": [
+                {
+                  "action_index": 0,
+                  "evidence": "short phrase that directly licenses this action"
+                }
+              ]
+            }
+
+            When a BLOCKING gap exists, use:
+            {
+              "context": "what Jamie can currently see / has just done",
+              "missing_for_next_action": "the single rule-relevant piece Jamie needs in order to act",
+              "reason": "why Jamie cannot safely continue"
+            }
+
+            When a NON-BLOCKING underspecification exists, use:
+            {
+              "context": "what Jamie can currently see / is allowed to do",
+              "missing_detail": "the unspecified player-choice detail",
+              "why_non_blocking": "why all currently eligible options are equivalent under taught rules",
+              "resolution": "listener_choice|clarify",
+              "choice_basis": "observable / authorized information only",
+              "deferred_action": {
+                "type": "reveal_object|hide_object|remove_object|update_object|set_turn|set_counter|set_status",
+                "count": 1,
+                "eligible_object_ids": [],
+                "patch_fields": []
+              }
+            }
+
+            `deferred_action` is REQUIRED when `resolution="clarify"`. It describes what is waiting, not what Jamie has executed.
+            For object-choice actions, `eligible_object_ids` may list only objects that are eligible using observable/authorized information.
+            For `update_object`, put only the runtime fields that would change in `patch_fields`.
+        - id: 925dc78e-270e-41f2-a8dd-7788a2a71149
+          role: user
+          text: |-
+            Current child message:
+            {{#sys.query#}}
+        selected: false
+        title: AI · Action Planner
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 148
+      id: '1500'
+      position:
+        x: 1600
+        y: 0
+      positionAbsolute:
+        x: 1600
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        code: |-
+          import json, re, copy
+
+          def loads_status(value):
+              if isinstance(value, dict):
+                  return copy.deepcopy(value), True
+              if value is None:
+                  return {}, False
+              s = str(value).strip()
+              candidates = [s]
+              s2 = re.sub(r"^```(?:json)?\s*", "", s, flags=re.I)
+              s2 = re.sub(r"\s*```$", "", s2)
+              if s2 != s:
+                  candidates.append(s2)
+              m = re.search(r"\{.*\}", s2, flags=re.S)
+              if m:
+                  candidates.append(m.group(0))
+              for candidate in candidates:
+                  try:
+                      obj = json.loads(candidate)
+                      if isinstance(obj, dict):
+                          return obj, True
+                  except Exception:
+                      pass
+              return {}, False
+
+          def loads(value, default):
+              if isinstance(value, (dict, list)):
+                  return copy.deepcopy(value)
+              try:
+                  return json.loads(value) if value is not None else copy.deepcopy(default)
+              except Exception:
+                  return copy.deepcopy(default)
+
+          def valid_gap(value):
+              if not isinstance(value, dict):
+                  return None
+              missing = str(value.get("missing_for_next_action") or "").strip()
+              if not missing:
+                  return None
+              return {
+                  "context": str(value.get("context") or "").strip(),
+                  "missing_for_next_action": missing,
+                  "reason": str(value.get("reason") or "").strip()
+              }
+
+          def evidence_strings(plan):
+              out = []
+              for item in plan.get("student_evidence", []) or []:
+                  if isinstance(item, dict):
+                      text = str(item.get("evidence") or "").strip()
+                  else:
+                      text = str(item or "").strip()
+                  if text:
+                      out.append(text)
+              return out[:8]
+
+          def main(gap_state_json: str, summary_json: str, action_plan_text: str) -> dict:
+              gap_state = loads(gap_state_json, {"pending": None})
+              summary = loads(summary_json, {})
+              plan, plan_ok = loads_status(action_plan_text)
+
+              pending = valid_gap(gap_state.get("pending"))
+              if not pending:
+                  result = {
+                      "outcome": "none",
+                      "gained_actionability": False,
+                      "resolution_evidence": [],
+                      "updated_gap": None,
+                      "reason": "There was no pending gap to resolve.",
+                      "parse_ok": plan_ok
+                  }
+                  return {"text": json.dumps(result, ensure_ascii=False)}
+
+              actions = plan.get("actions", []) if isinstance(plan.get("actions"), list) else []
+              action_ready = bool(plan.get("action_ready", False)) and bool(actions)
+              evidence = evidence_strings(plan)
+              current_gap = valid_gap(plan.get("post_action_gap")) or valid_gap(plan.get("blocked_now"))
+
+              correction = summary.get("correction") if isinstance(summary.get("correction"), dict) else {}
+              specific_correction = bool(correction.get("is_correction")) and str(correction.get("specificity") or "") == "specific"
+              new_info = int(summary.get("new_fact_count", 0) or 0) + int(summary.get("new_instruction_count", 0) or 0)
+
+              if not plan_ok:
+                  outcome = "unresolved"
+                  gained = False
+                  updated = pending
+                  reason = "Action Planner output was not parseable, so the gap remains open."
+              elif action_ready and evidence:
+                  # A pending listener gap is specifically about the information needed for Jamie's
+                  # next transition. If the child's current contribution now directly licenses a
+                  # concrete action, the listener has gained the actionability the gap was waiting for.
+                  outcome = "resolved"
+                  gained = True
+                  updated = None
+                  reason = "The current contribution directly licensed a concrete next action."
+              elif specific_correction and current_gap is None and new_info > 0:
+                  outcome = "changed"
+                  gained = False
+                  updated = None
+                  reason = "The child explicitly redefined the situation, so the previous gap is no longer the right question."
+              elif new_info > 0:
+                  outcome = "partial"
+                  gained = False
+                  updated = current_gap or pending
+                  reason = "The child added relevant information, but Jamie still has no newly justified next action."
+              else:
+                  outcome = "unresolved"
+                  gained = False
+                  updated = current_gap or pending
+                  reason = "The current contribution did not add information that makes the next transition executable."
+
+              result = {
+                  "outcome": outcome,
+                  "gained_actionability": gained,
+                  "resolution_evidence": evidence if outcome in {"resolved", "changed"} else [],
+                  "updated_gap": updated,
+                  "reason": reason,
+                  "parse_ok": plan_ok
+              }
+              return {"text": json.dumps(result, ensure_ascii=False)}
+        code_language: python3
+        desc: Deterministic gap lifecycle evaluator. No LLM work when there is no pending gap; uses gained actionability as the resolution invariant.
+        outputs:
+          text:
+            children: null
+            type: string
+        selected: false
+        title: Deterministic Gap Evaluator
+        type: code
+        variables:
+        - value_selector:
+          - conversation
+          - gap_state_json
+          variable: gap_state_json
+        - value_selector:
+          - '1200'
+          - summary_json
+          variable: summary_json
+        - value_selector:
+          - '1500'
+          - text
+          variable: action_plan_text
+      height: 148
+      id: '1550'
+      position:
+        x: 1920
+        y: 0
+      positionAbsolute:
+        x: 1920
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        code: |-
+          import json, re, copy
+
+          def loads(value, default):
+              if value is None:
+                  return copy.deepcopy(default)
+              if isinstance(value, (dict, list)):
+                  return copy.deepcopy(value)
+              try:
+                  return json.loads(value)
+              except Exception:
+                  s = str(value).strip()
+                  s = re.sub(r"^```(?:json)?\s*", "", s, flags=re.I)
+                  s = re.sub(r"\s*```$", "", s)
+                  m = re.search(r"\{.*\}", s, flags=re.S)
+                  if m:
+                      try:
+                          return json.loads(m.group(0))
+                      except Exception:
+                          pass
+                  return copy.deepcopy(default)
+
+          def valid_gap(value):
+              if not isinstance(value, dict):
+                  return None
+              missing = str(value.get("missing_for_next_action") or "").strip()
+              if not missing:
+                  return None
+              return {
+                  "context": str(value.get("context") or "").strip(),
+                  "missing_for_next_action": missing,
+                  "reason": str(value.get("reason") or "").strip()
+              }
+
+          def valid_deferred_action(value):
+              if not isinstance(value, dict):
+                  return None
+              action_type = str(value.get("type") or "").strip()
+              allowed = {"reveal_object", "hide_object", "remove_object", "update_object", "set_turn", "set_counter", "set_status"}
+              if action_type not in allowed:
+                  return None
+              try:
+                  count = max(1, int(value.get("count") or 1))
+              except Exception:
+                  count = 1
+              eligible = value.get("eligible_object_ids") if isinstance(value.get("eligible_object_ids"), list) else []
+              patch_fields = value.get("patch_fields") if isinstance(value.get("patch_fields"), list) else []
+              return {
+                  "type": action_type,
+                  "count": count,
+                  "eligible_object_ids": [str(x) for x in eligible if x is not None][:24],
+                  "patch_fields": [str(x) for x in patch_fields if str(x).strip()][:16]
+              }
+
+          def valid_underspecification(value):
+              if not isinstance(value, dict):
+                  return None
+              missing = str(value.get("missing_detail") or "").strip()
+              resolution = str(value.get("resolution") or "").strip()
+              if not missing or resolution not in {"listener_choice", "clarify"}:
+                  return None
+              deferred = valid_deferred_action(value.get("deferred_action"))
+              return {
+                  "context": str(value.get("context") or "").strip(),
+                  "missing_detail": missing,
+                  "why_non_blocking": str(value.get("why_non_blocking") or "").strip(),
+                  "resolution": resolution,
+                  "choice_basis": str(value.get("choice_basis") or "").strip(),
+                  "deferred_action": deferred
+              }
+
+          def open_gap(gap, turn_count, gap_type):
+              base = valid_gap(gap)
+              if not base:
+                  return None
+              base.update({
+                  "opened_turn": int(turn_count or 0),
+                  "gap_type": gap_type,
+                  "attempts": 0,
+                  "scaffold_count": 0
+              })
+              return base
+
+          def trim_history(history, limit=12):
+              return history[-limit:] if isinstance(history, list) else []
+
+          def main(phase: str, summary_json: str, action_plan_text: str, gap_evaluation_text: str,
+                   pedagogy_state_json: str, eval_state_json: str, repair_count,
+                   student_model_json: str, gap_state_json: str) -> dict:
+
+              summary = loads(summary_json, {})
+              action_plan = loads(action_plan_text, {})
+              gap_eval = loads(gap_evaluation_text, {"outcome": "none"})
+              pedagogy = loads(pedagogy_state_json, {})
+              eval_state = loads(eval_state_json, {})
+              gap_state = loads(gap_state_json, {"pending": None, "last_outcome": "none", "history": []})
+
+              pedagogy.setdefault("reflection_count", 0)
+              pedagogy.setdefault("scaffold_count", 0)
+              pedagogy.setdefault("guided_successful_actions", 0)
+              pedagogy.setdefault("independent_successful_actions", 0)
+              pedagogy.setdefault("underspecification_history", [])
+              pedagogy.setdefault("reflection_candidate", None)
+
+              eval_state.setdefault("baseline_captured", False)
+              eval_state.setdefault("baseline_student_model_json", None)
+              eval_state.setdefault("baseline_turn_count", None)
+              eval_state.setdefault("independent_clarifications", 0)
+
+              gap_state.setdefault("pending", None)
+              gap_state.setdefault("last_outcome", "none")
+              gap_state.setdefault("history", [])
+
+              phase = phase or "experience"
+              try:
+                  repair_count = int(repair_count or 0)
+              except Exception:
+                  repair_count = 0
+
+              turn_count = int(summary.get("turn_count", 0) or 0)
+              current_underspecification = valid_underspecification(action_plan.get("non_blocking_underspecification"))
+              actions = action_plan.get("actions", []) if isinstance(action_plan.get("actions"), list) else []
+
+              # Deterministic invariant: a clarify-choice turn has not executed the deferred player choice.
+              # Even if the LLM returns contradictory actions/action_ready, the controller treats them as deferred.
+              clarify_choice = bool(current_underspecification and current_underspecification.get("resolution") == "clarify")
+              if clarify_choice:
+                  actions = []
+                  action_ready = False
+              else:
+                  action_ready = bool(action_plan.get("action_ready", False)) and bool(actions)
+              action_count = len(actions) if action_ready else 0
+
+              if current_underspecification:
+                  record = dict(current_underspecification)
+                  record["turn"] = turn_count
+                  history = pedagogy.get("underspecification_history") if isinstance(pedagogy.get("underspecification_history"), list) else []
+                  history.append(record)
+                  pedagogy["underspecification_history"] = history[-12:]
+                  if current_underspecification.get("resolution") == "listener_choice" and action_ready:
+                      pedagogy["reflection_candidate"] = {
+                          "kind": "non_blocking_choice",
+                          "turn": turn_count,
+                          "underspecification": current_underspecification,
+                          "new_action_count": action_count
+                      }
+
+              # First physical action => playable baseline before runtime execution.
+              capture_baseline = False
+              if action_ready and not bool(eval_state.get("baseline_captured", False)) and phase in {"experience", "practice"}:
+                  eval_state["baseline_captured"] = True
+                  eval_state["baseline_student_model_json"] = student_model_json
+                  eval_state["baseline_turn_count"] = turn_count
+                  capture_baseline = True
+
+              correction = summary.get("correction") if isinstance(summary.get("correction"), dict) else {}
+              specificity = correction.get("specificity", "none")
+              off_topic = bool(summary.get("off_topic", False))
+
+              previous_pending = valid_gap(gap_state.get("pending"))
+              if previous_pending:
+                  # restore lifecycle metadata from stored pending
+                  for k in ("opened_turn", "gap_type", "attempts", "scaffold_count"):
+                      if isinstance(gap_state.get("pending"), dict) and k in gap_state["pending"]:
+                          previous_pending[k] = gap_state["pending"][k]
+
+              current_post_gap = valid_gap(action_plan.get("post_action_gap"))
+              current_blocked_gap = valid_gap(action_plan.get("blocked_now"))
+              # A declared non-blocking clarify is never promoted into a fresh blocking/pending gap.
+              if clarify_choice:
+                  current_post_gap = None
+                  current_blocked_gap = None
+              candidate_new_gap = current_post_gap or current_blocked_gap
+              candidate_type = "post_action" if current_post_gap else ("blocked_now" if current_blocked_gap else None)
+
+              mode = "listener"
+              intent = "ask_open_next"
+              next_phase = phase
+              support = None
+              reset_listener = False
+              reflection_basis = None
+
+              # Transfer/complete remain terminal lesson logic.
+              if phase == "transfer":
+                  mode = "listener"
+                  intent = "complete"
+                  next_phase = "complete"
+
+              elif phase == "complete":
+                  mode = "listener"
+                  intent = "complete"
+
+              elif off_topic:
+                  mode = "listener"
+                  intent = "redirect"
+
+              elif correction.get("is_correction") and specificity == "low":
+                  repair_count += 1
+                  mode = "repair"
+                  intent = "vague_repair"
+                  if repair_count >= 2:
+                      support = "locate_step"
+
+              else:
+                  if correction.get("is_correction") and specificity == "specific":
+                      repair_count = 0
+
+                  # ----- EXISTING PENDING GAP: evaluate the child's current response -----
+                  if previous_pending:
+                      outcome = str(gap_eval.get("outcome") or "unresolved")
+                      if outcome not in {"resolved", "partial", "unresolved", "changed"}:
+                          outcome = "unresolved"
+                      gap_state["last_outcome"] = outcome
+
+                      if outcome == "resolved":
+                          gap_state["history"].append({
+                              "opened_turn": previous_pending.get("opened_turn"),
+                              "closed_turn": turn_count,
+                              "outcome": "resolved",
+                              "gap": previous_pending,
+                              "resolution_evidence": gap_eval.get("resolution_evidence", [])
+                          })
+                          gap_state["pending"] = None
+
+                          gained_actionability = bool(gap_eval.get("gained_actionability", False)) and action_ready
+
+                          # A new post-action gap can coexist with a successfully resolved old gap.
+                          if candidate_new_gap:
+                              gap_state["pending"] = open_gap(candidate_new_gap, turn_count, candidate_type)
+
+                          # Reflection is earned by a real repair, and only once in the guided lesson.
+                          if gained_actionability and phase in {"experience", "practice"} and int(pedagogy.get("reflection_count", 0) or 0) < 1:
+                              pedagogy["reflection_count"] = 1
+                              reflection_basis = {
+                                  "kind": "blocking_repair",
+                                  "previous_gap": previous_pending,
+                                  "resolution_evidence": gap_eval.get("resolution_evidence", []),
+                                  "new_action_count": action_count,
+                                  "next_pending_gap": gap_state.get("pending")
+                              }
+                              mode = "reflection"
+                              intent = "reflect_after_repair"
+                              next_phase = "practice"
+                          else:
+                              mode = "listener"
+                              intent = "act_and_gap" if gap_state.get("pending") else ("act_and_continue" if action_ready else "ask_open_next")
+
+                      elif outcome == "changed":
+                          gap_state["history"].append({
+                              "opened_turn": previous_pending.get("opened_turn"),
+                              "closed_turn": turn_count,
+                              "outcome": "changed",
+                              "gap": previous_pending,
+                              "resolution_evidence": gap_eval.get("resolution_evidence", [])
+                          })
+                          gap_state["pending"] = open_gap(candidate_new_gap, turn_count, candidate_type) if candidate_new_gap else None
+                          mode = "listener"
+                          intent = "act_and_gap" if (action_ready and gap_state.get("pending")) else ("act_and_continue" if action_ready else "ask_open_next")
+
+                      else:
+                          # partial or unresolved: keep the gap alive and count repair attempts.
+                          updated = valid_gap(gap_eval.get("updated_gap")) or previous_pending
+                          updated["opened_turn"] = previous_pending.get("opened_turn", turn_count)
+                          updated["gap_type"] = previous_pending.get("gap_type", "post_action")
+                          updated["attempts"] = int(previous_pending.get("attempts", 0) or 0) + 1
+                          updated["scaffold_count"] = int(previous_pending.get("scaffold_count", 0) or 0)
+                          gap_state["pending"] = updated
+
+                          # Independent performance gets clarification counts but no scaffold/reflection.
+                          if phase == "independent":
+                              eval_state["independent_clarifications"] = int(eval_state.get("independent_clarifications", 0) or 0) + 1
+                              mode = "listener"
+                              intent = "gap_followup"
+                          elif updated["attempts"] >= 2:
+                              updated["scaffold_count"] += 1
+                              pedagogy["scaffold_count"] = int(pedagogy.get("scaffold_count", 0) or 0) + 1
+                              mode = "scaffold"
+                              intent = "scaffold_gap"
+                          else:
+                              mode = "listener"
+                              intent = "gap_followup"
+
+                  # ----- NO PREVIOUS GAP: possibly open one, but do not teach -----
+                  else:
+                      gap_state["last_outcome"] = "none"
+                      if candidate_new_gap:
+                          gap_state["pending"] = open_gap(candidate_new_gap, turn_count, candidate_type)
+                          mode = "listener"
+                          intent = "act_and_gap" if action_ready else "gap_followup"
+                      elif current_underspecification and current_underspecification.get("resolution") == "clarify" and not action_ready:
+                          # A low-stakes player choice may be clarified without becoming a pending gap.
+                          gap_state["pending"] = None
+                          mode = "listener"
+                          intent = "clarify_choice"
+                      else:
+                          gap_state["pending"] = None
+
+                          if phase == "experience":
+                              mode = "listener"
+                              intent = "act_and_continue" if action_ready else "ask_open_next"
+
+                          elif phase == "practice":
+                              if action_ready:
+                                  pedagogy["guided_successful_actions"] = int(pedagogy.get("guided_successful_actions", 0) or 0) + action_count
+                                  if pedagogy["guided_successful_actions"] >= 3:
+                                      mode = "listener"
+                                      intent = "fresh_listener_transition"
+                                      next_phase = "independent"
+                                      reset_listener = True
+                                  else:
+                                      mode = "listener"
+                                      intent = "act_and_continue"
+                              else:
+                                  mode = "listener"
+                                  intent = "ask_open_next"
+
+                          elif phase == "independent":
+                              if action_ready:
+                                  pedagogy["independent_successful_actions"] = int(pedagogy.get("independent_successful_actions", 0) or 0) + action_count
+                                  if pedagogy["independent_successful_actions"] >= 3:
+                                      mode = "listener"
+                                      intent = "transfer_prompt"
+                                      next_phase = "transfer"
+                                  else:
+                                      mode = "listener"
+                                      intent = "act_and_continue"
+                              else:
+                                  eval_state["independent_clarifications"] = int(eval_state.get("independent_clarifications", 0) or 0) + 1
+                                  mode = "listener"
+                                  intent = "ask_open_next"
+
+              gap_state["history"] = trim_history(gap_state.get("history", []))
+
+              controller = {
+                  "response_mode": mode,
+                  "response_intent": intent,
+                  "next_phase": next_phase,
+                  "capture_baseline": capture_baseline,
+                  "reset_listener": reset_listener,
+                  "support": support,
+                  "action_ready": action_ready,
+                  "interaction_progress": (
+                      int(summary.get("new_fact_count", 0) or 0) > 0
+                      or int(summary.get("new_instruction_count", 0) or 0) > 0
+                      or action_ready
+                  ),
+                  "gap_outcome": gap_state.get("last_outcome"),
+                  "pending_gap": gap_state.get("pending"),
+                  "non_blocking_underspecification": current_underspecification,
+                  "reflection_basis": reflection_basis,
+                  "reflection_candidate": pedagogy.get("reflection_candidate"),
+                  "core_heuristic": "What does my friend need to know before they can make the next move?"
+              }
+
+              return {
+                  "response_mode": mode,
+                  "controller_json": json.dumps(controller, ensure_ascii=False),
+                  "reflection_basis_json": json.dumps(reflection_basis, ensure_ascii=False),
+                  "gap_state_json": json.dumps(gap_state, ensure_ascii=False),
+                  "phase": next_phase,
+                  "pedagogy_state_json": json.dumps(pedagogy, ensure_ascii=False),
+                  "eval_state_json": json.dumps(eval_state, ensure_ascii=False),
+                  "repair_count": repair_count
+              }
+        code_language: python3
+        desc: ''
+        outputs:
+          controller_json:
+            children: null
+            type: string
+          eval_state_json:
+            children: null
+            type: string
+          gap_state_json:
+            children: null
+            type: string
+          pedagogy_state_json:
+            children: null
+            type: string
+          phase:
+            children: null
+            type: string
+          reflection_basis_json:
+            children: null
+            type: string
+          repair_count:
+            children: null
+            type: number
+          response_mode:
+            children: null
+            type: string
+        selected: false
+        title: Pedagogy Controller
+        type: code
+        variables:
+        - value_selector:
+          - conversation
+          - phase
+          variable: phase
+        - value_selector:
+          - '1200'
+          - summary_json
+          variable: summary_json
+        - value_selector:
+          - '1500'
+          - text
+          variable: action_plan_text
+        - value_selector:
+          - '1550'
+          - text
+          variable: gap_evaluation_text
+        - value_selector:
+          - conversation
+          - pedagogy_state_json
+          variable: pedagogy_state_json
+        - value_selector:
+          - conversation
+          - eval_state_json
+          variable: eval_state_json
+        - value_selector:
+          - conversation
+          - repair_count
+          variable: repair_count
+        - value_selector:
+          - '1200'
+          - student_model_json
+          variable: student_model_json
+        - value_selector:
+          - conversation
+          - gap_state_json
+          variable: gap_state_json
+      height: 112
+      id: '1600'
+      position:
+        x: 2240
+        y: 0
+      positionAbsolute:
+        x: 2240
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        cases:
+        - case_id: reflection_case
+          conditions:
+          - comparison_operator: is
+            id: d9d69684-ec18-499f-9ec9-02972c99de5c
+            value: reflection
+            varType: string
+            variable_selector:
+            - '1600'
+            - response_mode
+          id: reflection_case
+          logical_operator: and
+        - case_id: scaffold_case
+          conditions:
+          - comparison_operator: is
+            id: a0d4dd3b-08c7-4d12-b8be-6ff9768b1894
+            value: scaffold
+            varType: string
+            variable_selector:
+            - '1600'
+            - response_mode
+          id: scaffold_case
+          logical_operator: and
+        - case_id: repair_case
+          conditions:
+          - comparison_operator: is
+            id: 0d33c9c0-acde-472c-9de3-2d000ec58cdf
+            value: repair
+            varType: string
+            variable_selector:
+            - '1600'
+            - response_mode
+          id: repair_case
+          logical_operator: and
+        desc: ''
+        selected: false
+        title: Response Mode
+        type: if-else
+      height: 220
+      id: '1650'
+      position:
+        x: 2560
+        y: 0
+      positionAbsolute:
+        x: 2560
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: false
+            size: 50
+        model:
+          completion_params:
+            temperature: 0.1
+            max_tokens: 350
+          mode: chat
+          name: deepseek-chat
+          provider: langgenius/deepseek/deepseek
+        prompt_template:
+        - id: 2c530277-07fd-4345-ae28-dce21f4d611a
+          role: system
+          text: |-
+            You are Jamie, the child's novice friend, giving ONE very short oral reflection after the child has genuinely repaired a communication gap.
+
+            The controller may supply one of two reflection bases.
+
+            `blocking_repair` is earned because Jamie was previously unable to continue, the child supplied the missing information, and Jamie gained a new action.
+
+            `non_blocking_choice` is NOT a failure. It means the child left a low-stakes player choice unspecified, Jamie could reasonably choose among equivalent legal options, and this may later support a brief contrast: some details can be filled by common sense/player agency, but if the choice matters to the rules, the speaker needs to say how to choose.
+
+            Reflection basis:
+            {{#1600.reflection_basis_json#}}
+
+            Controller:
+            {{#1600.controller_json#}}
+
+            Current child message:
+            {{#sys.query#}}
+
+            Grounded listener memory:
+            {{#1200.listener_model_json#}}
+
+            If `kind` is `blocking_repair`, do three things naturally:
+            1. Name the speaker-listener knowledge gap: the child knew something Jamie did not.
+            2. Name why the repair worked: Jamie could continue only after the child made that missing information explicit.
+            3. Generalize to a portable listener-centred idea, usually: "When you teach someone, think about what they need to know for the next move."
+
+            If `kind` is `non_blocking_choice`, do NOT call it a mistake. Briefly explain that Jamie could make a reasonable player choice because the currently available options were equivalent under the taught rules. Generalize: if the choice matters, tell the listener how to choose; if it does not, ordinary player choice/common sense can fill it in.
+
+            Do NOT merely say "Great, that helped."
+            Do NOT lecture, grade, or introduce any game rule.
+            Do NOT claim the child repaired something unless the reflection basis says so.
+            Keep it conversational and age-appropriate: 2–3 short sentences.
+
+            If `next_pending_gap` exists in the reflection basis, end with one very short, open question such as "What happens next?" without suggesting a candidate rule.
+
+            Return plain text only.
+        - id: 74f5b358-4d72-44f0-88f7-b9dd89c1521b
+          role: user
+          text: |-
+            Current child message:
+            {{#sys.query#}}
+        selected: false
+        title: AI · Brief Reflection
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 148
+      id: '1700'
+      position:
+        x: 2880
+        y: -300
+      positionAbsolute:
+        x: 2880
+        y: -300
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        desc: ''
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1700'
+          - text
+          variable_selector:
+          - conversation
+          - draft_reply
+          write_mode: over-write
+        selected: false
+        title: Use Teach Draft
+        type: assigner
+        version: '2'
+      height: 88
+      id: '1710'
+      position:
+        x: 3200
+        y: -300
+      positionAbsolute:
+        x: 3200
+        y: -300
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: false
+            size: 50
+        model:
+          completion_params:
+            temperature: 0.1
+            max_tokens: 250
+          mode: chat
+          name: deepseek-chat
+          provider: langgenius/deepseek/deepseek
+        prompt_template:
+        - id: 2ea95f31-44b9-4a1a-95ff-76589d402026
+          role: system
+          text: |-
+            You are Jamie, the child's same-age novice friend.
+
+            Controller:
+            {{#1600.controller_json#}}
+
+            Last visible action trace:
+            {{#conversation.last_action_trace_json#}}
+
+            Current child message:
+            {{#sys.query#}}
+
+            If the child only said "No", "That's wrong", or another vague correction:
+            - first vague correction: ask which part you got wrong.
+            - repeated vague correction: ask the child to point to the step that should change.
+
+            Do not guess the replacement rule.
+            Keep the response to 1–2 short sentences.
+            Return plain text only.
+        - id: 45bb58a5-ff53-414c-a65b-a1ccf0ceef17
+          role: user
+          text: |-
+            Current child message:
+            {{#sys.query#}}
+        selected: false
+        title: AI · Repair Response
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 148
+      id: '1720'
+      position:
+        x: 2880
+        y: 0
+      positionAbsolute:
+        x: 2880
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        desc: ''
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1720'
+          - text
+          variable_selector:
+          - conversation
+          - draft_reply
+          write_mode: over-write
+        selected: false
+        title: Use Repair Draft
+        type: assigner
+        version: '2'
+      height: 88
+      id: '1730'
+      position:
+        x: 3200
+        y: 0
+      positionAbsolute:
+        x: 3200
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: false
+            size: 50
+        model:
+          completion_params:
+            temperature: 0.1
+            max_tokens: 350
+          mode: chat
+          name: deepseek-chat
+          provider: langgenius/deepseek/deepseek
+        prompt_template:
+        - id: 0a906e51-9406-4638-acab-30b68a7b3540
+          role: system
+          text: |-
+            You are Jamie, an 8–10-year-old friend who has never played the child's game.
+
+            You understand normal child language and ordinary real-world concepts, but you know NO session-specific game rule unless the child taught it.
+
+            Controller:
+            {{#1600.controller_json#}}
+
+            Gap lifecycle state:
+            {{#1600.gap_state_json#}}
+
+            Grounded listener memory:
+            {{#1200.listener_model_json#}}
+
+            Current child message:
+            {{#sys.query#}}
+
+            Sanitized world patch:
+            {{#1400.text#}}
+
+            Action plan:
+            {{#1500.text#}}
+
+            Core rule:
+            Never propose a missing game rule inside a clarification question.
+            Ask from the boundary of what Jamie currently knows.
+
+            PLAYER AGENCY
+            The child defines rules; Jamie may make ordinary player choices within those rules.
+            If the Action Planner marks `non_blocking_underspecification`, do NOT frame it as the child failing to explain.
+            - If resolution is `listener_choice`, Jamie may naturally say what choice he will make (for example, "Okay, I'll pick one of these.") without claiming a new game rule.
+            - If resolution is `clarify`, ask a normal low-stakes choice question (for example, "Which one should I flip?"). This is not a breakdown, scaffold, or repair event.
+
+            Good:
+            - "What do I do first?"
+            - "What do I do with the cards?"
+            - "Which one should I flip?"
+            - "These two are the same. What happens now?"
+            - "What if they're the same?" when the child has only explained the different branch.
+            - "How do we know when the game is over?"
+
+            Bad:
+            - "Do I flip two cards?"
+            - "Do I keep them if they match?"
+            - "If they're the same, do I take them?"
+            - "Does the person with the most pairs win?"
+            - "So we're trying to find pairs, right?"
+
+            Controller intents:
+            - redirect: briefly acknowledge and return to the current situation.
+            - ask_open_next: ask one open, non-leading question about the next missing action.
+            - clarify_choice: ask one natural clarification about a non-blocking player choice. Do not suggest that the child made a mistake.
+            - act_and_continue: naturally acknowledge the action Jamie just performed; ask what happens next only if needed.
+            - act_and_gap: naturally acknowledge the actions Jamie just performed, then expose the pending gap with a short open question such as "Now what?". Do not explain or teach yet.
+            - gap_followup: Jamie is still stuck on an existing pending gap. Ask a MORE SITUATED but still non-leading question. State what Jamie can see/knows, then ask for the missing action/detail without suggesting the answer.
+            - fresh_listener_transition: explain that a new friend has arrived and the child will teach again from the beginning.
+            - transfer_prompt: ask the short transfer question.
+            - complete: close warmly and briefly.
+
+            Do not grade. Do not praise every turn. 1–2 short sentences.
+            Return plain text only.
+        - id: 6d3a94ad-6395-4938-a48d-1c5e070e4346
+          role: user
+          text: |-
+            Current child message:
+            {{#sys.query#}}
+        selected: false
+        title: AI · Jamie Listener Response
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 148
+      id: '1740'
+      position:
+        x: 2880
+        y: 300
+      positionAbsolute:
+        x: 2880
+        y: 300
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        desc: ''
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1740'
+          - text
+          variable_selector:
+          - conversation
+          - draft_reply
+          write_mode: over-write
+        selected: false
+        title: Use Listener Draft
+        type: assigner
+        version: '2'
+      height: 88
+      id: '1750'
+      position:
+        x: 3200
+        y: 300
+      positionAbsolute:
+        x: 3200
+        y: 300
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: false
+            size: 50
+        model:
+          completion_params:
+            temperature: 0.1
+            max_tokens: 500
+          mode: chat
+          name: deepseek-chat
+          provider: langgenius/deepseek/deepseek
+        prompt_template:
+        - id: 8fd113cf-77df-4f1d-9e28-ac2c23381760
+          role: system
+          text: |-
+            You are the final Response Leakage Guard.
+
+            The lesson depends on Jamie NOT leaking unstated game rules through helpful-sounding questions.
+
+            Student-grounded listener memory:
+            {{#1200.listener_model_json#}}
+
+            Draft Jamie response:
+            {{#conversation.draft_reply#}}
+
+            Check every game-specific claim or CANDIDATE RULE in the draft.
+            If a claim/question introduces gameplay logic the child never taught, rewrite it as an open question from the boundary of Jamie's actual knowledge.
+
+            Important distinction:
+            - Asking about an unexplained branch WITHOUT proposing its answer is safe.
+            - Supplying a candidate action/outcome inside the question is leakage.
+
+            Examples:
+            BAD: "Do we flip them over and try to find the pairs?"
+            SAFE: "Okay, I see the cards with matching pictures. What do I do with them?"
+
+            BAD: "Do I keep these because they match?"
+            SAFE: "These two are the same. What happens now?"
+
+            Child taught: "If they're different, leave them face up."
+            SAFE: "What if they're the same?"
+            BAD: "If they're the same, do I keep them?"
+
+            A natural player-choice clarification is also safe when it does not invent a rule:
+            SAFE: "Which one should I flip?"
+
+            Do not remove harmless presentation language about what is visibly on screen.
+            Keep the child-friendly tone.
+
+            Return VALID JSON ONLY:
+            {
+              "final_reply": "",
+              "leakage_detected": false,
+              "leaked_claims": []
+            }
+
+            Additional lifecycle rule:
+            A reflection may name the listener knowledge gap and the reason the child's repair worked, but it must not add a game rule.
+            A scaffold may name the TYPE of missing information but must not supply a candidate answer.
+            A non-blocking player-choice clarification must not be escalated into a communication failure just because Jamie asks which equivalent option to choose.
+        - id: c5c89c2f-3caa-4d0d-89d2-fc9219241bd3
+          role: user
+          text: |-
+            Current child message:
+            {{#sys.query#}}
+        selected: false
+        title: AI · Response Leakage Guard
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 148
+      id: '1800'
+      position:
+        x: 3520
+        y: 0
+      positionAbsolute:
+        x: 3520
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        code: |-
+          import json, re, copy
+
+          ALLOWED_ACTIONS = {"update_object", "reveal_object", "hide_object", "remove_object", "set_turn", "set_counter", "set_status", "wait", "reset_to_baseline"}
+
+          def loads(value, default):
+              if value is None:
+                  return copy.deepcopy(default)
+              if isinstance(value, (dict, list)):
+                  return copy.deepcopy(value)
+              try:
+                  return json.loads(value)
+              except Exception:
+                  s = str(value).strip()
+                  s = re.sub(r"^```(?:json)?\s*", "", s, flags=re.I)
+                  s = re.sub(r"\s*```$", "", s)
+                  m = re.search(r"\{.*\}", s, flags=re.S)
+                  if m:
+                      try:
+                          return json.loads(m.group(0))
+                      except Exception:
+                          pass
+                  return copy.deepcopy(default)
+
+          def loads_with_status(value):
+              if isinstance(value, dict):
+                  return copy.deepcopy(value), True
+              if value is None:
+                  return {}, False
+              s = str(value).strip()
+              candidates = [s]
+              s2 = re.sub(r"^```(?:json)?\s*", "", s, flags=re.I)
+              s2 = re.sub(r"\s*```$", "", s2)
+              if s2 != s:
+                  candidates.append(s2)
+              m = re.search(r"\{.*\}", s2, flags=re.S)
+              if m:
+                  candidates.append(m.group(0))
+              for candidate in candidates:
+                  try:
+                      obj = json.loads(candidate)
+                      if isinstance(obj, dict):
+                          return obj, True
+                  except Exception:
+                      pass
+              return {}, False
+
+          def merge_surface(existing, patch):
+              base = dict(existing) if isinstance(existing, dict) else {}
+              if not isinstance(patch, dict):
+                  return base
+              for k, v in patch.items():
+                  if v is not None:
+                      base[k] = v
+              return base
+
+          def merge_objects(existing, patch):
+              by_id = {str(o.get("id")): dict(o) for o in existing if isinstance(o, dict) and o.get("id") is not None}
+              for oid in patch.get("remove_object_ids", []) or []:
+                  by_id.pop(str(oid), None)
+              for obj in patch.get("add_objects", []) or []:
+                  if isinstance(obj, dict) and obj.get("id") is not None:
+                      by_id[str(obj["id"])] = dict(obj)
+              for obj in patch.get("update_objects", []) or []:
+                  if isinstance(obj, dict) and obj.get("id") is not None:
+                      key = str(obj["id"])
+                      base = by_id.get(key, {"id": obj["id"]})
+                      for k, v in obj.items():
+                          if k != "id" and v is not None:
+                              base[k] = v
+                      by_id[key] = base
+              return list(by_id.values())
+
+          def current_turn_evidence(student_model):
+              turn = int(student_model.get("turn_count", 0) or 0)
+              facts = [x for x in student_model.get("facts", []) if isinstance(x, dict) and int(x.get("turn", 0) or 0) == turn]
+              instructions = [x for x in student_model.get("instructions", []) if isinstance(x, dict) and int(x.get("turn", 0) or 0) == turn]
+              return turn, facts, instructions
+
+          def provenance_map(guard):
+              out = {}
+              for item in guard.get("provenance", []) or []:
+                  if not isinstance(item, dict):
+                      continue
+                  field = str(item.get("field") or "").strip().lower()
+                  if field:
+                      out[field] = str(item.get("source") or "").strip().lower()
+              return out
+
+          def field_has_student_provenance(pmap, oid, field):
+              oid = str(oid).lower()
+              field = str(field).lower()
+              candidates = [
+                  f"update_objects.{oid}.{field}",
+                  f"{oid}.{field}",
+                  f"objects.{oid}.{field}",
+                  field,
+              ]
+              return any(pmap.get(key) == "student" for key in candidates)
+
+          def setup_state_allowed(instructions):
+              # A setup/state instruction may change object state in the world definition.
+              return any(str(i.get("action_type") or "") == "set_state" for i in instructions)
+
+          def prune_patch(raw_patch, render_model, student_model, guard):
+              if not isinstance(raw_patch, dict):
+                  return {}
+
+              out = {}
+              pmap = provenance_map(guard)
+              _, facts, instructions = current_turn_evidence(student_model)
+
+              # Keep top-level fields only when meaningfully changed.
+              for key in ("name", "status", "ready", "turn"):
+                  value = raw_patch.get(key)
+                  if value is not None and value != render_model.get(key):
+                      out[key] = value
+
+              # Surface is a delta. Existing non-empty layout cannot drift from presentation inference.
+              if isinstance(raw_patch.get("surface"), dict):
+                  cur = render_model.get("surface") if isinstance(render_model.get("surface"), dict) else {}
+                  delta = {}
+                  for k, v in raw_patch["surface"].items():
+                      if v is None or cur.get(k) == v:
+                          continue
+                      if cur.get(k) in (None, "", 0) or pmap.get(f"surface.{k}") == "student":
+                          delta[k] = v
+                  if delta:
+                      out["surface"] = delta
+
+              # New objects may contain presentation inference.
+              add_objects = []
+              existing_ids = {str(o.get("id")) for o in render_model.get("objects", []) if isinstance(o, dict) and o.get("id") is not None}
+              for obj in raw_patch.get("add_objects", []) or []:
+                  if isinstance(obj, dict) and obj.get("id") is not None and str(obj.get("id")) not in existing_ids:
+                      add_objects.append(dict(obj))
+              if add_objects:
+                  out["add_objects"] = add_objects
+
+              # Existing object rewrites are conservative:
+              # unchanged fields are removed; new empty->filled presentation fields are okay;
+              # overwriting an existing non-empty field requires student provenance,
+              # except setup set_state instructions may update state.
+              cur_objs = {str(o.get("id")): o for o in render_model.get("objects", []) if isinstance(o, dict) and o.get("id") is not None}
+              updates = []
+              allow_state_setup = setup_state_allowed(instructions)
+              for obj in raw_patch.get("update_objects", []) or []:
+                  if not isinstance(obj, dict) or obj.get("id") is None:
+                      continue
+                  oid = str(obj["id"])
+                  cur = cur_objs.get(oid)
+                  if cur is None:
+                      continue
+                  delta = {"id": obj["id"]}
+                  for k, v in obj.items():
+                      if k == "id" or v is None or cur.get(k) == v:
+                          continue
+                      if cur.get(k) in (None, "", 0):
+                          delta[k] = v
+                      elif k == "state" and allow_state_setup:
+                          delta[k] = v
+                      elif field_has_student_provenance(pmap, oid, k):
+                          delta[k] = v
+                  if len(delta) > 1:
+                      updates.append(delta)
+              if updates:
+                  out["update_objects"] = updates
+
+              removes = []
+              for oid in raw_patch.get("remove_object_ids", []) or []:
+                  if str(oid) in cur_objs and field_has_student_provenance(pmap, oid, "remove"):
+                      removes.append(oid)
+              if removes:
+                  out["remove_object_ids"] = removes
+
+              if raw_patch.get("counters") is not None and (raw_patch.get("counters") or []) != (render_model.get("counters") or []):
+                  out["counters"] = raw_patch.get("counters")
+
+              return out
+
+          def sanitize_actions(action_plan, objects):
+              ids = {str(o.get("id")) for o in objects if isinstance(o, dict) and o.get("id") is not None}
+              out = []
+              underspec = action_plan.get("non_blocking_underspecification") if isinstance(action_plan.get("non_blocking_underspecification"), dict) else {}
+              # Deterministic invariant: `clarify` means the deferred player choice has not executed,
+              # even if the LLM contradictorily emitted action_ready/actions.
+              if str(underspec.get("resolution") or "").strip() == "clarify":
+                  return out
+              if not bool(action_plan.get("action_ready", False)):
+                  return out
+              for a in action_plan.get("actions", []) or []:
+                  if not isinstance(a, dict) or a.get("type") not in ALLOWED_ACTIONS:
+                      continue
+                  t = a.get("type")
+                  if t in {"reveal_object", "hide_object", "remove_object", "update_object"}:
+                      oid = str(a.get("object_id") or "")
+                      if oid not in ids:
+                          continue
+                      item = {"type": t, "object_id": oid}
+                      if t == "update_object":
+                          item["patch"] = {k: v for k, v in (a.get("patch") or {}).items() if v is not None}
+                      out.append(item)
+                  elif t == "set_turn":
+                      out.append({"type": t, "to": str(a.get("to") or "")})
+                  elif t == "set_counter":
+                      out.append({"type": t, "counter_id": str(a.get("counter_id") or ""), "label": str(a.get("label") or ""), "value": a.get("value", 0)})
+                  elif t == "set_status":
+                      out.append({"type": t, "text": str(a.get("text") or "")})
+                  elif t == "wait":
+                      try:
+                          ms = max(0, min(2000, int(a.get("ms") or 300)))
+                      except Exception:
+                          ms = 300
+                      out.append({"type": t, "ms": ms})
+                  elif t == "reset_to_baseline":
+                      out.append({"type": t})
+              return out
+
+          def is_clarify_resolution(action_plan):
+              underspec = action_plan.get("non_blocking_underspecification") if isinstance(action_plan.get("non_blocking_underspecification"), dict) else {}
+              return str(underspec.get("resolution") or "").strip() == "clarify"
+
+          def clarified_deferred_action(action_plan):
+              underspec = action_plan.get("non_blocking_underspecification") if isinstance(action_plan.get("non_blocking_underspecification"), dict) else {}
+              if not is_clarify_resolution(action_plan):
+                  return None
+              deferred = underspec.get("deferred_action") if isinstance(underspec.get("deferred_action"), dict) else {}
+              action_type = str(deferred.get("type") or "").strip()
+              if action_type not in ALLOWED_ACTIONS:
+                  return None
+              eligible = deferred.get("eligible_object_ids") if isinstance(deferred.get("eligible_object_ids"), list) else []
+              patch_fields = deferred.get("patch_fields") if isinstance(deferred.get("patch_fields"), list) else []
+              try:
+                  count = max(1, int(deferred.get("count") or 1))
+              except Exception:
+                  count = 1
+              return {
+                  "type": action_type,
+                  "count": count,
+                  "eligible_object_ids": {str(x) for x in eligible if x is not None},
+                  "patch_fields": {str(x) for x in patch_fields if str(x).strip()}
+              }
+
+          def strip_clarified_choice_effects(patch, action_plan, guard):
+              """Remove pre-applied runtime effects when Jamie chose to clarify instead of act.
+
+              The World Builder/Guard run before the Action Planner, so an LLM may have already
+              placed the would-be runtime result into world_patch. This function is the final,
+              deterministic enforcement point that keeps the visible world unchanged while Jamie asks.
+              """
+              if not is_clarify_resolution(action_plan):
+                  return copy.deepcopy(patch), [], False
+
+              deferred = clarified_deferred_action(action_plan)
+              out = copy.deepcopy(patch)
+              removed = []
+              pmap = provenance_map(guard)
+
+              # Clarification must not narrate/mark a runtime action as already underway. Preserve
+              # these fields only when the current child message explicitly changed them.
+              for field in ("status", "ready"):
+                  if field in out and pmap.get(field) != "student":
+                      out.pop(field, None)
+                      removed.append(field)
+
+              # Fail-safe: the planner is required to provide deferred_action for clarify. If it
+              # violates that schema, freeze existing gameplay state rather than risk silently making
+              # the choice before Jamie asks. Presentation/world construction may still add new objects
+              # or surface details, but existing-object transitions are deferred.
+              if not deferred:
+                  for field in ("update_objects", "remove_object_ids", "turn", "counters"):
+                      if field in out:
+                          out.pop(field, None)
+                          removed.append(f"fallback:{field}")
+                  return out, removed, True
+
+              action_type = deferred["type"]
+              eligible = deferred["eligible_object_ids"]
+
+              def in_scope(oid):
+                  return not eligible or str(oid) in eligible
+
+              # Object state effects corresponding to the deferred action.
+              forbidden_field = None
+              forbidden_value = None
+              if action_type == "reveal_object":
+                  forbidden_field, forbidden_value = "state", "face_up"
+              elif action_type == "hide_object":
+                  forbidden_field, forbidden_value = "state", "face_down"
+
+              if forbidden_field:
+                  updates = []
+                  for obj in out.get("update_objects", []) or []:
+                      if not isinstance(obj, dict) or obj.get("id") is None:
+                          continue
+                      delta = dict(obj)
+                      if in_scope(obj.get("id")) and delta.get(forbidden_field) == forbidden_value:
+                          delta.pop(forbidden_field, None)
+                          removed.append(f"update_objects.{obj.get('id')}.{forbidden_field}={forbidden_value}")
+                      if len(delta) > 1:
+                          updates.append(delta)
+                  if "update_objects" in out:
+                      if updates:
+                          out["update_objects"] = updates
+                      else:
+                          out.pop("update_objects", None)
+
+              elif action_type == "remove_object":
+                  vals = []
+                  for oid in out.get("remove_object_ids", []) or []:
+                      if in_scope(oid):
+                          removed.append(f"remove_object_ids.{oid}")
+                      else:
+                          vals.append(oid)
+                  if "remove_object_ids" in out:
+                      if vals:
+                          out["remove_object_ids"] = vals
+                      else:
+                          out.pop("remove_object_ids", None)
+
+              elif action_type == "update_object" and deferred["patch_fields"]:
+                  updates = []
+                  for obj in out.get("update_objects", []) or []:
+                      if not isinstance(obj, dict) or obj.get("id") is None:
+                          continue
+                      delta = dict(obj)
+                      if in_scope(obj.get("id")):
+                          for field in deferred["patch_fields"]:
+                              if field in delta:
+                                  delta.pop(field, None)
+                                  removed.append(f"update_objects.{obj.get('id')}.{field}")
+                      if len(delta) > 1:
+                          updates.append(delta)
+                  if "update_objects" in out:
+                      if updates:
+                          out["update_objects"] = updates
+                      else:
+                          out.pop("update_objects", None)
+
+              elif action_type == "set_turn" and "turn" in out:
+                  out.pop("turn", None)
+                  removed.append("turn")
+
+              elif action_type == "set_status" and "status" in out:
+                  out.pop("status", None)
+                  removed.append("status")
+
+              elif action_type == "set_counter" and "counters" in out:
+                  # A clarified counter choice has not executed. Keep setup counters only when the
+                  # planner did not identify this as the deferred runtime effect. With no target
+                  # counter identity in the deferred action, safest behavior is to defer the change.
+                  out.pop("counters", None)
+                  removed.append("counters")
+
+              return out, removed, False
+
+          def strip_action_effects(patch, actions):
+              out = copy.deepcopy(patch)
+              effects = {}
+              removals = set()
+              turn = None
+              status = None
+
+              for a in actions:
+                  t = a.get("type")
+                  oid = str(a.get("object_id") or "")
+                  if t == "reveal_object" and oid:
+                      effects.setdefault(oid, {})["state"] = "face_up"
+                  elif t == "hide_object" and oid:
+                      effects.setdefault(oid, {})["state"] = "face_down"
+                  elif t == "remove_object" and oid:
+                      removals.add(oid)
+                  elif t == "update_object" and oid:
+                      effects.setdefault(oid, {}).update(a.get("patch") or {})
+                  elif t == "set_turn":
+                      turn = a.get("to")
+                  elif t == "set_status":
+                      status = a.get("text")
+
+              updates = []
+              for obj in out.get("update_objects", []) or []:
+                  oid = str(obj.get("id") or "")
+                  eff = effects.get(oid, {})
+                  delta = {"id": obj.get("id")}
+                  for k, v in obj.items():
+                      if k == "id":
+                          continue
+                      if k in eff and eff[k] == v:
+                          continue
+                      delta[k] = v
+                  if len(delta) > 1:
+                      updates.append(delta)
+              if "update_objects" in out:
+                  if updates:
+                      out["update_objects"] = updates
+                  else:
+                      out.pop("update_objects", None)
+
+              if removals and "remove_object_ids" in out:
+                  vals = [x for x in out["remove_object_ids"] if str(x) not in removals]
+                  if vals:
+                      out["remove_object_ids"] = vals
+                  else:
+                      out.pop("remove_object_ids", None)
+
+              if "turn" in out and out.get("turn") == turn:
+                  out.pop("turn", None)
+              if "status" in out and out.get("status") == status:
+                  out.pop("status", None)
+
+              return out
+
+          def apply_actions(objects, actions):
+              by_id = {str(o.get("id")): dict(o) for o in objects if isinstance(o, dict) and o.get("id") is not None}
+              for a in actions:
+                  t = a.get("type")
+                  oid = str(a.get("object_id") or "")
+                  if t in {"reveal_object", "hide_object", "remove_object", "update_object"} and oid not in by_id:
+                      continue
+                  if t == "reveal_object":
+                      by_id[oid]["state"] = "face_up"
+                  elif t == "hide_object":
+                      by_id[oid]["state"] = "face_down"
+                  elif t == "remove_object":
+                      by_id[oid]["state"] = "removed"
+                  elif t == "update_object":
+                      for k, v in (a.get("patch") or {}).items():
+                          if v is not None:
+                              by_id[oid][k] = v
+              return list(by_id.values())
+
+          def action_label(a):
+              t = a.get("type")
+              oid = a.get("object_id")
+              if t == "reveal_object": return f"Reveal {oid}"
+              if t == "hide_object": return f"Hide {oid}"
+              if t == "remove_object": return f"Remove {oid}"
+              if t == "update_object": return f"Change {oid}"
+              if t == "set_turn": return f"Set turn to {a.get('to')}"
+              if t == "set_counter": return f"Update {a.get('label') or a.get('counter_id')}"
+              if t == "set_status": return str(a.get("text") or "Update status")
+              return str(a)
+
+          def main(world_guard_text: str, action_plan_text: str, gap_evaluation_text: str, response_guard_text: str,
+                   render_model_json: str, game_state_json: str, listener_model_json: str,
+                   student_model_json: str, controller_json: str, gap_state_json: str, phase: str,
+                   pedagogy_state_json: str, eval_state_json: str, repair_count,
+                   last_action_trace_json: str) -> dict:
+
+              guard, guard_parse_ok = loads_with_status(world_guard_text)
+              action_plan, action_plan_parse_ok = loads_with_status(action_plan_text)
+              response_guard, response_guard_parse_ok = loads_with_status(response_guard_text)
+              controller, controller_parse_ok = loads_with_status(controller_json)
+              gap_evaluation, gap_eval_parse_ok = loads_with_status(gap_evaluation_text)
+
+              pipeline_errors = []
+              if not guard_parse_ok or guard.get("parse_ok") is False:
+                  pipeline_errors.append("world_builder_or_guard_parse_error")
+              if not action_plan_parse_ok:
+                  pipeline_errors.append("action_plan_parse_error")
+              if not response_guard_parse_ok:
+                  pipeline_errors.append("response_guard_parse_error")
+              if not controller_parse_ok:
+                  pipeline_errors.append("controller_parse_error")
+              if not gap_eval_parse_ok or gap_evaluation.get("parse_ok") is False:
+                  pipeline_errors.append("gap_evaluator_input_parse_error")
+
+              render_model = loads(render_model_json, {"surface": None, "objects": [], "provenance": []})
+              render_model.setdefault("objects", [])
+              render_model.setdefault("provenance", [])
+
+              student_model = loads(student_model_json, {"facts": [], "instructions": [], "messages": [], "turn_count": 0})
+              raw_patch = guard.get("world_patch") if isinstance(guard.get("world_patch"), dict) else {}
+              patch = prune_patch(raw_patch, render_model, student_model, guard)
+
+              # Build provisional defined world so runtime actions may reference new objects from this turn.
+              provisional = copy.deepcopy(render_model)
+              if patch.get("surface") is not None:
+                  provisional["surface"] = merge_surface(provisional.get("surface"), patch["surface"])
+              provisional["objects"] = merge_objects(provisional.get("objects", []), patch)
+
+              actions = sanitize_actions(action_plan, provisional.get("objects", []))
+
+              # Invariant 1: definition delta and runtime state transition are separate.
+              patch = strip_action_effects(patch, actions)
+
+              # Invariant 2: if Jamie chose to CLARIFY an ordinary player choice, the deferred
+              # runtime effect must not survive in world_patch. This closes the contradiction where
+              # Jamie asks "Which one?" while the world has already revealed/changed one option.
+              patch, clarify_stripped_effects, clarify_fallback = strip_clarified_choice_effects(patch, action_plan, guard)
+              # Runtime-result narration is not a world definition delta unless the child explicitly changed it.
+              if actions and "status" in patch and provenance_map(guard).get("status") != "student":
+                  patch.pop("status", None)
+
+              # Invariant 3: first validated physical action makes the setup playable before execution.
+              if actions:
+                  patch["ready"] = True
+
+              # Render model receives definition delta only.
+              if patch.get("surface") is not None:
+                  render_model["surface"] = merge_surface(render_model.get("surface"), patch["surface"])
+              render_model["objects"] = merge_objects(render_model.get("objects", []), patch)
+              render_model["provenance"] = guard.get("provenance", []) or render_model.get("provenance", [])
+
+              # Keep other harmless top-level render metadata if present.
+              for k in ("name", "status", "ready", "turn", "counters"):
+                  if k in patch and patch.get(k) is not None:
+                      render_model[k] = copy.deepcopy(patch[k])
+
+              game_state = loads(game_state_json, {"objects": [], "turn": None, "completed": False})
+              # Definition/setup changes update physical state first.
+              game_state["objects"] = merge_objects(game_state.get("objects", []), patch)
+              if patch.get("turn") is not None:
+                  game_state["turn"] = patch.get("turn")
+
+              # Make newly rendered objects available physically without overwriting existing runtime state.
+              existing_ids = {str(o.get("id")) for o in game_state.get("objects", []) if isinstance(o, dict) and o.get("id") is not None}
+              for obj in render_model.get("objects", []):
+                  if isinstance(obj, dict) and str(obj.get("id")) not in existing_ids:
+                      game_state.setdefault("objects", []).append(copy.deepcopy(obj))
+
+              # Runtime actions happen only after baseline has been captured client-side.
+              game_state["objects"] = apply_actions(game_state.get("objects", []), actions)
+              for a in actions:
+                  if a.get("type") == "set_turn":
+                      game_state["turn"] = a.get("to") or None
+                  elif a.get("type") == "set_counter":
+                      counters = {str(c.get("id")): dict(c) for c in game_state.get("counters", []) if isinstance(c, dict) and c.get("id") is not None}
+                      cid = str(a.get("counter_id") or "")
+                      counters[cid] = {"id": cid, "label": a.get("label") or cid, "value": a.get("value", 0)}
+                      game_state["counters"] = list(counters.values())
+                  elif a.get("type") == "set_status":
+                      game_state["status"] = a.get("text")
+
+              if controller.get("reset_listener"):
+                  listener_model_json = json.dumps({"facts": [], "instructions": []}, ensure_ascii=False)
+                  game_state = {
+                      "objects": copy.deepcopy(render_model.get("objects", [])),
+                      "turn": None,
+                      "completed": False
+                  }
+
+              rg = response_guard
+              final_reply = str(rg.get("final_reply") or "").strip()
+              if not final_reply:
+                  pipeline_errors.append("empty_final_reply")
+                  final_reply = "I lost track of that for a second. Can you say it again?"
+
+              trace = [action_label(a) for a in actions]
+              if not trace:
+                  trace = loads(last_action_trace_json, [])
+
+              ui_action = {"type": "none", "payload": {}}
+              if actions:
+                  ui_action = {"type": "action_sequence", "payload": {"actions": actions}}
+
+              support = None
+              if controller.get("support") == "locate_step":
+                  support = {
+                      "type": "locate_step",
+                      "prompt": "Which step should Jamie change?",
+                      "steps": trace
+                  }
+
+              response = {
+                  "reply": final_reply,
+                  "phase": phase,
+                  "world_patch": patch,
+                  "ui_action": ui_action,
+                  "support": support,
+                  "capture_baseline": bool(controller.get("capture_baseline", False)),
+                  "debug": {
+                      "pipeline_errors": pipeline_errors,
+                      "world_builder_parse_ok": bool(guard.get("parse_ok", guard_parse_ok)),
+                      "world_builder_parse_error": guard.get("parse_error"),
+                      "world_builder_had_patch": bool(guard.get("builder_had_patch", False)),
+                      "world_builder_add_object_count": int(guard.get("builder_add_object_count", 0) or 0),
+                      "world_guard_add_object_count": int(guard.get("guard_add_object_count", 0) or 0),
+                      "world_guard_violations": guard.get("violations", []),
+                      "response_leakage_detected": bool(rg.get("leakage_detected", False)),
+                      "response_leaked_claims": rg.get("leaked_claims", []),
+                      "action_plan": action_plan,
+                      "clarify_invariant_enforced": is_clarify_resolution(action_plan),
+                      "clarify_invariant_fallback": clarify_fallback,
+                      "clarify_stripped_patch_effects": clarify_stripped_effects,
+                      "gap_evaluation": gap_evaluation,
+                      "gap_state": loads(gap_state_json, {"pending": None, "last_outcome": "none", "history": []}),
+                      "controller": controller
+                  }
+              }
+
+              return {
+                  "response_json": json.dumps(response, ensure_ascii=False),
+                  "render_model_json": json.dumps(render_model, ensure_ascii=False),
+                  "game_state_json": json.dumps(game_state, ensure_ascii=False),
+                  "listener_model_json": listener_model_json,
+                  "student_model_json": student_model_json,
+                  "last_action_trace_json": json.dumps(trace, ensure_ascii=False),
+                  "phase": phase,
+                  "pedagogy_state_json": pedagogy_state_json,
+                  "eval_state_json": eval_state_json,
+                  "gap_state_json": gap_state_json,
+                  "repair_count": int(repair_count or 0)
+              }
+        code_language: python3
+        desc: ''
+        outputs:
+          eval_state_json:
+            children: null
+            type: string
+          game_state_json:
+            children: null
+            type: string
+          gap_state_json:
+            children: null
+            type: string
+          last_action_trace_json:
+            children: null
+            type: string
+          listener_model_json:
+            children: null
+            type: string
+          pedagogy_state_json:
+            children: null
+            type: string
+          phase:
+            children: null
+            type: string
+          render_model_json:
+            children: null
+            type: string
+          repair_count:
+            children: null
+            type: number
+          response_json:
+            children: null
+            type: string
+          student_model_json:
+            children: null
+            type: string
+        selected: false
+        title: Pack World + Action + Eval
+        type: code
+        variables:
+        - value_selector:
+          - '1400'
+          - text
+          variable: world_guard_text
+        - value_selector:
+          - '1500'
+          - text
+          variable: action_plan_text
+        - value_selector:
+          - '1550'
+          - text
+          variable: gap_evaluation_text
+        - value_selector:
+          - '1800'
+          - text
+          variable: response_guard_text
+        - value_selector:
+          - conversation
+          - render_model_json
+          variable: render_model_json
+        - value_selector:
+          - conversation
+          - game_state_json
+          variable: game_state_json
+        - value_selector:
+          - '1200'
+          - listener_model_json
+          variable: listener_model_json
+        - value_selector:
+          - '1200'
+          - student_model_json
+          variable: student_model_json
+        - value_selector:
+          - '1600'
+          - controller_json
+          variable: controller_json
+        - value_selector:
+          - '1600'
+          - gap_state_json
+          variable: gap_state_json
+        - value_selector:
+          - '1600'
+          - phase
+          variable: phase
+        - value_selector:
+          - '1600'
+          - pedagogy_state_json
+          variable: pedagogy_state_json
+        - value_selector:
+          - '1600'
+          - eval_state_json
+          variable: eval_state_json
+        - value_selector:
+          - '1600'
+          - repair_count
+          variable: repair_count
+        - value_selector:
+          - conversation
+          - last_action_trace_json
+          variable: last_action_trace_json
+      height: 112
+      id: '1900'
+      position:
+        x: 3840
+        y: 0
+      positionAbsolute:
+        x: 3840
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        desc: ''
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1900'
+          - phase
+          variable_selector:
+          - conversation
+          - phase
+          write_mode: over-write
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1900'
+          - student_model_json
+          variable_selector:
+          - conversation
+          - student_model_json
+          write_mode: over-write
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1900'
+          - render_model_json
+          variable_selector:
+          - conversation
+          - render_model_json
+          write_mode: over-write
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1900'
+          - listener_model_json
+          variable_selector:
+          - conversation
+          - listener_model_json
+          write_mode: over-write
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1900'
+          - game_state_json
+          variable_selector:
+          - conversation
+          - game_state_json
+          write_mode: over-write
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1900'
+          - pedagogy_state_json
+          variable_selector:
+          - conversation
+          - pedagogy_state_json
+          write_mode: over-write
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1900'
+          - eval_state_json
+          variable_selector:
+          - conversation
+          - eval_state_json
+          write_mode: over-write
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1900'
+          - last_action_trace_json
+          variable_selector:
+          - conversation
+          - last_action_trace_json
+          write_mode: over-write
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1900'
+          - repair_count
+          variable_selector:
+          - conversation
+          - repair_count
+          write_mode: over-write
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1900'
+          - gap_state_json
+          variable_selector:
+          - conversation
+          - gap_state_json
+          write_mode: over-write
+        selected: false
+        title: Save v7 State
+        type: assigner
+        version: '2'
+      height: 88
+      id: '1950'
+      position:
+        x: 4160
+        y: 0
+      positionAbsolute:
+        x: 4160
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+    - data:
+        answer: '{{#1900.response_json#}}'
+        desc: ''
+        selected: false
+        title: Return Frontend JSON
+        type: answer
+        variables: []
+      height: 105
+      id: '2000'
+      position:
+        x: 4480
+        y: 0
+      positionAbsolute:
+        x: 4480
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 260
+      zIndex: 0
+  rag_pipeline_variables: []
