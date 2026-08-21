@@ -5,11 +5,7 @@
     "description": "A clear-enough explanation should let Jamie progressively build the world and act, without grading the child or inventing unstated game rules.",
     "prd": {
       "stage": "Experience",
-      "hypotheses": [
-        "H1",
-        "H3",
-        "H4"
-      ],
+      "hypotheses": ["H1", "H3", "H4"],
       "learningPurpose": "Let the child experience that their explanation directly determines what Jamie can build and do.",
       "acceptance": [
         "Jamie builds only from what the child has actually explained, while filling harmless presentation details.",
@@ -27,49 +23,26 @@
           "minObjects": 2,
           "noGameplayLeakage": true,
           "actionTypes": [],
-          "replyMustNotContain": [
-            "correct",
-            "incorrect",
-            "good job",
-            "right answer",
-            "wrong answer"
-          ]
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
         }
       },
       {
         "query": "Put all the cards face down to start.",
         "assert": {
           "actionTypes": [],
-          "allObjectUpdatesOnly": [
-            "state"
-          ],
+          "allObjectUpdatesOnly": ["state"],
           "allUpdatedStates": "face_down",
-          "replyMustNotContain": [
-            "correct",
-            "incorrect",
-            "good job",
-            "right answer",
-            "wrong answer"
-          ]
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
         }
       },
       {
         "query": "On your turn, flip any two cards.",
         "assert": {
-          "actionTypes": [
-            "reveal_object",
-            "reveal_object"
-          ],
+          "actionTypes": ["reveal_object", "reveal_object"],
           "captureBaseline": true,
           "noRuntimeActionEffectsInPatch": true,
           "actionTargetsExist": true,
-          "replyMustNotContain": [
-            "correct",
-            "incorrect",
-            "good job",
-            "right answer",
-            "wrong answer"
-          ]
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
         }
       }
     ]
@@ -80,9 +53,7 @@
     "description": "An explanation can be slightly underspecified and still be actionable. Jamie may make an ordinary player choice or ask a natural clarification; neither path is automatically a communication failure.",
     "prd": {
       "stage": "Experience / Guided Practice",
-      "hypotheses": [
-        "H3"
-      ],
+      "hypotheses": ["H3"],
       "learningPurpose": "Avoid teaching children that every harmless player choice must be verbally specified.",
       "acceptance": [
         "For Flip one card, Jamie may choose one eligible card or ask which card.",
@@ -95,25 +66,15 @@
       "If Jamie chooses a card, verify that the choice did not depend on hidden face-down identity or another unauthorized field."
     ],
     "turns": [
-      {
-        "query": "It's a card game with matching pictures."
-      },
-      {
-        "query": "Put all the cards face down to start."
-      },
+      {"query": "It's a card game with matching pictures."},
+      {"query": "Put all the cards face down to start."},
       {
         "query": "Flip one card.",
         "assert": {
           "actionOrClarifyCount": 1,
           "replyMustNotContain": [
-            "correct",
-            "incorrect",
-            "good job",
-            "right answer",
-            "wrong answer",
-            "not clear enough",
-            "incomplete answer",
-            "you need to explain"
+            "correct", "incorrect", "good job", "right answer", "wrong answer",
+            "not clear enough", "incomplete answer", "you need to explain"
           ]
         }
       }
@@ -125,10 +86,7 @@
     "description": "Jamie should act on what is known, reach a real communication gap, then let the child's repair change reality before a brief listener-centered Teach Moment.",
     "prd": {
       "stage": "Experience → Notice & Teach → Guided Practice",
-      "hypotheses": [
-        "H1",
-        "H2"
-      ],
+      "hypotheses": ["H1", "H2"],
       "learningPurpose": "Turn a real breakdown into the portable idea that the listener needs enough information for the next move.",
       "acceptance": [
         "Jamie first executes the taught move and only then exposes the missing next-step information.",
@@ -144,44 +102,22 @@
       "The reflection should remain brief and return the child to play."
     ],
     "turns": [
-      {
-        "query": "It's a card game with matching pictures."
-      },
-      {
-        "query": "Put all the cards face down to start."
-      },
+      {"query": "It's a card game with matching pictures."},
+      {"query": "Put all the cards face down to start."},
       {
         "query": "Flip any two cards.",
         "assert": {
-          "actionTypes": [
-            "reveal_object",
-            "reveal_object"
-          ],
+          "actionTypes": ["reveal_object", "reveal_object"],
           "noRuntimeActionEffectsInPatch": true,
-          "replyMustNotContain": [
-            "correct",
-            "incorrect",
-            "good job",
-            "right answer",
-            "wrong answer"
-          ]
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
         }
       },
       {
         "query": "Then turn both of those cards face down again.",
         "assert": {
-          "actionTypes": [
-            "hide_object",
-            "hide_object"
-          ],
+          "actionTypes": ["hide_object", "hide_object"],
           "actionTargetsExist": true,
-          "replyMustNotContain": [
-            "correct",
-            "incorrect",
-            "good job",
-            "right answer",
-            "wrong answer"
-          ]
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
         }
       }
     ]
@@ -192,9 +128,7 @@
     "description": "Jamie must play the child's version of the game, even when it conflicts with the conventional version Jamie may know from pretraining.",
     "prd": {
       "stage": "Guided Practice",
-      "hypotheses": [
-        "H3"
-      ],
+      "hypotheses": ["H3"],
       "learningPurpose": "Ensure the AI models a novice listener rather than a hidden answer key for familiar games.",
       "acceptance": [
         "The child's stated conditional rule becomes the session rule.",
@@ -207,28 +141,22 @@
       "If the newly taught condition is already true in the current state, inspect whether the system applies it consistently rather than contradicting itself."
     ],
     "turns": [
+      {"query": "It's a card game with matching pictures."},
+      {"query": "Put all the cards face down to start."},
       {
-        "query": "It's a card game with matching pictures."
-      },
-      {
-        "query": "Put all the cards face down to start."
-      },
-      {
-        "query": "Flip any two cards."
+        "query": "Flip any two cards.",
+        "assert": {
+          "actionTypes": ["reveal_object", "reveal_object"],
+          "noRuntimeActionEffectsInPatch": true,
+          "actionTargetsExist": true
+        }
       },
       {
         "query": "If they're different, leave them face up.",
         "assert": {
           "replyMustNotContain": [
-            "normally",
-            "usually",
-            "standard rule",
-            "should turn them back",
-            "correct",
-            "incorrect",
-            "good job",
-            "right answer",
-            "wrong answer"
+            "normally", "usually", "standard rule", "should turn them back",
+            "correct", "incorrect", "good job", "right answer", "wrong answer"
           ],
           "noCandidateRuleLeakage": true
         }
@@ -238,44 +166,32 @@
   {
     "name": "vague-repair-must-locate",
     "suite": "extended",
-    "description": "A vague No should start communication repair by locating the mismatch, not by guessing the intended rule or defending Jamie's previous interpretation.",
+    "description": "A vague rejection should start communication repair by locating the mismatch, not by guessing the intended rule or defending Jamie's previous interpretation.",
     "prd": {
       "stage": "Global Repair",
-      "hypotheses": [
-        "H1",
-        "H2"
-      ],
+      "hypotheses": ["H1", "H2"],
       "learningPurpose": "Move the child from Notice toward Locate before asking for a better explanation.",
       "acceptance": [
-        "After No, Jamie asks which part was wrong.",
+        "After a vague rejection, Jamie asks which part was wrong.",
         "Jamie does not invent a likely correction.",
         "Repeated vague rejection should narrow attention toward the actual action sequence rather than escalating to a lecture."
       ]
     },
     "manualReview": [
-      "The reply to No should be functionally equivalent to Which part did I get wrong?",
+      "The reply to the vague rejection should be functionally equivalent to Which part did I get wrong?",
       "If the child gives a second vague rejection, the product should expose or reference Jamie's actual action sequence so the child can locate the step."
     ],
     "turns": [
       {
         "query": "It's played with cards that have matching pictures.",
-        "assert": {
-          "minObjects": 2,
-          "noGameplayLeakage": true
-        }
+        "assert": {"minObjects": 2, "noGameplayLeakage": true}
       },
       {
-        "query": "No.",
+        "query": "No, that's wrong.",
         "assert": {
           "actionTypes": [],
           "noCandidateRuleLeakage": true,
-          "replyMustNotContain": [
-            "correct",
-            "incorrect",
-            "good job",
-            "right answer",
-            "wrong answer"
-          ]
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
         }
       }
     ]
@@ -286,9 +202,7 @@
     "description": "Jamie should understand normal Grade 3–4 speech disfluency and self-correction without turning language messiness into fake instructional friction.",
     "prd": {
       "stage": "Cross-cutting Listener Model",
-      "hypotheses": [
-        "H3"
-      ],
+      "hypotheses": ["H3"],
       "learningPurpose": "Separate communication skill from ordinary child speech disfluency.",
       "acceptance": [
         "The child's final intended count is two, not three.",
@@ -297,25 +211,15 @@
       ]
     },
     "turns": [
-      {
-        "query": "It's a card game with matching pictures."
-      },
-      {
-        "query": "Put all the cards face down to start."
-      },
+      {"query": "It's a card game with matching pictures."},
+      {"query": "Put all the cards face down to start."},
       {
         "query": "Flip three—no, sorry, two of them.",
         "assert": {
           "actionOrClarifyCount": 2,
           "replyMustNotContain": [
-            "which three",
-            "flip three cards",
-            "three cards should",
-            "correct",
-            "incorrect",
-            "good job",
-            "right answer",
-            "wrong answer"
+            "which three", "flip three cards", "three cards should",
+            "correct", "incorrect", "good job", "right answer", "wrong answer"
           ]
         }
       }
@@ -327,10 +231,7 @@
     "description": "Strategy or secondary detail may be useful, but Jamie should keep attention on what is needed to begin playing instead of treating every detail as equally urgent.",
     "prd": {
       "stage": "Experience",
-      "hypotheses": [
-        "H3",
-        "H4"
-      ],
+      "hypotheses": ["H3", "H4"],
       "learningPurpose": "Test whether the listener can prioritize information needed for the next move without rejecting relevant but premature detail.",
       "acceptance": [
         "Jamie can retain the strategy detail without treating it as a gameplay rule.",
@@ -347,14 +248,9 @@
         "assert": {
           "minObjects": 2,
           "actionTypes": [],
+          "noGameplayLeakage": true,
           "noCandidateRuleLeakage": true,
-          "replyMustNotContain": [
-            "correct",
-            "incorrect",
-            "good job",
-            "right answer",
-            "wrong answer"
-          ]
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
         }
       }
     ]
