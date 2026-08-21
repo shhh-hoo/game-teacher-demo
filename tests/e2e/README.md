@@ -1,23 +1,39 @@
 # Teach Me a Game acceptance harness
 
-This harness replays fixed multi-turn child-language scenarios against the currently published Dify app and stores the complete response trace for every turn.
+This harness exists to support the take-home prototype, not to prove that the project is a production-grade game engine.
 
-The scenarios are written from the Lesson Card PRD first. The primary question is not whether a particular node emitted a particular JSON shape; it is whether a Grade 3–4 learner gets the intended experience: explain → world forms → Jamie acts → a real communication gap appears → the child repairs it → reality changes → learning can transfer.
+The demo has three jobs:
 
-Protocol assertions such as atomic actions, delta semantics and baseline capture remain important, but they are implementation safeguards underneath the product behavior.
+1. show that the product idea in the PRD is credible;
+2. show why AI is useful in this learning experience;
+3. show that the idea can be prototyped into a coherent student-facing interaction.
+
+The primary question is therefore learner-facing: does a Grade 3–4 child experience a believable loop of explain → world forms → Jamie acts → a real communication gap appears → repair changes reality → learning becomes explicit? Protocol checks remain underneath that product behavior as smoke tests.
 
 ## Run
 
 ```bash
 export DIFY_API_KEY='app-...'
 export DIFY_TEST_VERSION='v8'
-node tests/e2e/run-dify.mjs
 ```
 
-Run one scenario to save tokens:
+The recommended first run is the single golden path:
 
 ```bash
-node tests/e2e/run-dify.mjs --label v8 --scenario experience-clear-enough-to-act
+node tests/e2e/run-dify.mjs --label v8 --scenario golden-path-learning-loop
+```
+
+Only after that path looks like the intended Lesson Card should the two AI-behavior probes be run:
+
+```bash
+node tests/e2e/run-dify.mjs --label v8 --scenario smart-listener-not-pedantic
+node tests/e2e/run-dify.mjs --label v8 --scenario faithful-listener-not-answer-key
+```
+
+The repair probe is optional:
+
+```bash
+node tests/e2e/run-dify.mjs --label v8 --scenario repair-locate-not-guess
 ```
 
 List scenarios:
@@ -26,59 +42,62 @@ List scenarios:
 node tests/e2e/run-dify.mjs --list
 ```
 
-Repeat a selected scenario when checking nondeterminism:
-
-```bash
-node tests/e2e/run-dify.mjs --label v8 --scenario actionable-underspecification --repeat 3
-```
-
 Generated traces are written to `.artifacts/dify-e2e/` and should not be committed.
 
-## PRD-first API scenarios
+## What the three must-run scenarios prove
 
-Each scenario in `scenarios.json` contains a `prd` block with the lesson stage, MVP hypothesis, learning purpose and acceptance criteria. The executable assertions are deliberately narrower than the product criteria; anything not yet safe to automate is kept in `manualReview` rather than silently disappearing.
+### 1. `golden-path-learning-loop`
 
-The current core scenarios are:
+This is the actual demo acceptance path. It should make the core product mechanism visible in a few turns:
 
-- `experience-clear-enough-to-act`: progressive world construction and natural action when enough is known.
-- `actionable-underspecification`: harmless underspecification may lead to an ordinary player choice or a natural clarification; neither is automatically a learner failure.
-- `real-breakdown-repair-teach`: Jamie acts until a real gap, the child repairs it, reality changes, and the resulting Teach Moment should be listener-centered.
-- `child-defined-version-over-standard-knowledge`: the child's version wins over familiar-game priors.
+child explains → progressive world forms → Jamie can act → Jamie reaches a real missing next step → child repairs the explanation → reality changes → a short listener-centered Teach Moment can occur.
 
-Extended probes cover vague repair, messy child speech/self-correction, and relevance/priority of information.
+This path is the most important evidence for H1 and H2. If it does not feel like a plausible learning interaction, passing lower-level protocol assertions does not make the prototype successful.
 
-## Manual PRD scenarios
+### 2. `smart-listener-not-pedantic`
 
-Some essential product requirements are not represented well by the current text-only Dify API harness. They are documented in `prd-manual-scenarios.md` instead of being forced into weak automated checks:
+This shows one side of the AI value proposition: Jamie can understand messy, age-appropriate speech and self-correction without manufacturing fake learning problems. Normal child language should not be treated as a bad answer simply because it is not formally complete.
+
+Jamie may make an ordinary player choice or ask a natural clarification when the ambiguity is non-blocking.
+
+### 3. `faithful-listener-not-answer-key`
+
+This shows the other side of the AI value proposition: the model may know the familiar game from pretraining, but the product deliberately constrains it to the child's explanation. The child's version of the game wins over a canonical answer key.
+
+Together, scenarios 2 and 3 support the central AI design claim: Jamie should be smart enough to understand a child, but constrained enough to behave like the listener the child is actually teaching.
+
+## Optional depth probe
+
+`repair-locate-not-guess` demonstrates the global Notice → Locate → Repair design. When the child only says “No, that's wrong,” Jamie should help locate the mismatch rather than guess the intended rule. It is useful evidence of interaction-design depth, but it is not required before the take-home demo is credible.
+
+## Manual PRD acceptance
+
+Some important PRD requirements are intentionally not forced into this text-only API harness. They remain in `prd-manual-scenarios.md`:
 
 - fresh-listener Independent Performance;
 - final Transfer beyond the current game;
 - voice ASR vs communication-gap separation;
-- the full 8–10 minute learning-loop review.
+- the full 8–10 minute Lesson review.
 
-## What the implementation checks protect
+These belong in the design story even if the take-home prototype does not implement all of them completely.
 
-Every API response is still checked for the current frontend action contract and valid object targets. Scenario-specific assertions may also protect:
+## Implementation smoke checks
 
-- no unstated gameplay-rule leakage;
-- world-definition vs runtime-action separation;
-- baseline capture on the first executable action;
-- true delta semantics where relevant;
-- no legacy action types such as `reveal`, `collect`, or `switch_turn`;
-- natural self-correction;
-- non-blocking choice ambiguity;
-- child-defined variants.
+The runner still protects obvious technical contradictions where they directly damage the learner experience, including:
 
-These checks are evidence for the PRD acceptance criteria, not the test-case purpose by themselves.
+- unsupported or legacy action types;
+- actions targeting missing objects;
+- runtime actions being pre-applied in `world_patch`;
+- a clarification question while the world has already silently made the supposedly unresolved choice;
+- obvious unstated gameplay-rule leakage;
+- basic baseline/action consistency.
 
-## Runtime vs behavior failures
+These checks are evidence underneath the demo, not the reason the demo exists.
 
-The runner reports behavior failures separately from infrastructure/provider and other runtime errors. This prevents a model-provider outage or missing model configuration from being mistaken for a lesson-design regression.
+## Runtime and performance
 
-## Performance metrics
-
-Each successful turn records elapsed time plus Dify prompt/completion/total token usage when available. The final summary prints average seconds and average tokens per successful turn so DSL changes can be compared for both behavior and efficiency.
+The runner separates behavior failures from infrastructure/provider and other runtime errors. It also records latency and token usage so obvious prototype-performance problems remain visible without becoming the central success criterion.
 
 ## Version labels
 
-`DIFY_TEST_VERSION` / `--label` is required. The harness cannot prove which imported or unpublished DSL is selected in the Dify UI, but it refuses anonymous runs so traces cannot silently lose their intended version context.
+`DIFY_TEST_VERSION` / `--label` is required. The harness cannot prove which imported or unpublished DSL is selected in the Dify UI, but it refuses anonymous runs so traces retain their intended version context.

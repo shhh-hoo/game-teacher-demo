@@ -1,20 +1,28 @@
 [
   {
-    "name": "experience-clear-enough-to-act",
-    "suite": "core",
-    "description": "A clear-enough explanation should let Jamie progressively build the world and act, without grading the child or inventing unstated game rules.",
+    "name": "golden-path-learning-loop",
+    "suite": "must-run",
+    "demoRole": "Prove the core product idea and learning loop in one short path.",
+    "description": "The child's explanation should progressively create a playable world, let Jamie act, expose a real next-step gap, and let the child's repair change reality before a brief listener-centered teaching moment.",
     "prd": {
-      "stage": "Experience",
-      "hypotheses": ["H1", "H3", "H4"],
-      "learningPurpose": "Let the child experience that their explanation directly determines what Jamie can build and do.",
+      "stage": "Experience → Notice & Teach → Guided Practice",
+      "hypotheses": ["H1", "H2", "H3", "H4"],
+      "learningPurpose": "Show that AI can turn the child's own explanation into visible consequences and convert a genuine communication breakdown into learning.",
       "acceptance": [
-        "Jamie builds only from what the child has actually explained, while filling harmless presentation details.",
-        "Once the child gives enough information for the next move, Jamie acts rather than grading or asking unnecessary questions.",
-        "Jamie stops at the first real missing piece after the action instead of completing the familiar game from prior knowledge."
+        "The world forms progressively from the child's explanation; harmless presentation details may be filled in by AI, but gameplay rules may not be invented.",
+        "When enough information is available for a move, Jamie acts instead of grading the child.",
+        "Jamie reaches the first real missing next-step information only after completing what the child actually taught.",
+        "The first breakdown is experienced as listener feedback, not an immediate lecture or supplied rule.",
+        "When the child repairs the gap, Jamie's world or action changes immediately.",
+        "Only after a genuine repair does a short Teach Moment connect the success to what the listener needed to know, then return to play."
       ]
     },
     "manualReview": [
-      "After the two-card action, Jamie should naturally expose the next missing piece if there is one; it should not supply the familiar Matching Pairs rule."
+      "This is the primary take-home demo path. Judge the learner experience first, not the JSON mechanics.",
+      "After Jamie flips two cards, the response should expose the next missing piece naturally and should not complete Matching Pairs from prior knowledge.",
+      "The repair turn should visibly change reality by turning the two revealed cards face down again.",
+      "Any Teach Moment should be brief, listener-centered, and explain why the repair helped; simple praise is not enough.",
+      "The interaction should still feel like playing with a friend, not answering a tutoring checklist."
     ],
     "turns": [
       {
@@ -44,73 +52,6 @@
           "actionTargetsExist": true,
           "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
         }
-      }
-    ]
-  },
-  {
-    "name": "actionable-underspecification",
-    "suite": "core",
-    "description": "An explanation can be slightly underspecified and still be actionable. Jamie may make an ordinary player choice or ask a natural clarification; neither path is automatically a communication failure.",
-    "prd": {
-      "stage": "Experience / Guided Practice",
-      "hypotheses": ["H3"],
-      "learningPurpose": "Avoid teaching children that every harmless player choice must be verbally specified.",
-      "acceptance": [
-        "For Flip one card, Jamie may choose one eligible card or ask which card.",
-        "If Jamie asks, the world must not silently make the choice first.",
-        "If Jamie chooses, the choice must use only observable or otherwise authorized information.",
-        "The system must not frame this benign underspecification as a wrong or incomplete answer."
-      ]
-    },
-    "manualReview": [
-      "If Jamie chooses a card, verify that the choice did not depend on hidden face-down identity or another unauthorized field."
-    ],
-    "turns": [
-      {"query": "It's a card game with matching pictures."},
-      {"query": "Put all the cards face down to start."},
-      {
-        "query": "Flip one card.",
-        "assert": {
-          "actionOrClarifyCount": 1,
-          "replyMustNotContain": [
-            "correct", "incorrect", "good job", "right answer", "wrong answer",
-            "not clear enough", "incomplete answer", "you need to explain"
-          ]
-        }
-      }
-    ]
-  },
-  {
-    "name": "real-breakdown-repair-teach",
-    "suite": "core",
-    "description": "Jamie should act on what is known, reach a real communication gap, then let the child's repair change reality before a brief listener-centered Teach Moment.",
-    "prd": {
-      "stage": "Experience → Notice & Teach → Guided Practice",
-      "hypotheses": ["H1", "H2"],
-      "learningPurpose": "Turn a real breakdown into the portable idea that the listener needs enough information for the next move.",
-      "acceptance": [
-        "Jamie first executes the taught move and only then exposes the missing next-step information.",
-        "The first breakdown is listener feedback, not an immediate lecture or supplied rule.",
-        "When the child repairs the gap, Jamie's world or action changes immediately.",
-        "After a genuine repair, the response briefly connects the success to what the listener needed to know."
-      ]
-    },
-    "manualReview": [
-      "After Flip any two cards, Jamie should ask a natural next-step question rather than teach immediately.",
-      "On the repair turn, verify the two revealed cards actually return face down.",
-      "The first Teach Moment should explain the listener knowledge gap and why the repair helped; simple praise is not enough.",
-      "The reflection should remain brief and return the child to play."
-    ],
-    "turns": [
-      {"query": "It's a card game with matching pictures."},
-      {"query": "Put all the cards face down to start."},
-      {
-        "query": "Flip any two cards.",
-        "assert": {
-          "actionTypes": ["reveal_object", "reveal_object"],
-          "noRuntimeActionEffectsInPatch": true,
-          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
-        }
       },
       {
         "query": "Then turn both of those cards face down again.",
@@ -123,21 +64,61 @@
     ]
   },
   {
-    "name": "child-defined-version-over-standard-knowledge",
-    "suite": "core",
-    "description": "Jamie must play the child's version of the game, even when it conflicts with the conventional version Jamie may know from pretraining.",
+    "name": "smart-listener-not-pedantic",
+    "suite": "must-run",
+    "demoRole": "Prove that AI can understand real child speech without manufacturing fake learning problems.",
+    "description": "Jamie should understand ordinary Grade 3–4 disfluency and benign underspecification. It may make an ordinary player choice or ask a natural clarification, but it should not turn normal child language into a failure.",
     "prd": {
-      "stage": "Guided Practice",
+      "stage": "Cross-cutting Listener Model",
       "hypotheses": ["H3"],
-      "learningPurpose": "Ensure the AI models a novice listener rather than a hidden answer key for familiar games.",
+      "learningPurpose": "Demonstrate that the AI is linguistically smart while remaining pedagogically selective about what counts as a real communication gap.",
       "acceptance": [
-        "The child's stated conditional rule becomes the session rule.",
-        "Jamie must not correct the child toward standard Matching Pairs behavior.",
-        "Jamie may ask about an unstated opposite branch, but the question must not smuggle in a candidate rule."
+        "The child's self-correction determines the final intended instruction: two cards, not three.",
+        "Because which two cards is not necessarily a blocking ambiguity, Jamie may choose two eligible cards or naturally ask which two.",
+        "Jamie does not require a polished sentence or label the child's speech as incomplete merely because it contains a self-correction.",
+        "If Jamie makes a player choice, it must use only observable or otherwise authorized information."
       ]
     },
     "manualReview": [
-      "Verify the child's variant is retained in the session rule model.",
+      "If Jamie chooses the two cards, verify that hidden face-down identity did not influence the choice.",
+      "A natural Which two? question is acceptable; a tutoring response such as Your explanation is incomplete is not.",
+      "The response should feel like a capable friend understanding a child, not a parser demanding perfect syntax."
+    ],
+    "turns": [
+      {"query": "It's a card game with matching pictures."},
+      {"query": "Put all the cards face down to start."},
+      {
+        "query": "Flip three—no, sorry, two of them.",
+        "assert": {
+          "actionOrClarifyCount": 2,
+          "replyMustNotContain": [
+            "which three", "flip three cards", "three cards should",
+            "correct", "incorrect", "good job", "right answer", "wrong answer",
+            "not clear enough", "incomplete answer", "you need to explain"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "faithful-listener-not-answer-key",
+    "suite": "must-run",
+    "demoRole": "Prove that a knowledgeable LLM can still behave like a listener constrained by the child's explanation.",
+    "description": "Jamie must follow the child's version of a familiar game rather than silently restoring the conventional rule from pretraining.",
+    "prd": {
+      "stage": "Guided Practice",
+      "hypotheses": ["H3"],
+      "learningPurpose": "Show the central AI design constraint: smart enough to understand the child, constrained enough not to become a hidden answer key.",
+      "acceptance": [
+        "The child's stated conditional rule becomes the rule for this session even if it conflicts with conventional Matching Pairs.",
+        "Jamie must not correct the child toward the standard game.",
+        "Jamie may ask about an unstated opposite branch, but the question must not smuggle in a candidate rule.",
+        "The AI should maintain a consistent playable interpretation of the child's version rather than using a canonical rule set."
+      ]
+    },
+    "manualReview": [
+      "Verify that the child's variant is retained as the session rule.",
+      "If Jamie asks What if they're the same?, that is acceptable; If they're the same, do I keep them? is not, because it supplies a candidate rule.",
       "If the newly taught condition is already true in the current state, inspect whether the system applies it consistently rather than contradicting itself."
     ],
     "turns": [
@@ -164,91 +145,40 @@
     ]
   },
   {
-    "name": "vague-repair-must-locate",
-    "suite": "extended",
-    "description": "A vague rejection should start communication repair by locating the mismatch, not by guessing the intended rule or defending Jamie's previous interpretation.",
+    "name": "repair-locate-not-guess",
+    "suite": "optional",
+    "demoRole": "Show additional depth in the global Notice → Locate → Repair mechanism.",
+    "description": "When the child only says that Jamie is wrong, Jamie should help locate the mismatch rather than guessing the intended correction or defending its interpretation.",
     "prd": {
       "stage": "Global Repair",
       "hypotheses": ["H1", "H2"],
-      "learningPurpose": "Move the child from Notice toward Locate before asking for a better explanation.",
+      "learningPurpose": "Move the child from noticing a mismatch toward identifying the exact part that needs to be re-explained.",
       "acceptance": [
-        "After a vague rejection, Jamie asks which part was wrong.",
-        "Jamie does not invent a likely correction.",
-        "Repeated vague rejection should narrow attention toward the actual action sequence rather than escalating to a lecture."
+        "After a vague rejection, Jamie asks which part was wrong or otherwise invites the child to locate the mismatch.",
+        "Jamie does not invent the likely intended rule.",
+        "If vague rejection repeats, the product should ground the repair in Jamie's actual action sequence rather than escalating to a generic lecture."
       ]
     },
     "manualReview": [
-      "The reply to the vague rejection should be functionally equivalent to Which part did I get wrong?",
-      "If the child gives a second vague rejection, the product should expose or reference Jamie's actual action sequence so the child can locate the step."
+      "The response to No, that's wrong should be functionally equivalent to Which part did I get wrong?",
+      "A second vague rejection should expose or reference the actual action sequence so the child can point to the specific step.",
+      "This probe is useful for demonstrating design depth, but it is not required before the take-home demo is credible."
     ],
     "turns": [
+      {"query": "It's a card game with matching pictures."},
+      {"query": "Put all the cards face down to start."},
       {
-        "query": "It's played with cards that have matching pictures.",
-        "assert": {"minObjects": 2, "noGameplayLeakage": true}
+        "query": "Flip any two cards.",
+        "assert": {
+          "actionTypes": ["reveal_object", "reveal_object"],
+          "noRuntimeActionEffectsInPatch": true,
+          "actionTargetsExist": true
+        }
       },
       {
         "query": "No, that's wrong.",
         "assert": {
           "actionTypes": [],
-          "noCandidateRuleLeakage": true,
-          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
-        }
-      }
-    ]
-  },
-  {
-    "name": "messy-child-speech-self-correction",
-    "suite": "extended",
-    "description": "Jamie should understand normal Grade 3–4 speech disfluency and self-correction without turning language messiness into fake instructional friction.",
-    "prd": {
-      "stage": "Cross-cutting Listener Model",
-      "hypotheses": ["H3"],
-      "learningPurpose": "Separate communication skill from ordinary child speech disfluency.",
-      "acceptance": [
-        "The child's final intended count is two, not three.",
-        "Jamie may execute two reveals or clarify which two.",
-        "Jamie should not require a polished sentence before understanding the instruction."
-      ]
-    },
-    "turns": [
-      {"query": "It's a card game with matching pictures."},
-      {"query": "Put all the cards face down to start."},
-      {
-        "query": "Flip three—no, sorry, two of them.",
-        "assert": {
-          "actionOrClarifyCount": 2,
-          "replyMustNotContain": [
-            "which three", "flip three cards", "three cards should",
-            "correct", "incorrect", "good job", "right answer", "wrong answer"
-          ]
-        }
-      }
-    ]
-  },
-  {
-    "name": "relevance-does-not-derail-start",
-    "suite": "extended",
-    "description": "Strategy or secondary detail may be useful, but Jamie should keep attention on what is needed to begin playing instead of treating every detail as equally urgent.",
-    "prd": {
-      "stage": "Experience",
-      "hypotheses": ["H3", "H4"],
-      "learningPurpose": "Test whether the listener can prioritize information needed for the next move without rejecting relevant but premature detail.",
-      "acceptance": [
-        "Jamie can retain the strategy detail without treating it as a gameplay rule.",
-        "Jamie still asks for the missing information needed to start.",
-        "Jamie does not launch a relevance lecture before a real bottleneck appears."
-      ]
-    },
-    "manualReview": [
-      "Jamie should naturally ask how to start or what to do with the cards, rather than teaching a relevance principle at this point."
-    ],
-    "turns": [
-      {
-        "query": "It's a card game with matching pictures. A good strategy is to remember where you saw each picture.",
-        "assert": {
-          "minObjects": 2,
-          "actionTypes": [],
-          "noGameplayLeakage": true,
           "noCandidateRuleLeakage": true,
           "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
         }
