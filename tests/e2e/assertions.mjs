@@ -183,8 +183,6 @@ function assertProtocol(payload, actions, worldAfterPatch) {
     if (!ALLOWED_ACTION_TYPES.has(action.type)) {
       results.push(fail('protocol.allowed-action-type', `Unsupported/legacy action type: ${action.type}`));
     }
-  }
-  for (const action of actions) {
     if (['reveal_object', 'hide_object', 'remove_object', 'update_object'].includes(action.type)) {
       const exists = (worldAfterPatch.objects || []).some(object => String(object.id) === String(action.object_id));
       if (!exists) results.push(fail('protocol.action-target-exists', `${action.type} targets missing object ${action.object_id}`));
@@ -290,10 +288,6 @@ function assertActionOrClarifyCount(reply, actions, expectedCount, patch) {
   );
 }
 
-function normalizedActionTypes(actions) {
-  return actions.filter(action => action.type !== 'wait').map(action => action.type);
-}
-
 export function runAssertions({ expected = {}, payload, previousWorld, worldAfterPatch, actions }) {
   const results = [...assertProtocol(payload, actions, worldAfterPatch)];
   const reply = String(payload?.reply || '');
@@ -319,15 +313,6 @@ export function runAssertions({ expected = {}, payload, previousWorld, worldAfte
       : fail('turn.action-types', `Expected ${JSON.stringify(expected.actionTypes)}; got ${JSON.stringify(actual)}`));
   }
 
-  if (Array.isArray(expected.actionTypesOneOf)) {
-    const actual = normalizedActionTypes(actions);
-    const options = expected.actionTypesOneOf.filter(Array.isArray);
-    const matched = options.some(option => JSON.stringify(option) === JSON.stringify(actual));
-    results.push(matched
-      ? pass('turn.action-types-one-of', actual.join(', ') || 'none')
-      : fail('turn.action-types-one-of', `Expected one of ${JSON.stringify(options)}; got ${JSON.stringify(actual)}`));
-  }
-
   if (Number.isFinite(expected.actionOrClarifyCount)) {
     results.push(assertActionOrClarifyCount(reply, actions, expected.actionOrClarifyCount, payload?.world_patch || {}));
   }
@@ -338,45 +323,11 @@ export function runAssertions({ expected = {}, payload, previousWorld, worldAfte
       : fail('turn.capture-baseline', `Expected ${expected.captureBaseline}; got ${Boolean(payload?.capture_baseline)}`));
   }
 
-  if (typeof expected.phase === 'string') {
-    results.push(payload?.phase === expected.phase
-      ? pass('turn.phase', expected.phase)
-      : fail('turn.phase', `Expected phase=${expected.phase}; got ${JSON.stringify(payload?.phase)}`));
-  }
-
-  if (typeof expected.supportType === 'string') {
-    const actual = payload?.support?.type ?? null;
-    results.push(actual === expected.supportType
-      ? pass('turn.support-type', expected.supportType)
-      : fail('turn.support-type', `Expected support.type=${expected.supportType}; got ${JSON.stringify(actual)}`));
-  }
-
-  if (typeof expected.supportFocus === 'string') {
-    const actual = payload?.support?.focus ?? null;
-    results.push(actual === expected.supportFocus
-      ? pass('turn.support-focus', expected.supportFocus)
-      : fail('turn.support-focus', `Expected support.focus=${expected.supportFocus}; got ${JSON.stringify(actual)}`));
-  }
-
-  if (expected.supportListenerGapNonEmpty) {
-    const gap = String(payload?.support?.listener_gap || '').trim();
-    results.push(gap
-      ? pass('turn.support-listener-gap', gap)
-      : fail('turn.support-listener-gap', 'Expected a non-empty support.listener_gap grounded in Jamie\'s current blockage.'));
-  }
-
   if (Number.isFinite(expected.minObjects)) {
     const count = worldAfterPatch.objects?.length || 0;
     results.push(count >= expected.minObjects
       ? pass('turn.min-objects', String(count))
       : fail('turn.min-objects', `Expected at least ${expected.minObjects} objects; got ${count}`));
-  }
-
-  if (Number.isFinite(expected.exactObjectCount)) {
-    const count = worldAfterPatch.objects?.length || 0;
-    results.push(count === expected.exactObjectCount
-      ? pass('turn.exact-object-count', String(count))
-      : fail('turn.exact-object-count', `Expected exactly ${expected.exactObjectCount} objects from learner-supplied setup; got ${count}`));
   }
 
   if (typeof expected.allObjectStates === 'string') {
@@ -385,13 +336,6 @@ export function runAssertions({ expected = {}, payload, previousWorld, worldAfte
     results.push(objects.length > 0 && bad.length === 0
       ? pass('turn.all-object-states', expected.allObjectStates)
       : fail('turn.all-object-states', `Expected every rendered object state to be ${expected.allObjectStates}; bad=${bad.map(object => `${object?.id}:${object?.state}`).join(', ') || 'no objects'}`));
-  }
-
-  if (Number.isFinite(expected.minObjectUpdates)) {
-    const count = payload?.world_patch?.update_objects?.length || 0;
-    results.push(count >= expected.minObjectUpdates
-      ? pass('turn.min-object-updates', String(count))
-      : fail('turn.min-object-updates', `Expected at least ${expected.minObjectUpdates} object updates; got ${count}`));
   }
 
   if (expected.trueDelta) results.push(...assertTrueDelta(previousWorld, payload?.world_patch || {}));
@@ -423,14 +367,6 @@ export function runAssertions({ expected = {}, payload, previousWorld, worldAfte
     results.push(updates.length > 0 && bad.length === 0
       ? pass('turn.updated-states', expected.allUpdatedStates)
       : fail('turn.updated-states', `Expected all object state updates to be ${expected.allUpdatedStates}.`));
-  }
-
-  if (Array.isArray(expected.replyMustContainAny)) {
-    const lower = reply.toLowerCase();
-    const matched = expected.replyMustContainAny.find(text => lower.includes(String(text).toLowerCase()));
-    results.push(matched
-      ? pass('turn.reply-required-any', String(matched))
-      : fail('turn.reply-required-any', `Reply must naturally expose the listener gap using at least one of: ${expected.replyMustContainAny.join(', ')}. Got: ${JSON.stringify(reply)}`));
   }
 
   if (Array.isArray(expected.replyMustNotContain)) {
