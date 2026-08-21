@@ -33,6 +33,31 @@ function parseDifyAnswer(answer) {
   throw error;
 }
 
+function buildDifyQuery({ message, event, speech }) {
+  if (event && typeof event === 'object') {
+    return [
+      '[[GAME_TEACHER_EVENT]]',
+      JSON.stringify(event).slice(0, 2400),
+    ].join('\n');
+  }
+
+  const cleanMessage = typeof message === 'string' ? message.trim() : '';
+  if (!cleanMessage) return '';
+
+  if (speech && typeof speech === 'object') {
+    const safeSpeech = {
+      confidence: Number.isFinite(Number(speech.confidence)) ? Number(speech.confidence) : null,
+      alternatives: Array.isArray(speech.alternatives)
+        ? speech.alternatives.map(String).slice(0, 3)
+        : [],
+      is_final: Boolean(speech.is_final),
+    };
+    return `[[SPEECH_META]] ${JSON.stringify(safeSpeech)}\n${cleanMessage}`;
+  }
+
+  return cleanMessage;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -47,13 +72,16 @@ export default async function handler(req, res) {
   }
 
   const {
-    message,
+    message = '',
+    event = null,
+    speech = null,
     conversationId = '',
     userId = 'game-teacher-demo-user',
   } = req.body || {};
 
-  if (!message || typeof message !== 'string') {
-    return res.status(400).json({ error: 'message is required' });
+  const query = buildDifyQuery({ message, event, speech });
+  if (!query) {
+    return res.status(400).json({ error: 'message or event is required' });
   }
 
   try {
@@ -65,7 +93,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         inputs: {},
-        query: message,
+        query,
         response_mode: 'blocking',
         conversation_id: conversationId || '',
         user: userId,
