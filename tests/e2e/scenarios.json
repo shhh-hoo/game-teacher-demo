@@ -95,13 +95,7 @@
     "turns": [
       {"query": "It's a card game with matching pictures."},
       {"query": "Put all the cards face down to start."},
-      {
-        "query": "Flip three—no, sorry, two of them.",
-        "assert": {
-          "actionOrClarifyCount": 2,
-          "replyMustNotContain": ["which three", "flip three cards", "three cards should", "correct", "incorrect", "good job", "right answer", "wrong answer", "not clear enough", "incomplete answer", "you need to explain"]
-        }
-      }
+      {"query": "Flip three—no, sorry, two of them.", "assert": {"actionOrClarifyCount": 2, "replyMustNotContain": ["which three", "flip three cards", "three cards should", "correct", "incorrect", "good job", "right answer", "wrong answer", "not clear enough", "incomplete answer", "you need to explain"]}}
     ]
   },
   {
