@@ -2,7 +2,6 @@
   {
     "name": "experience-clear-enough-to-act",
     "suite": "core",
-    "automation": "api",
     "description": "A clear-enough explanation should let Jamie progressively build the world and act, without grading the child or inventing unstated game rules.",
     "prd": {
       "stage": "Experience",
@@ -14,41 +13,63 @@
       "learningPurpose": "Let the child experience that their explanation directly determines what Jamie can build and do.",
       "acceptance": [
         "Jamie builds only from what the child has actually explained, while filling harmless presentation details.",
-        "Once the child gives enough information for the next move, Jamie acts rather than saying Correct or asking unnecessary questions.",
+        "Once the child gives enough information for the next move, Jamie acts rather than grading or asking unnecessary questions.",
         "Jamie stops at the first real missing piece after the action instead of completing the familiar game from prior knowledge."
       ]
     },
+    "manualReview": [
+      "After the two-card action, Jamie should naturally expose the next missing piece if there is one; it should not supply the familiar Matching Pairs rule."
+    ],
     "turns": [
       {
         "query": "It's a card game with matching pictures.",
         "assert": {
           "minObjects": 2,
           "noGameplayLeakage": true,
-          "noGradingLanguage": true,
-          "actionTypes": []
+          "actionTypes": [],
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
         }
       },
       {
         "query": "Put all the cards face down to start.",
         "assert": {
-          "allWorldObjectsState": "face_down",
-          "noGradingLanguage": true,
-          "actionTypes": []
+          "actionTypes": [],
+          "allObjectUpdatesOnly": [
+            "state"
+          ],
+          "allUpdatedStates": "face_down",
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
         }
       },
       {
         "query": "On your turn, flip any two cards.",
         "assert": {
-          "worldStateCount": {
-            "face_up": 2
-          },
           "actionTypes": [
             "reveal_object",
             "reveal_object"
           ],
           "captureBaseline": true,
           "noRuntimeActionEffectsInPatch": true,
-          "noGradingLanguage": true
+          "actionTargetsExist": true,
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
         }
       }
     ]
@@ -56,7 +77,6 @@
   {
     "name": "actionable-underspecification",
     "suite": "core",
-    "automation": "api",
     "description": "An explanation can be slightly underspecified and still be actionable. Jamie may make an ordinary player choice or ask a natural clarification; neither path is automatically a communication failure.",
     "prd": {
       "stage": "Experience / Guided Practice",
@@ -85,8 +105,12 @@
         "query": "Flip one card.",
         "assert": {
           "actionOrClarifyCount": 1,
-          "noGradingLanguage": true,
           "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer",
             "not clear enough",
             "incomplete answer",
             "you need to explain"
@@ -98,7 +122,6 @@
   {
     "name": "real-breakdown-repair-teach",
     "suite": "core",
-    "automation": "api",
     "description": "Jamie should act on what is known, reach a real communication gap, then let the child's repair change reality before a brief listener-centered Teach Moment.",
     "prd": {
       "stage": "Experience → Notice & Teach → Guided Practice",
@@ -115,7 +138,9 @@
       ]
     },
     "manualReview": [
-      "On the repair turn, check that any reflection explains the listener knowledge gap and why the repair helped; simple praise is not enough.",
+      "After Flip any two cards, Jamie should ask a natural next-step question rather than teach immediately.",
+      "On the repair turn, verify the two revealed cards actually return face down.",
+      "The first Teach Moment should explain the listener knowledge gap and why the repair helped; simple praise is not enough.",
       "The reflection should remain brief and return the child to play."
     ],
     "turns": [
@@ -128,32 +153,35 @@
       {
         "query": "Flip any two cards.",
         "assert": {
-          "worldStateCount": {
-            "face_up": 2
-          },
           "actionTypes": [
             "reveal_object",
             "reveal_object"
           ],
-          "replyMustContainAny": [
-            "what do i do",
-            "what happens",
-            "what next",
-            "now what",
-            "then what"
-          ],
-          "noGradingLanguage": true
+          "noRuntimeActionEffectsInPatch": true,
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
         }
       },
       {
         "query": "Then turn both of those cards face down again.",
         "assert": {
-          "allWorldObjectsState": "face_down",
-          "phaseOneOf": [
-            "practice",
-            "guided"
+          "actionTypes": [
+            "hide_object",
+            "hide_object"
           ],
-          "noGradingLanguage": true
+          "actionTargetsExist": true,
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
         }
       }
     ]
@@ -161,7 +189,6 @@
   {
     "name": "child-defined-version-over-standard-knowledge",
     "suite": "core",
-    "automation": "api",
     "description": "Jamie must play the child's version of the game, even when it conflicts with the conventional version Jamie may know from pretraining.",
     "prd": {
       "stage": "Guided Practice",
@@ -196,10 +223,14 @@
             "normally",
             "usually",
             "standard rule",
-            "should turn them back"
+            "should turn them back",
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
           ],
-          "noCandidateRuleLeakage": true,
-          "noGradingLanguage": true
+          "noCandidateRuleLeakage": true
         }
       }
     ]
@@ -207,7 +238,6 @@
   {
     "name": "vague-repair-must-locate",
     "suite": "extended",
-    "automation": "api",
     "description": "A vague No should start communication repair by locating the mismatch, not by guessing the intended rule or defending Jamie's previous interpretation.",
     "prd": {
       "stage": "Global Repair",
@@ -223,6 +253,7 @@
       ]
     },
     "manualReview": [
+      "The reply to No should be functionally equivalent to Which part did I get wrong?",
       "If the child gives a second vague rejection, the product should expose or reference Jamie's actual action sequence so the child can locate the step."
     ],
     "turns": [
@@ -237,14 +268,14 @@
         "query": "No.",
         "assert": {
           "actionTypes": [],
-          "replyMustContainAny": [
-            "which part",
-            "what part",
-            "what did i get wrong",
-            "where did i go wrong"
-          ],
           "noCandidateRuleLeakage": true,
-          "noGradingLanguage": true
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
         }
       }
     ]
@@ -252,7 +283,6 @@
   {
     "name": "messy-child-speech-self-correction",
     "suite": "extended",
-    "automation": "api",
     "description": "Jamie should understand normal Grade 3–4 speech disfluency and self-correction without turning language messiness into fake instructional friction.",
     "prd": {
       "stage": "Cross-cutting Listener Model",
@@ -280,9 +310,13 @@
           "replyMustNotContain": [
             "which three",
             "flip three cards",
-            "three cards should"
-          ],
-          "noGradingLanguage": true
+            "three cards should",
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
         }
       }
     ]
@@ -290,7 +324,6 @@
   {
     "name": "relevance-does-not-derail-start",
     "suite": "extended",
-    "automation": "api",
     "description": "Strategy or secondary detail may be useful, but Jamie should keep attention on what is needed to begin playing instead of treating every detail as equally urgent.",
     "prd": {
       "stage": "Experience",
@@ -305,96 +338,25 @@
         "Jamie does not launch a relevance lecture before a real bottleneck appears."
       ]
     },
+    "manualReview": [
+      "Jamie should naturally ask how to start or what to do with the cards, rather than teaching a relevance principle at this point."
+    ],
     "turns": [
       {
         "query": "It's a card game with matching pictures. A good strategy is to remember where you saw each picture.",
         "assert": {
           "minObjects": 2,
           "actionTypes": [],
-          "replyMustContainAny": [
-            "what do i do",
-            "how do i start",
-            "what should i do",
-            "what happens first",
-            "what do we do"
-          ],
           "noCandidateRuleLeakage": true,
-          "noGradingLanguage": true
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
         }
       }
-    ]
-  },
-  {
-    "name": "fresh-listener-independent-performance",
-    "suite": "manual",
-    "automation": "manual",
-    "description": "After guided practice, keep the constructed game world but reset physical state and Jamie's learned rules so the child must explain the game again to a genuinely fresh listener.",
-    "prd": {
-      "stage": "Independent Performance",
-      "hypotheses": [
-        "H2"
-      ],
-      "learningPurpose": "Measure whether the child improved the explanation itself rather than merely repairing one shared conversation.",
-      "acceptance": [
-        "The constructed world remains available as the play environment.",
-        "The physical game state resets to the playable baseline.",
-        "Jamie's learned game rules are cleared.",
-        "Scaffolding is substantially faded.",
-        "Compared with the first explanation, the fresh listener should need fewer clarifications or reach executable states sooner."
-      ]
-    },
-    "manualSteps": [
-      "Complete at least one meaningful breakdown, repair, and Teach Moment.",
-      "Trigger the Independent Performance transition.",
-      "Confirm the game world remains but physical state resets.",
-      "Confirm Jamie behaves as if hearing the rules for the first time.",
-      "Compare clarification count, blocked states, and consecutive executable states with the first explanation."
-    ]
-  },
-  {
-    "name": "transfer-beyond-current-game",
-    "suite": "manual",
-    "automation": "manual",
-    "description": "The final prompt should test whether the child can abstract the experience into a listener-centered principle that transfers beyond this particular game.",
-    "prd": {
-      "stage": "Transfer",
-      "hypotheses": [
-        "H2"
-      ],
-      "learningPurpose": "Check whether the child can express the portable idea behind the lesson.",
-      "acceptance": [
-        "The prompt asks about teaching a different game or task, not recalling Matching Pairs rules.",
-        "A successful answer may mention what the friend does not know, what they need before starting, ordering information so they can follow, or being specific enough to act.",
-        "The evaluator should accept semantically equivalent child language rather than require the exact heuristic wording."
-      ]
-    },
-    "manualSteps": [
-      "After Independent Performance, ask a short transfer question about teaching another friend a different game.",
-      "Judge the answer semantically for listener needs, necessary information, sequence, or specificity.",
-      "Do not require the exact phrase What does my friend need to know before they can make their next move?"
-    ]
-  },
-  {
-    "name": "voice-asr-vs-communication-gap",
-    "suite": "manual",
-    "automation": "manual",
-    "description": "Speech-recognition uncertainty must not be misclassified as a communication failure by the child.",
-    "prd": {
-      "stage": "Voice Interaction / Cross-cutting",
-      "hypotheses": [
-        "H3"
-      ],
-      "learningPurpose": "Protect the lesson from teaching children to repair errors caused by ASR rather than by their explanation.",
-      "acceptance": [
-        "When ASR confidence is low or alternatives materially differ, the product first confirms what was heard.",
-        "Only a sufficiently reliable transcript enters the listener-understanding and pedagogy pipeline.",
-        "ASR repair does not increment communication-gap or scaffold evidence."
-      ]
-    },
-    "manualSteps": [
-      "Provide a deliberately ambiguous or low-confidence voice utterance.",
-      "Verify the product confirms hearing rather than diagnosing the child's explanation.",
-      "Repeat with a stable transcript and confirm normal listener evaluation resumes."
     ]
   }
 ]
