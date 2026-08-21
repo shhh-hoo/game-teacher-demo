@@ -2,107 +2,93 @@
 
 This harness exists to support the take-home prototype, not to prove that the project is a production-grade game engine.
 
-The demo has three jobs:
+The primary question is learner-facing: does a Grade 3–4 child experience a believable loop of explain → world forms → Jamie acts → a real communication gap appears → the child repairs it → reality changes → a short listener-centered reflection can return the child to play?
 
-1. show that the product idea in the PRD is credible;
-2. show why AI is useful in this learning experience;
-3. show that the idea can be prototyped into a coherent student-facing interaction.
-
-The primary question is learner-facing: does a Grade 3–4 child experience a believable loop of explain → world forms → Jamie acts → a real communication gap appears → the child repairs it → reality changes → a short listener-centered reflection can return the child to play? Protocol checks sit underneath that product behavior as safeguards.
+Protocol checks sit underneath that product behavior as safeguards.
 
 ## Run
 
 ```bash
 export DIFY_API_KEY='app-...'
 export DIFY_TEST_VERSION='v8'
+node tests/e2e/run-dify.mjs --scenario golden-path-learning-loop
 ```
 
-Run the golden path first:
+`DIFY_TEST_VERSION` is only a trace label. It does not prove which workflow is actually published in Dify.
+
+For DSLs that emit `debug.dsl_version`, enable strict runtime-identity checking:
 
 ```bash
-node tests/e2e/run-dify.mjs --label v8 --scenario golden-path-learning-loop
+export DIFY_EXPECT_DSL_VERSION='v8-semantic-slim-v5'
+node tests/e2e/run-dify.mjs --scenario golden-path-learning-loop
 ```
 
-Then run the two AI-behavior probes:
+Run the two AI-behavior probes after the golden path:
 
 ```bash
-node tests/e2e/run-dify.mjs --label v8 --scenario smart-listener-not-pedantic
-node tests/e2e/run-dify.mjs --label v8 --scenario faithful-listener-not-answer-key
+node tests/e2e/run-dify.mjs --scenario smart-listener-not-pedantic
+node tests/e2e/run-dify.mjs --scenario faithful-listener-not-answer-key
 ```
 
-The repair-depth probe is optional:
+`repair-locate-not-guess` is optional design-depth evidence. The `breadth-*` scenarios are secondary architecture probes and should not drive special-casing before the primary lesson path is credible.
 
-```bash
-node tests/e2e/run-dify.mjs --label v8 --scenario repair-locate-not-guess
-```
+## Failure categories
 
-The `breadth-*` scenarios are secondary architecture probes. Do not optimize the take-home around them before the learner-facing golden path is credible.
+The runner separates four categories:
 
-List scenarios:
+- **behavior** — the learner-facing or protocol assertion failed;
+- **infra** — provider/network/model configuration failure;
+- **runtime** — Dify/workflow returned an unexpected runtime result;
+- **harness** — the test itself cannot make a reliable determination, for example because a state-dependent repair requires pair identity but the rendered cards expose no usable `symbol` or `caption`.
 
-```bash
-node tests/e2e/run-dify.mjs --list
-```
+A harness error must never be silently converted into a product failure or a guessed answer.
+
+## Golden path
+
+`golden-path-learning-loop` intentionally does not prescribe one exact implementation or one exact Jamie sentence.
+
+1. The child says the game has cards with matching pictures. The world may begin visually or stay provisional. It may not invent face-down/up state, readiness, actions, scoring, win logic, or another gameplay fact.
+2. The child says the cards start face down. A concrete face-down world must now exist.
+3. The child says `flip any two cards`. `Any two` already delegates the ordinary player choice, so Jamie chooses two eligible cards and reveals exactly two.
+4. After acting, Jamie must both **have** a grounded post-action listener gap internally and **expose** that gap to the child in the learner-facing reply. An internal debug gap with a reply such as only `Okay, I'll flip these two` is not sufficient.
+5. The harness inspects the actually revealed pair and supplies only the branch the child needs to repair. Pair identity is derived from actual visible identity fields (`symbol` / `caption`), never from a generic label such as `Card`.
+6. Jamie immediately applies that repair to the same pair.
+
+The test does not require:
+
+- cards to appear on turn 1;
+- a fixed inferred card count;
+- a particular `phase` or `support.type`;
+- one exact phrase such as `What happens now?`;
+- the child to explain both outcome branches when only one has been encountered.
+
+## AI-behavior probes
+
+### `smart-listener-not-pedantic`
+
+`Flip three—no, sorry, two of them` must resolve to two. Because the child did not say `any two`, Jamie may either make an ordinary choice among equivalent eligible cards or ask a natural `Which two?` clarification. Normal child disfluency is not itself a communication failure.
+
+### `faithful-listener-not-answer-key`
+
+After Jamie reveals a pair, the harness creates a child-defined house rule that is immediately observable and intentionally conflicts with conventional Matching Pairs:
+
+- matching pair → child says to turn both face down again;
+- non-matching pair → child says to take both out.
+
+Jamie must execute the child's version rather than restoring a canonical rulebook.
 
 ## Output
 
-Default terminal output is concise. Full Dify responses and assertion details remain in the JSON trace.
+Every scenario writes:
 
-Add `--verbose` for more terminal diagnostics.
-
-Every scenario writes two artifacts under `.artifacts/dify-e2e/`:
-
-- `*.json` — complete technical trace;
+- `*.json` — complete technical trace, including reconstructed world state and failure classification;
 - `*__conversation.txt` — Student/Jamie dialogue for quick learner-experience review.
 
-Generated artifacts should not be committed.
-
-## What the three must-run scenarios prove
-
-### 1. `golden-path-learning-loop`
-
-This is the primary demo acceptance path.
-
-The intended path is:
-
-1. The child says the game has cards with matching pictures. The AI may begin a harmless visual representation or leave the world provisional, but it may not invent gameplay state or rules.
-2. The child says the cards start face down. By this point a concrete face-down card world must exist.
-3. The child says `flip any two cards`. The phrase `any two` already delegates the ordinary player choice, so Jamie chooses two eligible cards and reveals exactly two.
-4. After acting, Jamie reaches the genuinely missing outcome rule. The gap must remain open and non-leading rather than being filled from familiar-game knowledge.
-5. The harness inspects the actually revealed pair and supplies only the child repair relevant to that branch: match or non-match.
-6. Jamie immediately applies that repair to the same visible pair.
-
-The test deliberately does **not** require:
-
-- cards to appear on the first turn;
-- a fixed inferred card count;
-- a particular internal `phase` or `support.type`;
-- one exact sentence such as `What happens now?`;
-- the child to explain both outcome branches when only one has been encountered.
-
-The learner-facing behavior is the contract. Internal debug state is used only where it helps diagnose whether that behavior came from a real grounded gap rather than a lucky sentence.
-
-### 2. `smart-listener-not-pedantic`
-
-This proves that Jamie can understand normal Grade 3–4 disfluency and self-correction without manufacturing fake learning problems.
-
-`Flip three—no, sorry, two of them` should resolve to two. Because the child did not say `any two`, Jamie may either make an ordinary choice among equivalent eligible cards or ask a natural `Which two?` clarification. Neither path is automatically a communication failure.
-
-### 3. `faithful-listener-not-answer-key`
-
-This proves that the model's pretrained knowledge of a familiar game does not override the child's version. Jamie may ask about an unstated branch, but must not smuggle a candidate rule into the question or correct the child toward a conventional rulebook.
-
-Together, scenarios 2 and 3 support the central AI design claim: Jamie should be smart enough to understand a child, but constrained enough to remain the listener the child is actually teaching.
-
-## Optional depth and breadth
-
-`repair-locate-not-guess` probes global repair after a vague rejection. It is useful design-depth evidence but is not required before the primary demo path is credible.
-
-The `breadth-*` scenarios probe whether the same listener/world abstraction transfers to structurally different games without game-specific prompting. They should reveal architecture limits, not trigger special-casing.
+Add `--verbose` for detailed terminal diagnostics. Generated artifacts stay under `.artifacts/dify-e2e/` and should not be committed.
 
 ## Manual PRD acceptance
 
-Some important PRD requirements remain better suited to manual review than to the text-only API harness:
+Some important requirements remain better suited to manual review than to this text-only API harness:
 
 - fresh-listener Independent Performance;
 - final Transfer beyond the current game;
@@ -111,22 +97,14 @@ Some important PRD requirements remain better suited to manual review than to th
 
 ## Implementation safeguards
 
-The runner also protects technical contradictions that directly damage the learner experience, including:
+The runner also protects contradictions that directly damage the learner experience, including:
 
 - unsupported or legacy action types;
 - actions targeting missing objects;
 - runtime actions being pre-applied in `world_patch`;
-- a clarification while the world has already silently made the supposedly unresolved choice;
+- a clarification while the world has already silently made the unresolved choice;
 - malformed planner/debug shapes;
 - internal pipeline errors being disguised as normal pedagogy;
-- obvious unstated gameplay-rule leakage.
+- visible-world or dialogue leakage of unstated gameplay logic.
 
 These checks are evidence underneath the demo, not the reason the demo exists.
-
-## Runtime and performance
-
-The runner separates behavior failures from infrastructure/provider and other runtime errors. It records latency and token usage so performance regressions stay visible while behavior remains the primary acceptance criterion.
-
-## Version labels
-
-`DIFY_TEST_VERSION` / `--label` is required so traces are not anonymous. The label is supplied by the test runner; by itself it does **not** prove which DSL is actually published in Dify. Runtime identity should eventually also be emitted by the workflow itself in debug output.
