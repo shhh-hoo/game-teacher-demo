@@ -109,122 +109,44 @@
     "suite": "must-run",
     "demoRole": "Prove that a knowledgeable LLM can still behave like a listener constrained by the child's explanation.",
     "description": "Jamie must follow the child's version of a familiar game rather than silently restoring the conventional rule from pretraining.",
-    "prd": {
-      "stage": "Guided Practice",
-      "hypotheses": ["H3"],
-      "learningPurpose": "Show the central AI design constraint: smart enough to understand the child, constrained enough not to become a hidden answer key.",
-      "acceptance": [
-        "The child's stated conditional rule becomes the rule for this session even if it conflicts with conventional Matching Pairs.",
-        "Jamie must not correct the child toward the standard game.",
-        "Jamie may ask about an unstated opposite branch, but the question must not smuggle in a candidate rule.",
-        "The AI should maintain a consistent playable interpretation of the child's version rather than using a canonical rule set."
-      ]
-    },
-    "manualReview": [
-      "Verify that the child's variant is retained as the session rule.",
-      "If Jamie asks What if they're the same?, that is acceptable; If they're the same, do I keep them? is not, because it supplies a candidate rule.",
-      "If the newly taught condition is already true in the current state, inspect whether the system applies it consistently rather than contradicting itself."
-    ],
-    "turns": [
-      {"query": "It's a card game with matching pictures."},
-      {"query": "Put all the cards face down to start."},
-      {
-        "query": "Flip any two cards.",
-        "stopScenarioOnFailure": true,
-        "assert": {"actionTypes": ["reveal_object", "reveal_object"], "noRuntimeActionEffectsInPatch": true, "actionTargetsExist": true}
-      },
-      {
-        "query": "If they're different, leave them face up.",
-        "assert": {
-          "replyMustNotContain": ["normally", "usually", "standard rule", "should turn them back", "correct", "incorrect", "good job", "right answer", "wrong answer"],
-          "noCandidateRuleLeakage": true
-        }
-      }
-    ]
+    "prd": {"stage": "Guided Practice", "hypotheses": ["H3"], "learningPurpose": "Show the central AI design constraint: smart enough to understand the child, constrained enough not to become a hidden answer key.", "acceptance": ["The child's stated conditional rule becomes the rule for this session even if it conflicts with conventional Matching Pairs.", "Jamie must not correct the child toward the standard game.", "Jamie may ask about an unstated opposite branch, but the question must not smuggle in a candidate rule.", "The AI should maintain a consistent playable interpretation of the child's version rather than using a canonical rule set."]},
+    "manualReview": ["Verify that the child's variant is retained as the session rule.", "If Jamie asks What if they're the same?, that is acceptable; If they're the same, do I keep them? is not, because it supplies a candidate rule.", "If the newly taught condition is already true in the current state, inspect whether the system applies it consistently rather than contradicting itself."],
+    "turns": [{"query": "It's a card game with matching pictures."}, {"query": "Put all the cards face down to start."}, {"query": "Flip any two cards.", "stopScenarioOnFailure": true, "assert": {"actionTypes": ["reveal_object", "reveal_object"], "noRuntimeActionEffectsInPatch": true, "actionTargetsExist": true}}, {"query": "If they're different, leave them face up.", "assert": {"replyMustNotContain": ["normally", "usually", "standard rule", "should turn them back", "correct", "incorrect", "good job", "right answer", "wrong answer"], "noCandidateRuleLeakage": true}}]
   },
   {
     "name": "repair-locate-not-guess",
     "suite": "optional",
     "demoRole": "Show additional depth in the global Notice → Locate → Repair mechanism.",
     "description": "When the child only says that Jamie is wrong, Jamie should help locate the mismatch rather than guessing the intended correction or defending its interpretation.",
-    "prd": {
-      "stage": "Global Repair",
-      "hypotheses": ["H1", "H2"],
-      "learningPurpose": "Move the child from noticing a mismatch toward identifying the exact part that needs to be re-explained.",
-      "acceptance": [
-        "After a vague rejection, Jamie asks which part was wrong or otherwise invites the child to locate the mismatch.",
-        "Jamie does not invent the likely intended rule.",
-        "If vague rejection repeats, the product should ground the repair in Jamie's actual action sequence rather than escalating to a generic lecture."
-      ]
-    },
-    "manualReview": [
-      "The response to No, that's wrong should be functionally equivalent to Which part did I get wrong?",
-      "A second vague rejection should expose or reference the actual action sequence so the child can point to the specific step.",
-      "This probe is useful for demonstrating design depth, but it is not required before the take-home demo is credible."
-    ],
-    "turns": [
-      {"query": "It's a card game with matching pictures."},
-      {"query": "Put all the cards face down to start."},
-      {
-        "query": "Flip any two cards.",
-        "stopScenarioOnFailure": true,
-        "assert": {"actionTypes": ["reveal_object", "reveal_object"], "noRuntimeActionEffectsInPatch": true, "actionTargetsExist": true}
-      },
-      {
-        "query": "No, that's wrong.",
-        "assert": {"actionTypes": [], "noCandidateRuleLeakage": true, "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]}
-      }
-    ]
+    "prd": {"stage": "Global Repair", "hypotheses": ["H1", "H2"], "learningPurpose": "Move the child from noticing a mismatch toward identifying the exact part that needs to be re-explained.", "acceptance": ["After a vague rejection, Jamie asks which part was wrong or otherwise invites the child to locate the mismatch.", "Jamie does not invent the likely intended rule.", "If vague rejection repeats, the product should ground the repair in Jamie's actual action sequence rather than escalating to a generic lecture."]},
+    "manualReview": ["The response to No, that's wrong should be functionally equivalent to Which part did I get wrong?", "A second vague rejection should expose or reference the actual action sequence so the child can point to the specific step.", "This probe is useful for demonstrating design depth, but it is not required before the take-home demo is credible."],
+    "turns": [{"query": "It's a card game with matching pictures."}, {"query": "Put all the cards face down to start."}, {"query": "Flip any two cards.", "stopScenarioOnFailure": true, "assert": {"actionTypes": ["reveal_object", "reveal_object"], "noRuntimeActionEffectsInPatch": true, "actionTargetsExist": true}}, {"query": "No, that's wrong.", "assert": {"actionTypes": [], "noCandidateRuleLeakage": true, "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]}}]
   },
   {
     "name": "breadth-tic-tac-toe",
     "suite": "breadth",
     "demoRole": "Probe transfer to a grid-and-marker game without adding game-specific logic.",
     "description": "A familiar grid game should progressively appear from the child's explanation, while Jamie remains constrained to the rules the child actually says.",
-    "prd": {
-      "stage": "Breadth probe",
-      "hypotheses": ["H3", "H4"],
-      "learningPurpose": "Check whether the same AI listener/world mechanism works beyond cards without a bespoke Tic-Tac-Toe implementation.",
-      "acceptance": ["A 3×3 grid can appear as soon as the child describes it.", "X/O ownership can be represented when the child states it.", "Jamie may make an ordinary choice among empty squares when explicitly allowed.", "Jamie must not introduce three-in-a-row, turn order, or winning logic before the child teaches it."]
-    },
+    "prd": {"stage": "Breadth probe", "hypotheses": ["H3", "H4"], "learningPurpose": "Check whether the same AI listener/world mechanism works beyond cards without a bespoke Tic-Tac-Toe implementation.", "acceptance": ["A 3×3 grid can appear as soon as the child describes it.", "X/O ownership can be represented when the child states it.", "Jamie may make an ordinary choice among empty squares when explicitly allowed.", "Jamie must not introduce three-in-a-row, turn order, or winning logic before the child teaches it."]},
     "manualReview": ["Do not special-case Tic-Tac-Toe in the DSL after seeing this trace; use failures to judge whether the generic world/listener abstraction is sufficient.", "The first turn should make the grid visible even though the game is not yet playable.", "After Jamie places O, the conversation should stay at the boundary of what the child taught; no hidden win-rule completion."],
-    "turns": [
-      {"query": "It's played on a three by three grid.", "assert": {"actionTypes": [], "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "three in a row", "win"]}},
-      {"query": "I use X and you use O. You go first and put your O in any empty square.", "assert": {"replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "three in a row", "winner"]}}
-    ]
+    "turns": [{"query": "It's played on a three by three grid.", "assert": {"actionTypes": [], "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "three in a row", "win"]}}, {"query": "I use X and you use O. You go first and put your O in any empty square.", "assert": {"replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "three in a row", "winner"]}}]
   },
   {
     "name": "breadth-rock-paper-scissors",
     "suite": "breadth",
     "demoRole": "Probe transfer to a choice-based game where pretrained rule knowledge is especially tempting.",
     "description": "Jamie should understand the three named choices and act when invited, but must not import the familiar beats/loses relationships unless the child teaches them.",
-    "prd": {
-      "stage": "Breadth probe",
-      "hypotheses": ["H3", "H4"],
-      "learningPurpose": "Check that a knowledgeable LLM can render and participate in a familiar non-card game without turning pretraining into an answer key.",
-      "acceptance": ["Rock, paper, and scissors can become visible choices from the child's words.", "Jamie can make an ordinary player choice when told to pick one.", "No beats/loses/winner relationship is supplied before the child teaches it."]
-    },
+    "prd": {"stage": "Breadth probe", "hypotheses": ["H3", "H4"], "learningPurpose": "Check that a knowledgeable LLM can render and participate in a familiar non-card game without turning pretraining into an answer key.", "acceptance": ["Rock, paper, and scissors can become visible choices from the child's words.", "Jamie can make an ordinary player choice when told to pick one.", "No beats/loses/winner relationship is supplied before the child teaches it."]},
     "manualReview": ["Do not add Rock-Paper-Scissors rules to prompts or code if this fails.", "The interesting failure mode is leakage: the model knows the conventional outcome table, but Jamie should not use it yet."],
-    "turns": [
-      {"query": "We both choose rock, paper, or scissors at the same time.", "assert": {"actionTypes": [], "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "rock beats scissors", "paper beats rock", "scissors beats paper", "winner"]}},
-      {"query": "Pick one now.", "assert": {"replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "rock beats scissors", "paper beats rock", "scissors beats paper", "I win", "you win"]}}
-    ]
+    "turns": [{"query": "We both choose rock, paper, or scissors at the same time.", "assert": {"actionTypes": [], "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "rock beats scissors", "paper beats rock", "scissors beats paper", "winner"]}}, {"query": "Pick one now.", "assert": {"replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "rock beats scissors", "paper beats rock", "scissors beats paper", "I win", "you win"]}}]
   },
   {
     "name": "breadth-token-race",
     "suite": "breadth",
     "demoRole": "Probe transfer to a spatial movement game without adding a bespoke board-game engine.",
     "description": "A simple path-and-token game should build progressively and let Jamie move only when the child provides the movement instruction.",
-    "prd": {
-      "stage": "Breadth probe",
-      "hypotheses": ["H3", "H4"],
-      "learningPurpose": "Check whether generic objects plus update_object are enough for a simple spatial game that is structurally different from matching cards.",
-      "acceptance": ["The path and two tokens can appear from the initial description.", "No movement, dice, turn, or winning rule is invented from the word race.", "When the child explicitly tells Jamie to move two spaces, Jamie can update its own token and nothing else."]
-    },
+    "prd": {"stage": "Breadth probe", "hypotheses": ["H3", "H4"], "learningPurpose": "Check whether generic objects plus update_object are enough for a simple spatial game that is structurally different from matching cards.", "acceptance": ["The path and two tokens can appear from the initial description.", "No movement, dice, turn, or winning rule is invented from the word race.", "When the child explicitly tells Jamie to move two spaces, Jamie can update its own token and nothing else."]},
     "manualReview": ["This is intentionally a generic race game, not a named canonical game; it tests whether the architecture follows the child's local rules rather than a memorized template.", "Do not special-case token movement after the run; only improve generic move/update handling if the abstraction is inadequate."],
-    "turns": [
-      {"query": "It's a race game with a path of six spaces. We each have a token on Start.", "assert": {"actionTypes": [], "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "roll", "dice", "first to finish wins", "winner"]}},
-      {"query": "Move your token forward two spaces.", "assert": {"replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "roll", "dice", "winner"]}}
-    ]
+    "turns": [{"query": "It's a race game with a path of six spaces. We each have a token on Start.", "assert": {"actionTypes": [], "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "roll", "dice", "first to finish wins", "winner"]}}, {"query": "Move your token forward two spaces.", "assert": {"replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "roll", "dice", "winner"]}}]
   }
 ]
