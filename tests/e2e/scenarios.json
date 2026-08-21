@@ -1,121 +1,256 @@
 [
   {
-    "name": "matching-pairs-basic",
-    "description": "Protect the stable three-turn v7-fixed2 baseline.",
+    "name": "experience-clear-enough-to-act",
+    "suite": "core",
+    "description": "A clear-enough explanation should let Jamie progressively build the world and act, without grading the child or inventing unstated game rules.",
+    "prd": {
+      "stage": "Experience",
+      "hypotheses": ["H1", "H3", "H4"],
+      "learningPurpose": "Let the child experience that their explanation directly determines what Jamie can build and do.",
+      "acceptance": [
+        "Jamie builds only from what the child has actually explained, while filling harmless presentation details.",
+        "Once the child gives enough information for the next move, Jamie acts rather than grading or asking unnecessary questions.",
+        "Jamie stops at the first real missing piece after the action instead of completing the familiar game from prior knowledge."
+      ]
+    },
+    "manualReview": [
+      "After the two-card action, Jamie should naturally expose the next missing piece if there is one; it should not supply the familiar Matching Pairs rule."
+    ],
     "turns": [
       {
-        "query": "It uses cards with matching pictures.",
+        "query": "It's a card game with matching pictures.",
         "assert": {
+          "minObjects": 2,
           "noGameplayLeakage": true,
           "actionTypes": [],
-          "minObjects": 2,
-          "captureBaseline": false
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
         }
       },
       {
-        "query": "You should put the faces down first before we can play",
+        "query": "Put all the cards face down to start.",
         "assert": {
           "actionTypes": [],
           "allObjectUpdatesOnly": ["state"],
           "allUpdatedStates": "face_down",
-          "captureBaseline": false,
-          "trueDelta": true
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
         }
       },
       {
-        "query": "Flip one card and then another.",
+        "query": "On your turn, flip any two cards.",
         "assert": {
           "actionTypes": ["reveal_object", "reveal_object"],
           "captureBaseline": true,
           "noRuntimeActionEffectsInPatch": true,
           "actionTargetsExist": true,
-          "trueDelta": true
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
         }
       }
     ]
   },
   {
-    "name": "one-card-action",
-    "description": "A non-blocking choice may be resolved by Jamie choosing one eligible card or by a natural clarification.",
+    "name": "actionable-underspecification",
+    "suite": "core",
+    "description": "An explanation can be slightly underspecified and still be actionable. Jamie may make an ordinary player choice or ask a natural clarification; neither path is automatically a communication failure.",
+    "prd": {
+      "stage": "Experience / Guided Practice",
+      "hypotheses": ["H3"],
+      "learningPurpose": "Avoid teaching children that every harmless player choice must be verbally specified.",
+      "acceptance": [
+        "For Flip one card, Jamie may choose one eligible card or ask which card.",
+        "If Jamie asks, the world must not silently make the choice first.",
+        "If Jamie chooses, the choice must use only observable or otherwise authorized information.",
+        "The system must not frame this benign underspecification as a wrong or incomplete answer."
+      ]
+    },
     "manualReview": [
-      "If Jamie chooses a card, the choice must not depend on hidden face-down identity or another unauthorized field."
+      "If Jamie chooses a card, verify that the choice did not depend on hidden face-down identity or another unauthorized field."
     ],
     "turns": [
-      {"query": "It uses cards with matching pictures."},
-      {"query": "Put all the cards face down first."},
+      {"query": "It's a card game with matching pictures."},
+      {"query": "Put all the cards face down to start."},
       {
         "query": "Flip one card.",
         "assert": {
           "actionOrClarifyCount": 1,
+          "replyMustNotContain": [
+            "correct", "incorrect", "good job", "right answer", "wrong answer",
+            "not clear enough", "incomplete answer", "you need to explain"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "real-breakdown-repair-teach",
+    "suite": "core",
+    "description": "Jamie should act on what is known, reach a real communication gap, then let the child's repair change reality before a brief listener-centered Teach Moment.",
+    "prd": {
+      "stage": "Experience → Notice & Teach → Guided Practice",
+      "hypotheses": ["H1", "H2"],
+      "learningPurpose": "Turn a real breakdown into the portable idea that the listener needs enough information for the next move.",
+      "acceptance": [
+        "Jamie first executes the taught move and only then exposes the missing next-step information.",
+        "The first breakdown is listener feedback, not an immediate lecture or supplied rule.",
+        "When the child repairs the gap, Jamie's world or action changes immediately.",
+        "After a genuine repair, the response briefly connects the success to what the listener needed to know."
+      ]
+    },
+    "manualReview": [
+      "After Flip any two cards, Jamie should ask a natural next-step question rather than teach immediately.",
+      "On the repair turn, verify the two revealed cards actually return face down.",
+      "The first Teach Moment should explain the listener knowledge gap and why the repair helped; simple praise is not enough.",
+      "The reflection should remain brief and return the child to play."
+    ],
+    "turns": [
+      {"query": "It's a card game with matching pictures."},
+      {"query": "Put all the cards face down to start."},
+      {
+        "query": "Flip any two cards.",
+        "assert": {
+          "actionTypes": ["reveal_object", "reveal_object"],
+          "noRuntimeActionEffectsInPatch": true,
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
+        }
+      },
+      {
+        "query": "Then turn both of those cards face down again.",
+        "assert": {
+          "actionTypes": ["hide_object", "hide_object"],
+          "actionTargetsExist": true,
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
+        }
+      }
+    ]
+  },
+  {
+    "name": "child-defined-version-over-standard-knowledge",
+    "suite": "core",
+    "description": "Jamie must play the child's version of the game, even when it conflicts with the conventional version Jamie may know from pretraining.",
+    "prd": {
+      "stage": "Guided Practice",
+      "hypotheses": ["H3"],
+      "learningPurpose": "Ensure the AI models a novice listener rather than a hidden answer key for familiar games.",
+      "acceptance": [
+        "The child's stated conditional rule becomes the session rule.",
+        "Jamie must not correct the child toward standard Matching Pairs behavior.",
+        "Jamie may ask about an unstated opposite branch, but the question must not smuggle in a candidate rule."
+      ]
+    },
+    "manualReview": [
+      "Verify the child's variant is retained in the session rule model.",
+      "If the newly taught condition is already true in the current state, inspect whether the system applies it consistently rather than contradicting itself."
+    ],
+    "turns": [
+      {"query": "It's a card game with matching pictures."},
+      {"query": "Put all the cards face down to start."},
+      {
+        "query": "Flip any two cards.",
+        "assert": {
+          "actionTypes": ["reveal_object", "reveal_object"],
           "noRuntimeActionEffectsInPatch": true,
           "actionTargetsExist": true
         }
-      }
-    ]
-  },
-  {
-    "name": "two-card-action",
-    "description": "A non-blocking two-card choice may be executed by Jamie or clarified without inventing a selection rule.",
-    "manualReview": [
-      "If Jamie chooses the cards, the choice must not depend on hidden face-down identities."
-    ],
-    "turns": [
-      {"query": "It uses cards with matching pictures."},
-      {"query": "Put all the cards face down first."},
-      {
-        "query": "Flip two cards.",
-        "assert": {
-          "actionOrClarifyCount": 2,
-          "noRuntimeActionEffectsInPatch": true,
-          "actionTargetsExist": true
-        }
-      }
-    ]
-  },
-  {
-    "name": "self-correction-two-cards",
-    "description": "Natural self-correction should resolve to two cards; Jamie may execute two reveals or ask which two.",
-    "turns": [
-      {"query": "It uses cards with matching pictures."},
-      {"query": "Put all the cards face down first."},
-      {
-        "query": "Flip three—no, sorry, two.",
-        "assert": {
-          "actionOrClarifyCount": 2,
-          "replyMustNotContain": ["which three", "flip three cards", "three cards should"]
-        }
-      }
-    ]
-  },
-  {
-    "name": "leading-question-leakage",
-    "description": "A familiar matching relation must not cause Jamie to propose the gameplay rule.",
-    "turns": [
-      {
-        "query": "They have matching pictures.",
-        "assert": {
-          "noGameplayLeakage": true,
-          "actionTypes": []
-        }
-      }
-    ]
-  },
-  {
-    "name": "child-defined-variant",
-    "description": "Jamie may ask about an unspecified opposite branch, but must not smuggle a candidate gameplay rule into the question.",
-    "manualReview": [
-      "Jamie must not correct the child toward standard Matching Pairs behavior.",
-      "The trace should retain the child's variant as the session rule."
-    ],
-    "turns": [
-      {"query": "It uses cards with matching pictures."},
-      {"query": "Put all the cards face down first."},
-      {"query": "Flip two cards."},
+      },
       {
         "query": "If they're different, leave them face up.",
         "assert": {
-          "replyMustNotContain": ["normally", "usually", "standard rule"],
+          "replyMustNotContain": [
+            "normally", "usually", "standard rule", "should turn them back",
+            "correct", "incorrect", "good job", "right answer", "wrong answer"
+          ],
           "noCandidateRuleLeakage": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "vague-repair-must-locate",
+    "suite": "extended",
+    "description": "A vague rejection should start communication repair by locating the mismatch, not by guessing the intended rule or defending Jamie's previous interpretation.",
+    "prd": {
+      "stage": "Global Repair",
+      "hypotheses": ["H1", "H2"],
+      "learningPurpose": "Move the child from Notice toward Locate before asking for a better explanation.",
+      "acceptance": [
+        "After a vague rejection, Jamie asks which part was wrong.",
+        "Jamie does not invent a likely correction.",
+        "Repeated vague rejection should narrow attention toward the actual action sequence rather than escalating to a lecture."
+      ]
+    },
+    "manualReview": [
+      "The reply to the vague rejection should be functionally equivalent to Which part did I get wrong?",
+      "If the child gives a second vague rejection, the product should expose or reference Jamie's actual action sequence so the child can locate the step."
+    ],
+    "turns": [
+      {
+        "query": "It's played with cards that have matching pictures.",
+        "assert": {"minObjects": 2, "noGameplayLeakage": true}
+      },
+      {
+        "query": "No, that's wrong.",
+        "assert": {
+          "actionTypes": [],
+          "noCandidateRuleLeakage": true,
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
+        }
+      }
+    ]
+  },
+  {
+    "name": "messy-child-speech-self-correction",
+    "suite": "extended",
+    "description": "Jamie should understand normal Grade 3–4 speech disfluency and self-correction without turning language messiness into fake instructional friction.",
+    "prd": {
+      "stage": "Cross-cutting Listener Model",
+      "hypotheses": ["H3"],
+      "learningPurpose": "Separate communication skill from ordinary child speech disfluency.",
+      "acceptance": [
+        "The child's final intended count is two, not three.",
+        "Jamie may execute two reveals or clarify which two.",
+        "Jamie should not require a polished sentence before understanding the instruction."
+      ]
+    },
+    "turns": [
+      {"query": "It's a card game with matching pictures."},
+      {"query": "Put all the cards face down to start."},
+      {
+        "query": "Flip three—no, sorry, two of them.",
+        "assert": {
+          "actionOrClarifyCount": 2,
+          "replyMustNotContain": [
+            "which three", "flip three cards", "three cards should",
+            "correct", "incorrect", "good job", "right answer", "wrong answer"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "relevance-does-not-derail-start",
+    "suite": "extended",
+    "description": "Strategy or secondary detail may be useful, but Jamie should keep attention on what is needed to begin playing instead of treating every detail as equally urgent.",
+    "prd": {
+      "stage": "Experience",
+      "hypotheses": ["H3", "H4"],
+      "learningPurpose": "Test whether the listener can prioritize information needed for the next move without rejecting relevant but premature detail.",
+      "acceptance": [
+        "Jamie can retain the strategy detail without treating it as a gameplay rule.",
+        "Jamie still asks for the missing information needed to start.",
+        "Jamie does not launch a relevance lecture before a real bottleneck appears."
+      ]
+    },
+    "manualReview": [
+      "Jamie should naturally ask how to start or what to do with the cards, rather than teaching a relevance principle at this point."
+    ],
+    "turns": [
+      {
+        "query": "It's a card game with matching pictures. A good strategy is to remember where you saw each picture.",
+        "assert": {
+          "minObjects": 2,
+          "actionTypes": [],
+          "noGameplayLeakage": true,
+          "noCandidateRuleLeakage": true,
+          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
         }
       }
     ]
