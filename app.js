@@ -1,66 +1,82 @@
 const app = document.querySelector('#app');
 
-const CARD_FACES = ['🐶', '🐱', '🐸', '🦊', '🐸', '🦊', '🐶', '🐱'];
-const PHASES = ['choose', 'explain', 'try', 'repair', 'play', 'tip'];
+const PHASES = ['experience', 'notice', 'teach', 'practice', 'independent', 'transfer'];
 const PHASE_LABELS = {
-  choose: 'Choose',
-  explain: 'Explain',
-  try: 'Try',
-  repair: 'Fix',
-  retry: 'Fix',
-  play: 'Play',
-  tip: 'Tip',
+  experience: 'Try',
+  notice: 'Notice',
+  teach: 'Learn',
+  practice: 'Practice',
+  independent: 'Show',
+  transfer: 'Transfer',
   complete: 'Done',
 };
 
+const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+
+function blankWorld() {
+  return {
+    name: 'Your game',
+    surface: { type: 'table', rows: 0, columns: 0 },
+    objects: [],
+    counters: [],
+    turn: null,
+    status: 'Jamie is waiting for you to describe the game.',
+    ready: false,
+  };
+}
+
+function normalizePhase(phase) {
+  return phase === 'guided' ? 'practice' : phase;
+}
+
 const state = {
   screen: 'home',
-  selectedGame: null,
   conversationId: sessionStorage.getItem('gameTeacherConversationId') || '',
   userId: sessionStorage.getItem('gameTeacherUserId') || crypto.randomUUID(),
-  phase: 'choose',
+  phase: 'experience',
   mode: 'required',
   loading: false,
   apiError: '',
-  cards: CARD_FACES.map((face, index) => ({ id: index + 1, face, flipped: false, matched: false })),
-  turn: 'jamie',
-  repairSupport: null,
+  inputDraft: '',
+  listening: false,
+  voiceSupported: Boolean(SpeechRecognitionCtor),
+  voiceMeta: null,
+  world: blankWorld(),
+  worldBaseline: null,
+  support: null,
   messages: [],
 };
+
 sessionStorage.setItem('gameTeacherUserId', state.userId);
 
 function render() {
-  const statusText =
-    state.mode === 'dify'
-      ? 'Dify connected'
-      : state.mode === 'error'
-        ? 'Dify unavailable'
-        : 'Dify required';
-
   app.innerHTML = `
     <div class="app-shell">
       <header class="topbar">
         <div class="brand">
           <h1>Teach Me a Game</h1>
-          <p>Explain it your way. Jamie will try to play from what you actually say.</p>
+          <p>Your explanation builds the game Jamie understands.</p>
         </div>
-        <div class="status-pill ${state.mode === 'dify' ? 'live' : ''}">
-          ${statusText}
-        </div>
+        ${state.apiError ? '<div class="status-pill error">Connection issue</div>' : ''}
       </header>
-      ${renderProgress()}
+
+      ${state.screen === 'lesson' ? renderProgress() : ''}
       ${state.screen === 'home' ? renderHome() : renderLesson()}
     </div>
   `;
+
   bindEvents();
 }
 
 function renderProgress() {
-  const visiblePhase = state.phase === 'retry' ? 'repair' : state.phase;
-  const currentIndex = Math.max(0, PHASES.indexOf(visiblePhase));
+  const currentPhase = normalizePhase(state.phase);
+  const currentIndex = currentPhase === 'complete'
+    ? PHASES.length
+    : Math.max(0, PHASES.indexOf(currentPhase));
 
   return `
-    <div class="progress">
+    <div class="progress" aria-label="Lesson progress">
       ${PHASES.map((phase, index) => `
         <div class="progress-step ${index === currentIndex ? 'active' : ''} ${index < currentIndex ? 'done' : ''}">
           ${index + 1} · ${PHASE_LABELS[phase]}
@@ -72,53 +88,18 @@ function renderProgress() {
 
 function renderHome() {
   return `
-    <section class="card home">
-      <div class="eyebrow">Start with what you know</div>
-      <h2>Which game could you teach a friend?</h2>
-      <p>One lesson uses one game you already know. The same teaching loop can support different games; Matching Pairs is the first fully implemented path in this MVP.</p>
-
-      <div class="game-grid">
-        <button class="game-choice" data-game="matching_pairs">
-          <span class="tag">Live</span>
-          <div class="thumb memory-thumb">
-            ${Array.from({ length: 8 }, () => '<span></span>').join('')}
-          </div>
-          <b>Matching Pairs</b>
-          <small>Turn cards, check pairs, and explain what happens next.</small>
-        </button>
-
-        <button class="game-choice" disabled>
-          <span class="tag">Next</span>
-          <div class="thumb ttt-thumb">
-            <span>X</span><span></span><span>O</span><span></span><span>X</span><span></span><span></span><span>O</span><span></span>
-          </div>
-          <b>Tic-Tac-Toe</b>
-          <small>The same protocol can later drive a second game renderer.</small>
-        </button>
-
-        <button class="game-choice" disabled>
-          <span class="tag">Next</span>
-          <div class="thumb drop-thumb">
-            <span></span><span></span><span></span><span></span><span></span>
-          </div>
-          <b>Four in a Row</b>
-          <small>A useful next path for testing hidden constraints.</small>
-        </button>
-
-        <button class="game-choice" disabled>
-          <span class="tag">Next</span>
-          <div class="thumb four-thumb">
-            <span></span><span></span><span></span><span></span>
-          </div>
-          <b>Four Square</b>
-          <small>A later active-game path with more special cases.</small>
-        </button>
-      </div>
+    <section class="card home v6-home">
+      <div class="eyebrow">A game you already know</div>
+      <h2>Can you teach Jamie well enough to make the game playable?</h2>
+      <p>Describe the game naturally. Jamie will build only the game world your explanation supports, then try to play it.</p>
+      <button class="primary start-button" id="startButton">Start teaching</button>
     </section>
   `;
 }
 
 function renderLesson() {
+  const voiceLabel = state.listening ? 'Listening…' : '🎙️ Speak';
+  const visiblePhase = normalizePhase(state.phase);
   return `
     <section class="card lesson">
       <aside class="chat-pane">
@@ -126,26 +107,34 @@ function renderLesson() {
           <div class="avatar">🙂</div>
           <div>
             <b>Jamie</b>
-            <small>Your friend · new to this game</small>
+            <small>${visiblePhase === 'independent' ? 'A fresh listener · knows none of your rules yet' : 'Your friend · learning from your explanation'}</small>
           </div>
         </div>
 
         <div class="chat-log" id="chatLog">
           ${state.messages.map(message => `
-            <div class="message ${message.role === 'student' ? 'student' : 'ai'}">${escapeHtml(message.text)}</div>
+            <div class="message ${message.role === 'student' ? 'student' : message.role === 'action' ? 'action' : 'ai'}">${escapeHtml(message.text)}</div>
           `).join('')}
         </div>
 
         <div class="composer">
           <textarea
             id="studentInput"
-            placeholder="Tell Jamie what to do next…"
-            ${state.loading || state.phase === 'complete' ? 'disabled' : ''}
-          ></textarea>
+            placeholder="Explain it to Jamie…"
+            ${state.loading || visiblePhase === 'complete' ? 'disabled' : ''}
+          >${escapeHtml(state.inputDraft)}</textarea>
+
+          <button
+            class="secondary"
+            id="micButton"
+            title="${state.voiceSupported ? 'Speak instead of typing' : 'Speech recognition is not supported in this browser'}"
+            ${!state.voiceSupported || state.loading || visiblePhase === 'complete' ? 'disabled' : ''}
+          >${voiceLabel}</button>
+
           <button
             class="primary"
             id="sendButton"
-            ${state.loading || state.phase === 'complete' ? 'disabled' : ''}
+            ${state.loading || visiblePhase === 'complete' ? 'disabled' : ''}
           >${state.loading ? '…' : 'Send'}</button>
         </div>
       </aside>
@@ -153,101 +142,146 @@ function renderLesson() {
       <div class="game-pane">
         <div class="game-head">
           <div>
-            <div class="eyebrow">Game world</div>
-            <h3>Matching Pairs</h3>
-            <p>Jamie only acts on rules the student has actually explained.</p>
+            <div class="eyebrow">What Jamie understands</div>
+            <h3>${escapeHtml(state.world.name || 'Your game')}</h3>
+            <p>Visual details may be filled in. Game logic only comes from what you explain.</p>
           </div>
-          <div class="phase-pill">${PHASE_LABELS[state.phase] || state.phase}</div>
+          <div class="phase-pill">${PHASE_LABELS[visiblePhase] || visiblePhase}</div>
         </div>
 
-        <div class="board-wrap">
-          ${state.phase === 'complete' ? renderComplete() : renderMemoryBoard()}
-          ${state.repairSupport ? renderRepairPanel() : ''}
+        <div class="world-shell">
+          ${renderWorldStatus()}
+          ${renderWorldSurface()}
+          ${renderSupport()}
         </div>
 
-        <div class="turn-strip">
-          <span><b>Current turn:</b> ${state.turn === 'jamie' ? 'Jamie' : 'You'}</span>
-          <button class="secondary" id="restartButton">Start over</button>
-        </div>
+        ${renderWorldFooter()}
 
-        <div class="helper-text" aria-live="polite">
-          <div>
-            <strong>${state.apiError ? 'Dify API error' : 'What to notice'}</strong><br />
-            <span>${state.apiError ? escapeHtml(state.apiError) : helperText()}</span>
+        ${state.apiError ? `
+          <div class="helper-text error-copy" aria-live="polite">
+            <div><strong>API error</strong><br /><span>${escapeHtml(state.apiError)}</span></div>
           </div>
-        </div>
+        ` : ''}
       </div>
     </section>
   `;
 }
 
-function renderMemoryBoard() {
+function renderWorldStatus() {
+  const readyLabel = state.world.ready ? 'Playable so far' : 'Still being built';
   return `
-    <div class="memory-board">
-      ${state.cards.map(card => `
-        <button
-          class="memory-card ${card.flipped ? 'flipped' : ''} ${card.matched ? 'matched' : ''}"
-          aria-label="Card ${card.id}"
-          disabled
-        >
-          <span class="face back"></span>
-          <span class="face front">${card.face}</span>
-        </button>
-      `).join('')}
+    <div class="world-status">
+      <span class="world-ready ${state.world.ready ? 'ready' : ''}">${readyLabel}</span>
+      <span>${escapeHtml(state.world.status || '')}</span>
     </div>
   `;
 }
 
-function renderRepairPanel() {
-  const steps = state.repairSupport.steps || [];
-  return `
-    <div class="repair-panel">
-      <h4>${escapeHtml(state.repairSupport.prompt || 'Which step should Jamie change?')}</h4>
-      <p>Point to the part that went wrong, then explain what Jamie should do instead.</p>
-      <div class="repair-steps">
-        ${steps.map((step, index) => `
-          <button class="repair-step" data-repair-index="${index}">${escapeHtml(step)}</button>
-        `).join('')}
+function renderWorldSurface() {
+  const objects = state.world.objects || [];
+  if (!objects.length) {
+    return `
+      <div class="empty-world">
+        <div class="empty-world-mark">＋</div>
+        <b>Nothing has been built yet.</b>
+        <span>Start describing what your friend needs in order to play.</span>
       </div>
-    </div>
-  `;
-}
-
-function renderComplete() {
-  return `
-    <div class="complete-card">
-      <div class="icon">🎉</div>
-      <h3>Jamie can play!</h3>
-      <p>Your explanation gave Jamie enough information to try the game, notice a gap, and use your repair to keep going.</p>
-      <button class="primary" id="completeRestart">Teach again</button>
-    </div>
-  `;
-}
-
-function helperText() {
-  switch (state.phase) {
-    case 'explain':
-      return 'Explain enough for Jamie to start. You do not need to list every rule at once.';
-    case 'try':
-      return 'Watch what Jamie does. Does the action match what you meant?';
-    case 'repair':
-      return 'If something is wrong, locate the part Jamie misunderstood and explain that part again.';
-    case 'retry':
-      return 'Now check whether your new explanation changes Jamie’s action.';
-    case 'play':
-      return 'Jamie can play more independently now. Add only the next rule that becomes useful.';
-    case 'tip':
-      return 'Rules help someone play. A strategy can help someone play better.';
-    case 'complete':
-      return 'The lesson ends when the friend can act on the explanation—not when every possible rule has been recited.';
-    default:
-      return 'Start from a game you already know.';
+    `;
   }
+
+  const surface = state.world.surface || { type: 'table' };
+  const isGrid = surface.type === 'grid';
+  const columns = clampNumber(surface.columns, 1, 8, isGrid ? 3 : 4);
+  const rows = clampNumber(surface.rows, 0, 8, 0);
+  const style = isGrid
+    ? `--world-columns:${columns};${rows ? `--world-rows:${rows};` : ''}`
+    : '';
+
+  return `
+    <div class="world-surface ${isGrid ? 'grid-surface' : 'table-surface'}" style="${style}">
+      ${objects.map(renderWorldObject).join('')}
+    </div>
+  `;
+}
+
+function renderWorldObject(object) {
+  const id = String(object.id || '');
+  const kind = normalizeKind(object.kind);
+  const objectState = String(object.state || 'available');
+  const faceDown = objectState === 'face_down';
+  const interactive = Boolean(object.interactive) && ['practice', 'independent'].includes(normalizePhase(state.phase)) && !state.loading;
+  const symbol = faceDown ? '' : String(object.symbol || object.label || '');
+  const title = String(object.label || object.symbol || object.id || 'Game object');
+  const positionStyle = buildObjectPositionStyle(object);
+
+  return `
+    <button
+      class="world-object kind-${kind} state-${escapeAttr(objectState)} ${interactive ? 'interactive' : ''}"
+      data-world-object="${escapeAttr(id)}"
+      style="${positionStyle}"
+      aria-label="${escapeAttr(title)}"
+      ${interactive ? '' : 'disabled'}
+    >
+      ${faceDown ? '<span class="object-back"></span>' : `<span class="object-symbol">${escapeHtml(symbol)}</span>`}
+      ${object.caption ? `<small>${escapeHtml(object.caption)}</small>` : ''}
+    </button>
+  `;
+}
+
+function renderSupport() {
+  if (!state.support) return '';
+
+  if (state.support.type === 'teach_moment' || state.support.type === 'micro_teach') {
+    const focus = String(state.support.focus || 'listener thinking');
+    return `
+      <section class="teach-panel">
+        <div class="teach-kicker">${state.support.type === 'teach_moment' ? 'A quick idea' : 'One thing to try'}</div>
+        <h4>${escapeHtml(state.support.headline || focus)}</h4>
+        <p>${escapeHtml(state.support.principle || '')}</p>
+        ${state.support.listener_gap ? `<div class="listener-gap"><b>Jamie still needs:</b> ${escapeHtml(state.support.listener_gap)}</div>` : ''}
+        ${state.support.question ? `<div class="teach-question">${escapeHtml(state.support.question)}</div>` : ''}
+      </section>
+    `;
+  }
+
+  if (state.support.type === 'locate_step') {
+    const steps = Array.isArray(state.support.steps) ? state.support.steps : [];
+    return `
+      <section class="repair-panel">
+        <h4>${escapeHtml(state.support.prompt || 'Which part should change?')}</h4>
+        <p>Choose the step that did not match what you meant.</p>
+        <div class="repair-steps">
+          ${steps.map((step, index) => `
+            <button class="repair-step" data-repair-index="${index}">${escapeHtml(step)}</button>
+          `).join('')}
+        </div>
+      </section>
+    `;
+  }
+
+  return '';
+}
+
+function renderWorldFooter() {
+  const counters = Array.isArray(state.world.counters) ? state.world.counters : [];
+  return `
+    <div class="world-footer">
+      <div class="world-meta">
+        ${state.world.turn ? `<span><b>Turn:</b> ${escapeHtml(state.world.turn)}</span>` : '<span>Build first, then play.</span>'}
+        ${counters.map(counter => `<span><b>${escapeHtml(counter.label || counter.id)}:</b> ${escapeHtml(counter.value ?? 0)}</span>`).join('')}
+      </div>
+      <button class="secondary" id="restartButton">Start over</button>
+    </div>
+  `;
 }
 
 function bindEvents() {
-  document.querySelector('[data-game="matching_pairs"]')?.addEventListener('click', startMatchingPairs);
-  document.querySelector('#sendButton')?.addEventListener('click', submitMessage);
+  document.querySelector('#startButton')?.addEventListener('click', startLesson);
+  document.querySelector('#sendButton')?.addEventListener('click', () => submitMessage());
+  document.querySelector('#micButton')?.addEventListener('click', toggleVoiceInput);
+  document.querySelector('#studentInput')?.addEventListener('input', event => {
+    state.inputDraft = event.currentTarget.value;
+  });
   document.querySelector('#studentInput')?.addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -255,9 +289,21 @@ function bindEvents() {
     }
   });
   document.querySelector('#restartButton')?.addEventListener('click', restartLesson);
-  document.querySelector('#completeRestart')?.addEventListener('click', restartLesson);
+
+  document.querySelectorAll('[data-world-object]').forEach(button => {
+    button.addEventListener('click', () => submitWorldEvent({
+      type: 'object_click',
+      object_id: button.dataset.worldObject,
+    }));
+  });
+
   document.querySelectorAll('[data-repair-index]').forEach(button => {
-    button.addEventListener('click', () => chooseRepairStep(Number(button.dataset.repairIndex)));
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.repairIndex);
+      const step = state.support?.steps?.[index];
+      if (!step) return;
+      submitWorldEvent({ type: 'repair_step_selected', index, step });
+    });
   });
 
   requestAnimationFrame(() => {
@@ -266,55 +312,74 @@ function bindEvents() {
   });
 }
 
-function startMatchingPairs() {
+function startLesson() {
+  stopRecognition();
   state.screen = 'lesson';
-  state.selectedGame = 'matching_pairs';
-  state.phase = 'explain';
-  state.turn = 'jamie';
+  state.phase = 'experience';
   state.mode = 'required';
   state.apiError = '';
+  state.inputDraft = '';
+  state.voiceMeta = null;
+  state.world = blankWorld();
+  state.worldBaseline = null;
+  state.support = null;
   state.conversationId = '';
-  sessionStorage.removeItem('gameTeacherConversationId');
-  state.cards = freshCards();
-  state.repairSupport = null;
   state.messages = [
-    { role: 'ai', text: "I've never played Matching Pairs before. Can you teach me?" },
+    { role: 'ai', text: "Teach me a game you know. I've never played it before." },
   ];
+  sessionStorage.removeItem('gameTeacherConversationId');
   render();
   document.querySelector('#studentInput')?.focus();
 }
 
 function restartLesson() {
+  stopRecognition();
   state.screen = 'home';
-  state.selectedGame = null;
-  state.phase = 'choose';
-  state.turn = 'jamie';
+  state.phase = 'experience';
   state.mode = 'required';
   state.apiError = '';
+  state.inputDraft = '';
+  state.voiceMeta = null;
+  state.world = blankWorld();
+  state.worldBaseline = null;
+  state.support = null;
   state.conversationId = '';
-  state.repairSupport = null;
   state.messages = [];
-  state.cards = freshCards();
   sessionStorage.removeItem('gameTeacherConversationId');
   render();
 }
 
-async function submitMessage() {
-  if (state.loading || state.phase === 'complete') return;
+async function submitMessage(overrideMessage = '') {
+  if (state.loading || normalizePhase(state.phase) === 'complete') return;
 
   const input = document.querySelector('#studentInput');
-  const message = input?.value.trim();
+  const message = (overrideMessage || input?.value || state.inputDraft).trim();
   if (!message) return;
 
+  stopRecognition();
   state.messages.push({ role: 'student', text: message });
+  const speech = state.voiceMeta;
+  state.inputDraft = '';
+  state.voiceMeta = null;
+
+  await requestLessonTurn({ message, speech });
+}
+
+async function submitWorldEvent(event) {
+  if (state.loading || normalizePhase(state.phase) === 'complete') return;
+  state.messages.push({ role: 'action', text: describeWorldEvent(event) });
+  await requestLessonTurn({ event });
+}
+
+async function requestLessonTurn({ message = '', event = null, speech = null }) {
   state.loading = true;
   state.apiError = '';
-  state.repairSupport = null;
+  state.support = null;
   render();
 
   let result;
   try {
-    result = await sendToDify(message);
+    result = await sendToDify({ message, event, speech });
     state.mode = 'dify';
   } catch (error) {
     state.loading = false;
@@ -332,18 +397,25 @@ async function submitMessage() {
     sessionStorage.setItem('gameTeacherConversationId', result.conversationId);
   }
 
-  state.phase = result.phase || state.phase;
-  if (result.reply) state.messages.push({ role: 'ai', text: result.reply });
+  const previousPhase = normalizePhase(state.phase);
+  state.phase = normalizePhase(result.phase || state.phase);
 
-  await applyAction(
-    result.ui_action || { type: 'none', payload: {} },
-    result.support || null,
-  );
+  if (result.world_patch) applyWorldPatch(result.world_patch);
+  if (result.capture_baseline) state.worldBaseline = cloneWorld(state.world);
+
+  if (result.reply) state.messages.push({ role: 'ai', text: result.reply });
+  state.support = result.support || null;
+
+  await applyUiAction(result.ui_action || { type: 'none', payload: {} });
+
+  if (previousPhase !== 'independent' && state.phase === 'independent' && !state.worldBaseline) {
+    state.worldBaseline = cloneWorld(state.world);
+  }
 
   render();
 }
 
-async function sendToDify(message) {
+async function sendToDify({ message = '', event = null, speech = null }) {
   let response;
 
   try {
@@ -352,7 +424,8 @@ async function sendToDify(message) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message,
-        gameId: state.selectedGame,
+        event,
+        speech,
         conversationId: state.conversationId,
         userId: state.userId,
       }),
@@ -381,7 +454,6 @@ async function sendToDify(message) {
   }
 
   const payload = await response.json();
-
   if (!payload || typeof payload !== 'object') {
     const error = new Error('The Dify proxy returned an invalid response.');
     error.code = 'INVALID_RESPONSE';
@@ -395,11 +467,15 @@ function formatDifyError(error) {
   const message = error instanceof Error ? error.message : String(error || '');
 
   if (error?.status === 503 || /DIFY_API_KEY/i.test(message)) {
-    return 'Dify is not configured. Add DIFY_API_KEY to .env.local (or your Vercel environment) and run the app through Vercel.';
+    return 'Dify is not configured. Load DIFY_API_KEY into the environment running `vercel dev`.';
+  }
+
+  if (error?.status === 501 || /Unsupported method.*POST/i.test(message)) {
+    return 'This page is being served by a static server. Run it through `npx vercel dev` so POST /api/chat reaches the Vercel function.';
   }
 
   if (error?.status === 404 || /\/api\/chat.*not.*reach/i.test(message)) {
-    return 'The Dify API proxy is not available. Run this project with `npx vercel dev` locally, or deploy it to Vercel.';
+    return 'The Dify API proxy is not available. Run this project with `npx vercel dev`, or deploy it to Vercel.';
   }
 
   if (error?.code === 'NETWORK') {
@@ -409,64 +485,153 @@ function formatDifyError(error) {
   return `Could not reach Dify: ${message}`;
 }
 
-async function applyAction(action, support) {
+function applyWorldPatch(patch) {
+  if (!patch || typeof patch !== 'object') return;
+
+  if (patch.replace && typeof patch.replace === 'object') {
+    state.world = normalizeWorld(patch.replace);
+    return;
+  }
+
+  if (typeof patch.name === 'string') state.world.name = patch.name;
+  if (typeof patch.status === 'string') state.world.status = patch.status;
+  if (typeof patch.ready === 'boolean') state.world.ready = patch.ready;
+  if (patch.turn === null || typeof patch.turn === 'string') state.world.turn = patch.turn;
+
+  if (patch.surface && typeof patch.surface === 'object') {
+    state.world.surface = {
+      ...state.world.surface,
+      ...sanitizeSurfacePatch(patch.surface),
+    };
+  }
+
+  if (Array.isArray(patch.remove_object_ids)) {
+    const removed = new Set(patch.remove_object_ids.map(String));
+    state.world.objects = state.world.objects.filter(object => !removed.has(String(object.id)));
+  }
+
+  if (Array.isArray(patch.add_objects)) {
+    for (const raw of patch.add_objects) upsertWorldObject(raw, false);
+  }
+
+  if (Array.isArray(patch.update_objects)) {
+    for (const raw of patch.update_objects) upsertWorldObject(raw, true);
+  }
+
+  if (Array.isArray(patch.counters)) {
+    state.world.counters = patch.counters.map(normalizeCounter).filter(Boolean).slice(0, 8);
+  }
+}
+
+function upsertWorldObject(raw, mergeExisting) {
+  if (!raw || typeof raw !== 'object' || !raw.id) return;
+  const id = String(raw.id).slice(0, 64);
+  const index = state.world.objects.findIndex(item => String(item.id) === id);
+
+  if (mergeExisting) {
+    if (index === -1) return;
+    state.world.objects[index] = {
+      ...state.world.objects[index],
+      ...normalizeWorldObjectPatch(raw),
+      id,
+    };
+    return;
+  }
+
+  const object = normalizeWorldObject(raw);
+  if (!object) return;
+  if (index === -1) {
+    if (state.world.objects.length < 36) state.world.objects.push(object);
+    return;
+  }
+  state.world.objects[index] = object;
+}
+
+async function applyUiAction(action) {
   const type = action?.type || 'none';
   const payload = action?.payload || {};
 
-  if (support?.type === 'locate_step') {
-    state.repairSupport = support;
+  if (type === 'action_sequence') {
+    for (const step of payload.actions || []) await applyAtomicAction(step);
+    return;
   }
 
-  switch (type) {
-    case 'setup_cards':
-      state.cards = freshCards();
-      break;
+  if (type === 'reset_to_baseline') {
+    if (state.worldBaseline) {
+      state.world = cloneWorld(state.worldBaseline);
+      render();
+      await wait(350);
+    }
+    return;
+  }
 
-    case 'flip_cards':
-      flipCards(payload.cards || []);
-      if (!payload.keep_face_up) {
-        await wait(900);
-        unflipCards(payload.cards || []);
+  if (type === 'lesson_complete') {
+    state.phase = 'complete';
+  }
+}
+
+async function applyAtomicAction(action) {
+  if (!action || typeof action !== 'object') return;
+
+  switch (action.type) {
+    case 'update_object': {
+      const id = String(action.object_id || '');
+      const index = state.world.objects.findIndex(item => String(item.id) === id);
+      if (index !== -1) {
+        state.world.objects[index] = {
+          ...state.world.objects[index],
+          ...normalizeWorldObjectPatch(action.patch || {}),
+        };
       }
-      break;
-
-    case 'flip_two_then_flip_back':
-      flipCards(payload.cards || []);
       render();
-      await wait(1000);
-      unflipCards(payload.cards || []);
+      await wait(action.delay_ms || 500);
+      break;
+    }
+
+    case 'reveal_object':
+      await updateObjectState(action.object_id, 'face_up', action.delay_ms || 550);
       break;
 
-    case 'flip_back':
-      unflipCards(payload.cards || []);
+    case 'hide_object':
+      await updateObjectState(action.object_id, 'face_down', action.delay_ms || 450);
       break;
 
-    case 'retry_turn':
-      flipCards(payload.cards || []);
+    case 'remove_object':
+      await updateObjectState(action.object_id, 'removed', action.delay_ms || 400);
+      break;
+
+    case 'set_turn':
+      state.world.turn = action.to || null;
       render();
-      await wait(950);
-      if (payload.turn_back_after) unflipCards(payload.cards || []);
+      await wait(action.delay_ms || 300);
       break;
 
-    case 'switch_turn':
-      state.turn = payload.to === 'student' ? 'student' : 'jamie';
+    case 'set_counter': {
+      const id = String(action.counter_id || '');
+      const counter = state.world.counters.find(item => String(item.id) === id);
+      if (counter) counter.value = action.value;
+      else if (id && state.world.counters.length < 8) {
+        state.world.counters.push({ id, label: action.label || id, value: action.value ?? 0 });
+      }
+      render();
+      await wait(action.delay_ms || 250);
+      break;
+    }
+
+    case 'set_status':
+      state.world.status = String(action.text || '');
+      render();
+      await wait(action.delay_ms || 250);
       break;
 
-    case 'show_repair_steps':
-      state.repairSupport = payload;
+    case 'reset_to_baseline':
+      if (state.worldBaseline) state.world = cloneWorld(state.worldBaseline);
+      render();
+      await wait(action.delay_ms || 350);
       break;
 
-    case 'preview_match':
-      flipCards(payload.cards || []);
-      break;
-
-    case 'complete_play':
-      state.turn = 'student';
-      break;
-
-    case 'lesson_complete':
-      state.phase = 'complete';
-      state.repairSupport = null;
+    case 'wait':
+      await wait(clampNumber(action.ms, 0, 2000, 300));
       break;
 
     default:
@@ -474,38 +639,202 @@ async function applyAction(action, support) {
   }
 }
 
-function chooseRepairStep(index) {
-  const step = state.repairSupport?.steps?.[index];
-  if (!step) return;
-
-  state.repairSupport = null;
-  state.messages.push({ role: 'student', text: `I think this step went wrong: ${step}` });
-  state.messages.push({ role: 'ai', text: 'Okay—tell me what I should do instead.' });
+async function updateObjectState(id, objectState, delay) {
+  const object = state.world.objects.find(item => String(item.id) === String(id));
+  if (object) object.state = objectState;
   render();
-  document.querySelector('#studentInput')?.focus();
+  await wait(delay);
 }
 
-function flipCards(ids) {
-  ids.forEach(id => {
-    const card = state.cards.find(card => card.id === Number(id));
-    if (card) card.flipped = true;
-  });
+function toggleVoiceInput() {
+  if (!state.voiceSupported || state.loading || normalizePhase(state.phase) === 'complete') return;
+
+  if (state.listening) {
+    stopRecognition();
+    render();
+    return;
+  }
+
+  recognition = new SpeechRecognitionCtor();
+  recognition.lang = 'en-US';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 3;
+
+  recognition.onstart = () => {
+    state.listening = true;
+    state.apiError = '';
+    render();
+  };
+
+  recognition.onresult = event => {
+    let transcript = '';
+    let confidence = 0;
+    let alternatives = [];
+
+    for (let i = event.resultIndex; i < event.results.length; i += 1) {
+      const result = event.results[i];
+      transcript += result[0]?.transcript || '';
+      confidence = Math.max(confidence, Number(result[0]?.confidence || 0));
+      alternatives = Array.from(result)
+        .slice(0, 3)
+        .map(item => item.transcript)
+        .filter(Boolean);
+    }
+
+    state.inputDraft = transcript.trim();
+    state.voiceMeta = {
+      confidence,
+      alternatives,
+      is_final: Boolean(event.results[event.results.length - 1]?.isFinal),
+    };
+    render();
+    document.querySelector('#studentInput')?.focus();
+  };
+
+  recognition.onerror = event => {
+    state.listening = false;
+    if (event.error !== 'aborted' && event.error !== 'no-speech') {
+      state.apiError = `Speech input error: ${event.error}`;
+    }
+    render();
+  };
+
+  recognition.onend = () => {
+    state.listening = false;
+    recognition = null;
+    render();
+    document.querySelector('#studentInput')?.focus();
+  };
+
+  recognition.start();
 }
 
-function unflipCards(ids) {
-  ids.forEach(id => {
-    const card = state.cards.find(card => card.id === Number(id));
-    if (card && !card.matched) card.flipped = false;
-  });
+function stopRecognition() {
+  if (recognition) {
+    recognition.onend = null;
+    try {
+      recognition.abort();
+    } catch {
+      // Ignore browsers that already ended the session.
+    }
+    recognition = null;
+  }
+  state.listening = false;
 }
 
-function freshCards() {
-  return CARD_FACES.map((face, index) => ({
-    id: index + 1,
-    face,
-    flipped: false,
-    matched: false,
-  }));
+function normalizeWorld(raw) {
+  const world = blankWorld();
+  if (!raw || typeof raw !== 'object') return world;
+  if (typeof raw.name === 'string') world.name = raw.name;
+  if (typeof raw.status === 'string') world.status = raw.status;
+  if (typeof raw.ready === 'boolean') world.ready = raw.ready;
+  if (raw.turn === null || typeof raw.turn === 'string') world.turn = raw.turn;
+  world.surface = sanitizeSurface(raw.surface || {});
+  world.objects = Array.isArray(raw.objects)
+    ? raw.objects.map(normalizeWorldObject).filter(Boolean).slice(0, 36)
+    : [];
+  world.counters = Array.isArray(raw.counters)
+    ? raw.counters.map(normalizeCounter).filter(Boolean).slice(0, 8)
+    : [];
+  return world;
+}
+
+function sanitizeSurface(raw) {
+  const type = ['table', 'grid'].includes(raw?.type) ? raw.type : 'table';
+  return {
+    type,
+    rows: clampNumber(raw?.rows, 0, 8, 0),
+    columns: clampNumber(raw?.columns, 0, 8, type === 'grid' ? 3 : 0),
+  };
+}
+
+function sanitizeSurfacePatch(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  const patch = {};
+  if ('type' in raw && ['table', 'grid'].includes(raw.type)) patch.type = raw.type;
+  if ('rows' in raw && raw.rows !== null && raw.rows !== '') {
+    patch.rows = clampNumber(raw.rows, 0, 8, 0);
+  }
+  if ('columns' in raw && raw.columns !== null && raw.columns !== '') {
+    patch.columns = clampNumber(raw.columns, 0, 8, 0);
+  }
+  return patch;
+}
+
+function normalizeWorldObject(raw) {
+  if (!raw || typeof raw !== 'object' || !raw.id) return null;
+  return {
+    id: String(raw.id).slice(0, 64),
+    kind: normalizeKind(raw.kind),
+    label: String(raw.label || '').slice(0, 80),
+    symbol: String(raw.symbol || '').slice(0, 12),
+    caption: String(raw.caption || '').slice(0, 80),
+    state: String(raw.state || 'available').slice(0, 32),
+    row: clampNullableNumber(raw.row, 1, 8),
+    column: clampNullableNumber(raw.column, 1, 8),
+    owner: raw.owner == null ? null : String(raw.owner).slice(0, 40),
+    interactive: Boolean(raw.interactive),
+  };
+}
+
+function normalizeWorldObjectPatch(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  const patch = {};
+  if ('kind' in raw) patch.kind = normalizeKind(raw.kind);
+  if ('label' in raw) patch.label = String(raw.label || '').slice(0, 80);
+  if ('symbol' in raw) patch.symbol = String(raw.symbol || '').slice(0, 12);
+  if ('caption' in raw) patch.caption = String(raw.caption || '').slice(0, 80);
+  if ('state' in raw) patch.state = String(raw.state || 'available').slice(0, 32);
+  if ('row' in raw) patch.row = clampNullableNumber(raw.row, 1, 8);
+  if ('column' in raw) patch.column = clampNullableNumber(raw.column, 1, 8);
+  if ('owner' in raw) patch.owner = raw.owner == null ? null : String(raw.owner).slice(0, 40);
+  if ('interactive' in raw) patch.interactive = Boolean(raw.interactive);
+  return patch;
+}
+
+function normalizeCounter(raw) {
+  if (!raw || typeof raw !== 'object' || !raw.id) return null;
+  return {
+    id: String(raw.id).slice(0, 64),
+    label: String(raw.label || raw.id).slice(0, 40),
+    value: ['string', 'number'].includes(typeof raw.value) ? raw.value : 0,
+  };
+}
+
+function normalizeKind(kind) {
+  return ['card', 'token', 'piece', 'cell', 'marker', 'object'].includes(kind) ? kind : 'object';
+}
+
+function buildObjectPositionStyle(object) {
+  const declarations = [];
+  if (object.column) declarations.push(`grid-column:${clampNumber(object.column, 1, 8, 1)}`);
+  if (object.row) declarations.push(`grid-row:${clampNumber(object.row, 1, 8, 1)}`);
+  return declarations.join(';');
+}
+
+function describeWorldEvent(event) {
+  if (event?.type === 'object_click') {
+    const object = state.world.objects.find(item => String(item.id) === String(event.object_id));
+    return `You interacted with ${object?.label || object?.symbol || 'a game piece'}.`;
+  }
+  if (event?.type === 'repair_step_selected') return `You pointed to: ${event.step}`;
+  return 'You interacted with the game.';
+}
+
+function cloneWorld(world) {
+  return JSON.parse(JSON.stringify(world));
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(number)));
+}
+
+function clampNullableNumber(value, min, max) {
+  if (value === null || value === undefined || value === '') return null;
+  return clampNumber(value, min, max, null);
 }
 
 function wait(ms) {
@@ -513,12 +842,16 @@ function wait(ms) {
 }
 
 function escapeHtml(value) {
-  return String(value)
+  return String(value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replaceAll('`', '&#096;');
 }
 
 render();

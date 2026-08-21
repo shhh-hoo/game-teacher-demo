@@ -1,74 +1,76 @@
 # Game Teacher Demo
 
-A small AI Lesson Card prototype for US Grade 3–4 learners.
+A short AI-native Lesson Card prototype for US Grade 3–4 learners.
 
-The student teaches Jamie, a same-age novice friend, how to play a familiar game. The core interaction is:
+The student teaches Jamie, a same-age novice friend, a game they already know. In v6, the student's explanation does not merely control Jamie's dialogue: it progressively constructs the visible game world Jamie understands, then Jamie tries to use that world.
 
-**Explain → Jamie acts → notice what happened → repair if needed → try again → share a strategy.**
+The learning loop is:
 
-This repo intentionally keeps responsibilities separate:
+**Experience a real communication gap → notice it → learn one listener-centered principle → apply it with guidance → explain again to a fresh listener → transfer the idea.**
 
-- **Dify Chatflow**: interprets the student's language, remembers what Jamie has actually learned, chooses the next lesson/game action, and returns structured UI actions.
-- **Browser UI**: renders the game, chat, animations, repair-step picker, and completion state. It does not decide whether the student's explanation is correct.
-- **`/api/chat`**: a thin server-side proxy so the Dify API key never appears in browser code.
+The central design boundary is:
 
-## Current MVP
+> **AI may complete presentation details, but it must not complete the child's game logic.**
 
-Matching Pairs is the fully implemented path. The home screen keeps the multi-game model visible so more games can reuse the same protocol later.
+Visual choices such as colors or decorative symbols can be inferred. Gameplay-relevant facts—legal moves, turn structure, result rules, win conditions, required constraints—must come from the student.
 
-The repo includes the Dify node source under `dify/`:
+## Responsibilities
 
-- `dify/interpreter-prompt.md`
-- `dify/lesson-engine.py`
-- `dify/README.md` with the exact Chatflow wiring
+- **Dify Chatflow** visibly controls pedagogy: first breakdown, Teach Moment, at most one extra micro-teach, scaffold fading, fresh-listener performance, transfer, and global repair.
+- **AI Listener + World Builder** interprets natural child speech, proposes safe world updates, models what Jamie actually knows, and identifies the single biggest communication bottleneck without importing a standard rulebook.
+- **World Engine** validates declarative world patches and atomic actions. It controls physical reality, not correctness.
+- **AI Jamie** speaks as a same-age novice after pedagogy and world state are already decided.
+- **Browser UI** renders the progressively constructed world, atomic actions, teaching support, global repair, voice/text input, and playable object interactions.
+- **`/api/chat`** keeps the Dify API key server-side and forwards speech metadata or game-world events when present.
 
 ## Run locally
 
-This demo intentionally has **no local lesson-logic mock**. The browser requires the real Dify-backed `/api/chat` endpoint.
-
-Create `.env.local` from `.env.example` and set your Dify API key, then run:
+This demo has no local lesson-logic mock. Create `.env.local` from `.env.example`, set the published Dify app API key, then run:
 
 ```bash
+set -a
+source .env.local
+set +a
 npx vercel dev
 ```
 
 Open the local URL printed by Vercel.
 
-If `/api/chat` is unavailable or `DIFY_API_KEY` is missing, the UI reports a Dify connection error and does not simulate a response locally.
+## Frontend response contract
 
-## Dify
-
-Create/import a Chatflow using the wiring in `dify/README.md`. The LLM node uses `dify/interpreter-prompt.md`; the deterministic Code node uses `dify/lesson-engine.py`.
-
-The frontend expects the Chatflow answer to be JSON with this shape:
+The browser expects JSON in this shape:
 
 ```json
 {
-  "reply": "What do I do with these now?",
-  "phase": "repair",
+  "reply": "I can see the pieces, but I still don't know what I can do first.",
+  "phase": "teach",
+  "world_patch": {
+    "add_objects": [],
+    "update_objects": [],
+    "ready": false
+  },
   "ui_action": {
-    "type": "flip_cards",
+    "type": "action_sequence",
     "payload": {
-      "cards": [1, 6],
-      "match": false,
-      "keep_face_up": true
+      "actions": []
     }
   },
-  "support": null
+  "support": {
+    "type": "teach_moment",
+    "focus": "completeness"
+  },
+  "capture_baseline": false
 }
 ```
 
-The importable Dify DSL for this same Matching Pairs Chatflow can be used directly; the source files here are kept readable so the behavior is easy to review and modify.
+`world_patch` changes what exists in the rendered game world. `ui_action` changes what physically happens inside that world. Keeping those separate lets AI infer harmless presentation details without silently inventing gameplay logic.
 
-## Deploy
+## Dify source
 
-Import this repository into Vercel and add:
+The readable Dify source lives under `dify/`:
 
-- `DIFY_API_KEY`
-- optional `DIFY_API_BASE_URL` (defaults to `https://api.dify.ai/v1`)
+- `dify/interpreter-prompt.md` — AI Listener + World Builder contract
+- `dify/lesson-engine.py` — deterministic world patch/action validator used after Dify selects a visible pedagogical policy
+- `dify/README.md` — v6 Chatflow topology and state contract
 
-No Dify key is shipped to the client.
-
-## Design boundary
-
-The browser never decides that a student's explanation is right or wrong. It only executes `ui_action` commands. Dify owns Jamie's knowledge state and lesson progression.
+The generated importable v6 DSL should be runtime-tested in Dify before it is committed as the canonical flow.
