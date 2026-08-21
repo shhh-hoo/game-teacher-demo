@@ -22,13 +22,40 @@ The repo includes the Dify node source under `dify/`:
 - `dify/lesson-engine.py`
 - `dify/README.md` with the exact Chatflow wiring
 
-## Run locally
+## Dify setup first
+
+Import the Chatflow DSL into Dify, select a model that is actually configured in your Dify workspace, and publish the app.
+
+Then open the app's **API Access** page in Dify and copy the app API key (`app-...`). This is the value used as `DIFY_API_KEY` by the Vercel proxy. It is not the model-provider API key.
+
+## Run locally with Vercel Functions
 
 This demo intentionally has **no local lesson-logic mock**. The browser requires the real Dify-backed `/api/chat` endpoint.
 
-Create `.env.local` from `.env.example` and set your Dify API key, then run:
+For `vercel dev`, the reliable setup is to link the repository to a Vercel project and use Vercel's Development environment variables:
 
 ```bash
+npx vercel link
+npx vercel env add DIFY_API_KEY development
+npx vercel env add DIFY_API_BASE_URL development
+npx vercel pull --yes --environment=development
+npx vercel dev
+```
+
+Use these values when prompted:
+
+```text
+DIFY_API_KEY=app-your-dify-chatflow-key
+DIFY_API_BASE_URL=https://api.dify.ai/v1
+```
+
+`vercel pull` stores the Development configuration under `.vercel/`, which is what `vercel dev` uses for Vercel Functions.
+
+For a quick one-off local run on macOS/Linux, you can also inject the variables from the shell instead of storing them in Vercel:
+
+```bash
+export DIFY_API_KEY='app-your-dify-chatflow-key'
+export DIFY_API_BASE_URL='https://api.dify.ai/v1'
 npx vercel dev
 ```
 
@@ -62,7 +89,7 @@ The importable Dify DSL for this same Matching Pairs Chatflow can be used direct
 
 ## Deploy
 
-Import this repository into Vercel and add:
+Import this repository into Vercel and add these environment variables to the relevant environments (Development, Preview, and Production as needed):
 
 - `DIFY_API_KEY`
 - optional `DIFY_API_BASE_URL` (defaults to `https://api.dify.ai/v1`)
