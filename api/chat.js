@@ -15,7 +15,6 @@ export default async function handler(req, res) {
     message,
     conversationId = '',
     userId = 'game-teacher-demo-user',
-    gameId = 'matching_pairs',
   } = req.body || {};
 
   if (!message || typeof message !== 'string') {
@@ -30,9 +29,10 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: {
-          game_id: gameId,
-        },
+        // Matching Pairs is fixed inside the current Chatflow via the
+        // conversation variable game_id. When we add true multi-game support,
+        // game_id should become an explicit Chatflow input variable.
+        inputs: {},
         query: message,
         response_mode: 'blocking',
         conversation_id: conversationId || '',
