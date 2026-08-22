@@ -17,8 +17,6 @@ test('AI full-game runner keeps grounded completion gates and live checkpoints',
     'SIGINT',
     'fail_fast',
     'phantom_action',
-    'extractArchitectureTelemetry',
-    'DIFY_EXPECT_RULE_IR_SHADOW',
   ]) {
     assert.match(source, new RegExp(token));
   }

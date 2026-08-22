@@ -27,10 +27,6 @@ All LLM nodes currently run with `thinking=false`. This is intentional: the Deep
 
 Dify workflow exports are deployment artifacts and are not committed to this repository. A human trace label such as `DIFY_TEST_VERSION=v10-r4` is not proof of the runtime that was actually published; use `DIFY_EXPECT_DSL_VERSION=v10` to check the emitted runtime marker.
 
-### Local v10.1 candidate
-
-The first runtime-migration stage is a local **v10.1 Executable Rule IR Shadow** candidate. It adds a no-thinking semantic rule compiler plus deterministic grounding/merge validation while leaving the v10 Action Planner behavior-authoritative. The generated Dify YAML remains ignored deployment output. See [`dify/v10_1/README.md`](dify/v10_1/README.md) and the [takeover audit](docs/takeover-audit-2026-08-22.md).
-
 ## Runtime responsibilities
 
 - **Listener Interpreter** extracts only what the child communicated and maintains grounded listener memory.

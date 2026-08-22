@@ -158,24 +158,3 @@ The standalone hidden-gap audit can still be run against older traces:
 ```bash
 node tests/e2e/check-internal-gap-leakage.mjs .artifacts/dify-e2e/<trace>.json
 ```
-
-## v10.1 Rule IR shadow checks
-
-The v10.1 candidate records a normalized architecture snapshot on every deterministic and AI full-game turn. Set the opt-in flag after importing/publishing that candidate:
-
-```bash
-export DIFY_TEST_VERSION='v10.1-rule-ir-shadow-r1'
-export DIFY_EXPECT_DSL_VERSION='v10.1'
-export DIFY_EXPECT_RULE_IR_SHADOW='1'
-```
-
-With the flag enabled, the harness requires a valid `v10.1-shadow-1` rule state, exact student-turn provenance, explicit correction supersession, and a non-error compile status. Existing learner-facing assertions are unchanged. Without the flag, old v10 runs still record `not_reported` architecture fields and retain their original pass contract.
-
-Static DSL validation is separate from live behavior:
-
-```bash
-python3 tests/e2e/preflight-dsl.py /path/to/candidate.yml \
-  --expect-dsl-version v10.1 \
-  --expect-build-id v10.1-rule-ir-shadow-r1-20260822 \
-  --require-rule-ir-shadow
-```
