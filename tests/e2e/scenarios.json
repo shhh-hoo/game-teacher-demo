@@ -1,6 +1,7 @@
 [
   {
     "name": "golden-path-learning-loop",
+    "versions": ["v10.1", "v10.2", "v10.3", "v11"],
     "suite": "must-run",
     "demoRole": "Prove the core learner-facing loop, not merely world/action mechanics.",
     "description": "The child's explanation progressively creates enough world state to play, Jamie acts on an ordinary delegated player choice, reaches a genuine missing outcome rule, and the child's repair changes visible reality before play continues.",
@@ -121,6 +122,7 @@
   },
   {
     "name": "smart-listener-not-pedantic",
+    "versions": ["v10.1", "v10.2", "v10.3", "v11"],
     "suite": "must-run",
     "demoRole": "Prove that AI can understand real child speech without manufacturing fake learning problems.",
     "description": "Jamie should understand ordinary Grade 3–4 disfluency and benign underspecification. It may make an ordinary player choice or ask a natural clarification when the child has not explicitly delegated that choice, but it should not turn normal child language into a failure.",
@@ -184,6 +186,7 @@
   },
   {
     "name": "faithful-listener-not-answer-key",
+    "versions": ["v10.1", "v10.2", "v10.3", "v11"],
     "suite": "must-run",
     "demoRole": "Prove that a knowledgeable LLM can still behave like a listener constrained by the child's explanation.",
     "description": "Jamie must follow the child's version of a familiar game rather than silently restoring the conventional rule from pretraining.",
@@ -258,6 +261,7 @@
   },
   {
     "name": "repair-locate-not-guess",
+    "versions": ["v10.1", "v10.2", "v10.3", "v11"],
     "suite": "optional",
     "demoRole": "Show additional depth in the global Notice → Locate → Repair mechanism.",
     "description": "When the child only says that Jamie is wrong, Jamie should help locate the mismatch rather than guessing the intended correction or defending its interpretation.",
@@ -316,6 +320,7 @@
   },
   {
     "name": "breadth-tic-tac-toe",
+    "versions": ["v10.1", "v10.2", "v10.3", "v11"],
     "suite": "breadth",
     "demoRole": "Probe transfer to a grid-and-marker game without adding game-specific logic.",
     "description": "A familiar grid game should progressively appear from the child's explanation, while Jamie remains constrained to the rules the child actually says.",
@@ -372,6 +377,7 @@
   },
   {
     "name": "breadth-rock-paper-scissors",
+    "versions": ["v10.1", "v10.2", "v10.3", "v11"],
     "suite": "breadth",
     "demoRole": "Probe transfer to a choice-based game where pretrained rule knowledge is especially tempting.",
     "description": "Jamie should understand the three named choices and act when invited, but must not import the familiar beats/loses relationships unless the child teaches them.",
@@ -431,6 +437,7 @@
   },
   {
     "name": "breadth-token-race",
+    "versions": ["v10.1", "v10.2", "v10.3", "v11"],
     "suite": "breadth",
     "demoRole": "Probe transfer to a spatial movement game without adding a bespoke board-game engine.",
     "description": "A simple path-and-token game should build progressively and let Jamie move only when the child provides the movement instruction.",
@@ -482,6 +489,150 @@
             "dice",
             "winner"
           ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "architecture-rule-ir-identity",
+    "versions": ["v10.1", "v10.2", "v10.3", "v11"],
+    "suite": "architecture",
+    "demoRole": "Prove that Rule IR is listener-grounded, stable, and explicitly replaceable.",
+    "description": "A taught rule compiles once; a specific correction creates a new immutable rule and archives the old rule as superseded.",
+    "turns": [
+      {
+        "query": "There are four cards face down. When I say go, flip any two face-down cards.",
+        "assert": {
+          "activeRuleCountAtLeast": 1,
+          "architectureEvents": ["rule_compiled"],
+          "actionSourceOneOf": ["planner_shadow", "runtime", "fallback"]
+        }
+      },
+      {
+        "query": "Actually, change that rule: when I say go, flip one face-down card, not two.",
+        "assert": {
+          "activeRuleCountAtLeast": 1,
+          "supersededRuleVisible": true,
+          "architectureEvents": ["rule_superseded"]
+        }
+      }
+    ]
+  },
+  {
+    "name": "architecture-runtime-shadow-comparison",
+    "versions": ["v10.2"],
+    "suite": "architecture",
+    "demoRole": "Prove that shadow comparison is deterministic and understands delegated free choice.",
+    "description": "Runtime and Planner may select different legal face-down cards, but only a grounded free-choice rule may classify them as semantically equivalent.",
+    "turns": [
+      {
+        "query": "Make four cards and put them face down.",
+        "assert": {
+          "actionSourceOneOf": ["planner_shadow"]
+        }
+      },
+      {
+        "query": "On your turn, reveal any one face-down card.",
+        "assert": {
+          "architectureEvents": ["runtime_result", "comparison_result"],
+          "comparisonResultOneOf": ["exact", "semantic_equivalent"],
+          "actionSourceOneOf": ["planner_shadow"]
+        }
+      }
+    ]
+  },
+  {
+    "name": "architecture-runtime-preferred-bounded-fallback",
+    "versions": ["v10.3", "v11"],
+    "suite": "architecture",
+    "demoRole": "Prove that Runtime owns supported actions and fallback cannot become a second compiler.",
+    "description": "A supported rule uses Runtime; a later semantic request that cannot be represented may use bounded fallback without changing existing Rule IR.",
+    "turns": [
+      {
+        "query": "There are three tokens. When I say move, remove any one available token.",
+        "assert": {
+          "activeRuleCountAtLeast": 1,
+          "actionSourceOneOf": ["runtime", "fallback"]
+        }
+      },
+      {
+        "query": "Do whatever feels luckiest now.",
+        "assert": {
+          "ruleIrUnchanged": true,
+          "actionSourceOneOf": ["fallback"],
+          "typedGapOneOf": ["missing_action", "missing_condition", "missing_transition", "unsupported_semantic_condition"]
+        }
+      }
+    ]
+  },
+  {
+    "name": "v11-full-lesson-fresh-listener",
+    "versions": ["v11"],
+    "suite": "lesson",
+    "demoRole": "Prove the evidence-driven lesson progression and fresh-listener information firewall.",
+    "description": "A genuine gap earns teaching, two guided successes trigger a full listener/rule reset, and old student evidence cannot authorize a fresh Jamie action.",
+    "turns": [
+      {
+        "query": "It's a path game with two tokens, one for me and one for you.",
+        "assert": {
+          "phaseIs": "experience",
+          "supportAbsent": true
+        }
+      },
+      {
+        "query": "Move your token one space now.",
+        "assert": {
+          "phaseIs": "teach",
+          "supportTypeIs": "teach_moment",
+          "lessonCompleteIs": false
+        }
+      },
+      {
+        "query": "After you move, switch the turn to me.",
+        "assert": {
+          "phaseIs": "practice",
+          "supportTypeIs": "micro_teach"
+        }
+      },
+      {
+        "query": "Now move your token one space and switch the turn to me.",
+        "assert": {
+          "phaseIs": "practice",
+          "supportTypeIs": "micro_teach"
+        }
+      },
+      {
+        "query": "Move your token one space again and switch the turn to me.",
+        "assert": {
+          "phaseIs": "independent",
+          "supportAbsent": true,
+          "freshListenerReset": true,
+          "lessonCompleteIs": false
+        }
+      },
+      {
+        "query": "Go ahead.",
+        "assert": {
+          "phaseIs": "independent",
+          "supportAbsent": true,
+          "actionTypes": [],
+          "lessonCompleteIs": false
+        }
+      },
+      {
+        "query": "For this new game, move your token one space; switch to my turn; the game ends when your token reaches the last space.",
+        "assert": {
+          "supportAbsent": true,
+          "gameCompleteIs": true,
+          "lessonCompleteIs": false
+        }
+      },
+      {
+        "query": "Next time I will think about what the new player needs before their next move.",
+        "assert": {
+          "phaseIs": "complete",
+          "supportAbsent": true,
+          "lessonCompleteIs": true
         }
       }
     ]

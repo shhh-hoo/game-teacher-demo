@@ -25,7 +25,7 @@ const verbose = args.includes('--verbose');
 const judgeEnabled = args.includes('--judge');
 
 if (args.includes('--list')) {
-  for (const scenario of scenarios) console.log(scenario.name);
+  for (const scenario of scenarios) console.log(`${scenario.name} · ${(scenario.versions || []).join(', ')}`);
   process.exit(0);
 }
 
@@ -34,6 +34,7 @@ const baseUrl = (process.env.DIFY_API_BASE_URL || 'https://api.dify.ai/v1').repl
 const versionLabel = getArg('--label') || process.env.DIFY_TEST_VERSION;
 const expectedDslVersion = process.env.DIFY_EXPECT_DSL_VERSION || '';
 const requestedScenario = getArg('--scenario');
+const requestedVersion = getArg('--version');
 const repeat = Math.max(1, Number(getArg('--repeat') || 1));
 
 if (!apiKey) {
@@ -45,11 +46,13 @@ if (!versionLabel) {
   process.exit(1);
 }
 
-const selected = requestedScenario
-  ? scenarios.filter(scenario => scenario.name === requestedScenario)
-  : scenarios;
+const selected = scenarios.filter(scenario => {
+  if (requestedScenario && scenario.name !== requestedScenario) return false;
+  if (requestedVersion && !(scenario.versions || []).includes(requestedVersion)) return false;
+  return true;
+});
 if (!selected.length) {
-  console.error(`Unknown scenario: ${requestedScenario}`);
+  console.error(`No scenarios matched scenario=${requestedScenario || '*'} version=${requestedVersion || '*'}.`);
   console.error('Use --list to see available scenario names.');
   process.exit(1);
 }
@@ -221,7 +224,7 @@ function replyExposesOpenGap(reply) {
   return /\b(?:don['’]?t know|do not know|not sure|need to know|what happens|what next|now what)\b/i.test(text);
 }
 
-function extraAssertions({ expected, payload, previousWorld, worldAfterPatch, actions }) {
+function extraAssertions({ expected, payload, previousPayload, previousWorld, worldAfterPatch, actions }) {
   const results = [];
   const pass = (name, detail = '') => ({ name, ok: true, detail });
   const fail = (name, detail) => ({ name, ok: false, detail });
@@ -291,6 +294,101 @@ function extraAssertions({ expected, payload, previousWorld, worldAfterPatch, ac
       : fail(name, `Revealed pair was ${pair.matches ? 'matching' : 'non-matching'} (${pair.identity.join(' vs ')}); expected ${JSON.stringify(expectedTypes)}, got ${JSON.stringify(actual)}`));
   }
 
+  const debug = payload?.debug || {};
+  const architectureEvents = debug?.architecture_trace?.events || [];
+  const executableRules = debug?.executable_rules?.rules || debug?.rule_ir_shadow?.rules || [];
+
+  if (Array.isArray(expected.architectureEvents)) {
+    const actual = new Set(architectureEvents.map(event => event?.event));
+    const missing = expected.architectureEvents.filter(event => !actual.has(event));
+    results.push(missing.length
+      ? fail('architecture.events', `Missing events: ${missing.join(', ')}`)
+      : pass('architecture.events', expected.architectureEvents.join(', ')));
+  }
+
+  if (Array.isArray(expected.actionSourceOneOf)) {
+    results.push(expected.actionSourceOneOf.includes(debug.action_source)
+      ? pass('architecture.action-source', debug.action_source)
+      : fail('architecture.action-source', `Expected one of ${expected.actionSourceOneOf.join(', ')}; got ${JSON.stringify(debug.action_source)}.`));
+  }
+
+  if (Array.isArray(expected.comparisonResultOneOf)) {
+    const actual = debug?.runtime_shadow?.comparison_result;
+    results.push(expected.comparisonResultOneOf.includes(actual)
+      ? pass('architecture.comparison-result', actual)
+      : fail('architecture.comparison-result', `Expected one of ${expected.comparisonResultOneOf.join(', ')}; got ${JSON.stringify(actual)}.`));
+  }
+
+  if (Number.isFinite(expected.activeRuleCountAtLeast)) {
+    const count = executableRules.filter(rule => rule?.status === 'active').length;
+    results.push(count >= expected.activeRuleCountAtLeast
+      ? pass('architecture.active-rule-count', String(count))
+      : fail('architecture.active-rule-count', `Expected at least ${expected.activeRuleCountAtLeast}; got ${count}.`));
+  }
+
+  if (expected.supersededRuleVisible) {
+    const visible = executableRules.some(rule => rule?.status === 'superseded')
+      && architectureEvents.some(event => event?.event === 'rule_superseded');
+    results.push(visible
+      ? pass('architecture.superseded-rule-visible')
+      : fail('architecture.superseded-rule-visible', 'No superseded Rule IR plus rule_superseded trace event was visible.'));
+  }
+
+  if (expected.ruleIrUnchanged) {
+    const before = previousPayload?.debug?.executable_rules?.rules || previousPayload?.debug?.rule_ir_shadow?.rules || [];
+    results.push(JSON.stringify(before) === JSON.stringify(executableRules)
+      ? pass('architecture.rule-ir-unchanged')
+      : fail('architecture.rule-ir-unchanged', 'Bounded fallback changed executable Rule IR.'));
+  }
+
+  if (Array.isArray(expected.typedGapOneOf)) {
+    const type = debug?.controller?.pending_gap?.type || debug?.action_plan?.blocked_now?.type || null;
+    results.push(expected.typedGapOneOf.includes(type)
+      ? pass('architecture.typed-gap', type)
+      : fail('architecture.typed-gap', `Expected one of ${expected.typedGapOneOf.join(', ')}; got ${JSON.stringify(type)}.`));
+  }
+
+  if (typeof expected.phaseIs === 'string') {
+    results.push(payload?.phase === expected.phaseIs
+      ? pass('lesson.phase', payload.phase)
+      : fail('lesson.phase', `Expected ${expected.phaseIs}; got ${JSON.stringify(payload?.phase)}.`));
+  }
+
+  if (typeof expected.supportTypeIs === 'string') {
+    results.push(payload?.support?.type === expected.supportTypeIs
+      ? pass('lesson.support-type', payload.support.type)
+      : fail('lesson.support-type', `Expected ${expected.supportTypeIs}; got ${JSON.stringify(payload?.support?.type)}.`));
+  }
+
+  if (expected.supportAbsent) {
+    results.push(payload?.support == null
+      ? pass('lesson.support-absent')
+      : fail('lesson.support-absent', `Expected no scaffold; got ${JSON.stringify(payload.support)}.`));
+  }
+
+  if (expected.freshListenerReset) {
+    const reset = debug?.controller?.reset_listener === true
+      && debug?.controller?.reset_rules === true
+      && debug?.listener_instruction_count === 0
+      && executableRules.length === 0
+      && debug?.gap_state?.pending == null;
+    results.push(reset
+      ? pass('lesson.fresh-listener-reset')
+      : fail('lesson.fresh-listener-reset', 'Listener, Rule IR, gap, and baseline state were not all reset.'));
+  }
+
+  if (typeof expected.gameCompleteIs === 'boolean') {
+    results.push(Boolean(debug.game_complete) === expected.gameCompleteIs
+      ? pass('lesson.game-complete', String(expected.gameCompleteIs))
+      : fail('lesson.game-complete', `Expected ${expected.gameCompleteIs}; got ${Boolean(debug.game_complete)}.`));
+  }
+
+  if (typeof expected.lessonCompleteIs === 'boolean') {
+    results.push(Boolean(debug?.controller?.lesson_complete) === expected.lessonCompleteIs
+      ? pass('lesson.lesson-complete', String(expected.lessonCompleteIs))
+      : fail('lesson.lesson-complete', `Expected ${expected.lessonCompleteIs}; got ${Boolean(debug?.controller?.lesson_complete)}.`));
+  }
+
   return results;
 }
 
@@ -336,6 +434,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
     let conversationId = '';
     let world = blankWorld();
     let baseline = null;
+    let previousPayload = null;
     const turnsTrace = [];
     const dialogue = [];
     let scenarioBehaviorFailures = 0;
@@ -364,7 +463,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
 
         const assertionResults = [
           ...runAssertions({ expected: turn.assert || {}, payload, previousWorld, worldAfterPatch, actions }),
-          ...extraAssertions({ expected: turn.assert || {}, payload, previousWorld, worldAfterPatch, actions }),
+          ...extraAssertions({ expected: turn.assert || {}, payload, previousPayload, previousWorld, worldAfterPatch, actions }),
         ];
         const softSignals = qualitySignals({ expected: turn.assert || {}, payload });
         const failures = assertionResults.filter(resultItem => !resultItem.ok);
@@ -415,6 +514,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
           worldAfterActions: world,
           baseline,
         });
+        previousPayload = payload;
 
         if (failures.length && turn.stopScenarioOnFailure) {
           console.log('  ↳ stop · prerequisite turn failed; later state-dependent turns skipped');

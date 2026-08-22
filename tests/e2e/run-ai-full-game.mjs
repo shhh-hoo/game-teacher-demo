@@ -152,6 +152,9 @@ function compactWorld(world) {
 }
 
 function compactJamie(payload) {
+  const debug = payload?.debug || {};
+  const ruleShadow = debug.rule_ir_shadow || {};
+  const runtimeShadow = debug.runtime_shadow || {};
   return {
     reply: payload?.reply || '',
     phase: payload?.phase || null,
@@ -166,6 +169,17 @@ function compactJamie(payload) {
     game_complete: Boolean(payload?.debug?.game_complete || payload?.debug?.controller?.game_complete),
     completion_evidence: payload?.debug?.completion_evidence || payload?.debug?.controller?.completion_evidence || [],
     pipeline_errors: payload?.debug?.pipeline_errors || [],
+    architecture: {
+      compile_status: ruleShadow.status || null,
+      compiled_rule_delta: ruleShadow.delta || null,
+      runtime_status: runtimeShadow.status || null,
+      runtime_action_candidate: runtimeShadow.candidate_plan || null,
+      comparison_result: runtimeShadow.comparison_result || null,
+      action_source: debug.action_source || null,
+      typed_gap: debug?.controller?.pending_gap || debug?.action_plan?.blocked_now || null,
+      fallback_reason: runtimeShadow.reason || null,
+      latest_events: (debug?.architecture_trace?.events || []).slice(-4),
+    },
   };
 }
 
@@ -422,13 +436,14 @@ try {
     turns.push({ index: turnIndex, student: child.message, child_reason: child.reason, repeat_due_to_jamie: child.repeatDueToJamie, jamie: payload?.reply || '', elapsed_ms: result.elapsedMs, phantom_action: phantomAction, payload, world_before: previousWorld, world_after: world });
 
     await checkpoint({ type: 'dify_turn', turn: turnIndex, elapsed_ms: result.elapsedMs, payload, world_before: previousWorld, world_after: world, phantom_action: phantomAction });
-    await appendConversation([`Student: ${child.message}`, `Jamie: ${payload?.reply || '(no reply)'}`, `Actions: ${actions.map(a => a.type).join(', ') || 'none'}`, `Pipeline errors: ${pipelineErrors.join(', ') || 'none'}`, '']);
+    await appendConversation([`Student: ${child.message}`, `Jamie: ${payload?.reply || '(no reply)'}`, `Actions: ${actions.map(a => a.type).join(', ') || 'none'}`, `Action source: ${jamie.architecture.action_source || 'none'}`, `Runtime: ${jamie.architecture.runtime_status || 'not reported'} · ${jamie.architecture.comparison_result || 'not compared'}`, `Typed gap: ${jamie.architecture.typed_gap?.type || 'none'}`, `Pipeline errors: ${pipelineErrors.join(', ') || 'none'}`, '']);
 
     console.log(`${turnIndex}. Student: ${child.message}`);
     console.log(`   Jamie: ${payload?.reply || '(no reply)'}`);
     if (verbose) {
       console.log(`   Actions: ${actions.map(a => a.type).join(', ') || 'none'}`);
       console.log(`   Pending gap: ${JSON.stringify(payload?.debug?.controller?.pending_gap || null)}`);
+      console.log(`   Architecture: ${JSON.stringify(jamie.architecture)}`);
       console.log(`   Pipeline errors: ${pipelineErrors.join(', ') || 'none'}`);
       if (payload?.debug?.action_plan?._validation) console.log(`   Planner validation: ${JSON.stringify(payload.debug.action_plan._validation)}`);
     }

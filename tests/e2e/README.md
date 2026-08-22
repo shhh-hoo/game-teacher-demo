@@ -12,14 +12,13 @@ The core loop is:
 
 ## Current runtime target
 
-The current validated v10 candidate emits:
+The staged DSL scenarios use `versions` tags for `v10.1`, `v10.2`, `v10.3`, and `v11`. Select one version without splitting the scenario catalog:
 
-```text
-debug.dsl_version = v10
-debug.build_id = v10-no-thinking-r4-20260822
+```bash
+node tests/e2e/run-dify.mjs --version v10.3
 ```
 
-Use a human trace label that matches the experiment, but remember that `DIFY_TEST_VERSION` is only a label. `DIFY_EXPECT_DSL_VERSION` checks what the published Dify runtime actually emitted.
+`DIFY_TEST_VERSION` remains a human trace label. `DIFY_EXPECT_DSL_VERSION` checks what the published Dify runtime actually emitted.
 
 ## Run the deterministic regressions
 
@@ -28,7 +27,7 @@ export DIFY_API_KEY='app-...'
 export DIFY_TEST_VERSION='v10-r4'
 export DIFY_EXPECT_DSL_VERSION='v10'
 
-node tests/e2e/run-dify.mjs --scenario golden-path-learning-loop
+node tests/e2e/run-dify.mjs --version v10.1 --scenario golden-path-learning-loop
 node tests/e2e/run-dify.mjs --scenario faithful-listener-not-answer-key
 node tests/e2e/run-dify.mjs --scenario smart-listener-not-pedantic
 ```
