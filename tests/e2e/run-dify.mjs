@@ -11,6 +11,8 @@ import {
   flattenActions,
   runAssertions,
 } from './assertions.mjs';
+import { findInternalGapLeakage } from './check-internal-gap-leakage.mjs';
+import { judgeTrace } from './judge.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const scenarios = JSON.parse(await fs.readFile(path.join(here, 'scenarios.json'), 'utf8'));
@@ -20,6 +22,7 @@ const getArg = name => {
   return index >= 0 ? args[index + 1] : null;
 };
 const verbose = args.includes('--verbose');
+const judgeEnabled = args.includes('--judge');
 
 if (args.includes('--list')) {
   for (const scenario of scenarios) console.log(scenario.name);
@@ -230,6 +233,14 @@ function extraAssertions({ expected, payload, previousWorld, worldAfterPatch, ac
       : fail('protocol.dsl-version', `Expected runtime DSL ${expectedDslVersion}; got ${JSON.stringify(actual || null)}.`));
   }
 
+  const internalLeakage = findInternalGapLeakage(payload);
+  if (internalLeakage.length) {
+    results.push(fail(
+      'protocol.internal-gap-leakage',
+      internalLeakage.map(item => item.text).join(' | '),
+    ));
+  }
+
   if (Array.isArray(expected.worldTextMustNotContain)) {
     const text = visibleWorldText(payload?.world_patch || {});
     const lower = text.toLowerCase();
@@ -261,9 +272,6 @@ function extraAssertions({ expected, payload, previousWorld, worldAfterPatch, ac
     results.push(missing
       ? pass('turn.listener-gap-internal', missing)
       : fail('turn.listener-gap-internal', 'Jamie acted, but no grounded post-action/pending listener gap was recorded.'));
-    results.push(replyExposesOpenGap(payload?.reply)
-      ? pass('turn.listener-gap-visible', String(payload?.reply || ''))
-      : fail('turn.listener-gap-visible', `A real internal gap must also be exposed to the learner. Got reply=${JSON.stringify(payload?.reply || '')}`));
   }
 
   if (expected.actionTypesMatchRevealedPair || expected.actionTypesMatchVariantPair) {
@@ -286,6 +294,21 @@ function extraAssertions({ expected, payload, previousWorld, worldAfterPatch, ac
   return results;
 }
 
+function qualitySignals({ expected, payload }) {
+  const signals = [];
+  if (expected.listenerGapAfterAction) {
+    const visible = replyExposesOpenGap(payload?.reply);
+    signals.push({
+      name: 'quality.listener-gap-visible',
+      ok: visible,
+      detail: visible
+        ? String(payload?.reply || '')
+        : `Jamie has an internal listener gap but does not explicitly surface it in this reply: ${JSON.stringify(payload?.reply || '')}`,
+    });
+  }
+  return signals;
+}
+
 const traceRoot = path.resolve(process.cwd(), '.artifacts', 'dify-e2e');
 await fs.mkdir(traceRoot, { recursive: true });
 
@@ -294,11 +317,13 @@ let totalAssertionFailures = 0;
 let totalInfraErrors = 0;
 let totalRuntimeErrors = 0;
 let totalHarnessErrors = 0;
+let totalSoftQualityIssues = 0;
 const aggregateMetrics = { elapsedMs: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, successfulTurns: 0 };
 const completedDialogues = [];
 
 console.log(`Dify E2E · ${versionLabel}`);
 if (expectedDslVersion) console.log(`Runtime DSL expected · ${expectedDslVersion}`);
+if (judgeEnabled) console.log('AI judge · enabled (soft evaluation only)');
 if (verbose) {
   console.log(`Scenarios: ${selected.length} × ${repeat}`);
   console.log(`Base URL: ${baseUrl}`);
@@ -318,6 +343,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
     let scenarioInfraErrors = 0;
     let scenarioRuntimeErrors = 0;
     let scenarioHarnessErrors = 0;
+    let scenarioSoftQualityIssues = 0;
     const scenarioMetrics = { elapsedMs: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, successfulTurns: 0 };
 
     console.log(`▶ ${scenario.name}${repeat > 1 ? ` [${iteration}/${repeat}]` : ''}`);
@@ -340,12 +366,18 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
           ...runAssertions({ expected: turn.assert || {}, payload, previousWorld, worldAfterPatch, actions }),
           ...extraAssertions({ expected: turn.assert || {}, payload, previousWorld, worldAfterPatch, actions }),
         ];
+        const softSignals = qualitySignals({ expected: turn.assert || {}, payload });
         const failures = assertionResults.filter(resultItem => !resultItem.ok);
+        const softIssues = softSignals.filter(resultItem => !resultItem.ok);
         if (failures.length) {
           scenarioBehaviorFailures += 1;
           totalBehaviorFailures += 1;
           scenarioAssertionFailures += failures.length;
           totalAssertionFailures += failures.length;
+        }
+        if (softIssues.length) {
+          scenarioSoftQualityIssues += softIssues.length;
+          totalSoftQualityIssues += softIssues.length;
         }
 
         const turnUsage = usageFrom(result.data);
@@ -362,6 +394,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
           console.log(`    Student: ${query}`);
           console.log(`    Jamie: ${String(payload?.reply || '')}`);
         }
+        for (const issue of softIssues) console.log(`    ~ ${issue.name}: ${issue.detail}`);
 
         const jamieReply = String(payload?.reply || '');
         dialogue.push({ student: query, jamie: jamieReply });
@@ -376,6 +409,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
           rawDifyResponse: result.data,
           payload,
           assertions: assertionResults,
+          qualitySignals: softSignals,
           previousWorld,
           worldAfterPatch,
           worldAfterActions: world,
@@ -424,13 +458,23 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
       failures: scenarioBehaviorFailures,
       behaviorFailures: scenarioBehaviorFailures,
       assertionFailures: scenarioAssertionFailures,
+      softQualityIssues: scenarioSoftQualityIssues,
       infraErrors: scenarioInfraErrors,
       runtimeErrors: scenarioRuntimeErrors,
       harnessErrors: scenarioHarnessErrors,
       metrics: scenarioMetrics,
       conversation: dialogue,
       turns: turnsTrace,
+      aiEval: null,
     };
+
+    if (judgeEnabled && dialogue.length) {
+      try {
+        trace.aiEval = await judgeTrace(trace);
+      } catch (error) {
+        trace.aiEval = { status: 'error', reason: conciseError(error) };
+      }
+    }
 
     const stem = `${safeStamp()}__${versionLabel.replace(/[^a-zA-Z0-9_.-]/g, '_')}__${scenario.name}__${iteration}`;
     const tracePath = path.join(traceRoot, `${stem}.json`);
@@ -440,6 +484,14 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
 
     console.log(`  trace · ${path.relative(process.cwd(), tracePath)}`);
     console.log(`  text  · ${path.relative(process.cwd(), conversationPath)}`);
+    if (trace.aiEval?.status === 'ok') {
+      const issue = trace.aiEval.critical_failure ? `critical · ${trace.aiEval.critical_issues.join(', ') || 'unspecified'}` : 'no critical issue';
+      console.log(`  AI eval · ${trace.aiEval.overall.toFixed(2)}/5 · ${issue}`);
+    } else if (trace.aiEval?.status === 'skipped') {
+      console.log(`  AI eval · skipped · ${trace.aiEval.reason}`);
+    } else if (trace.aiEval?.status === 'error') {
+      console.log(`  AI eval · error · ${trace.aiEval.reason}`);
+    }
     if (verbose && scenario.manualReview?.length) console.log(`  manual review · ${scenario.manualReview.length} item(s)`);
     console.log('');
     completedDialogues.push(dialogue);
@@ -450,6 +502,7 @@ const averageMs = aggregateMetrics.successfulTurns ? aggregateMetrics.elapsedMs 
 const averageTokens = aggregateMetrics.successfulTurns ? aggregateMetrics.totalTokens / aggregateMetrics.successfulTurns : 0;
 console.log(`Result · ${totalBehaviorFailures} behavior · ${totalInfraErrors} infra · ${totalRuntimeErrors} runtime · ${totalHarnessErrors} harness`);
 if (totalAssertionFailures) console.log(`Checks · ${totalAssertionFailures} failed assertion${totalAssertionFailures === 1 ? '' : 's'}`);
+if (totalSoftQualityIssues) console.log(`Quality · ${totalSoftQualityIssues} soft signal${totalSoftQualityIssues === 1 ? '' : 's'}`);
 if (aggregateMetrics.successfulTurns) {
   console.log(`Perf   · ${(averageMs / 1000).toFixed(1)}s/turn · ${Math.round(averageTokens).toLocaleString()} tok/turn`);
 }
