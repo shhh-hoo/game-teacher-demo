@@ -3,10 +3,15 @@
     "name": "golden-path-learning-loop",
     "suite": "must-run",
     "demoRole": "Prove the core learner-facing loop, not merely world/action mechanics.",
-    "description": "The child's explanation progressively creates enough world state to play, Jamie acts on an ordinary delegated player choice, reaches a genuine missing outcome rule, and the child's repair changes visible reality before a brief listener-centered reflection.",
+    "description": "The child's explanation progressively creates enough world state to play, Jamie acts on an ordinary delegated player choice, reaches a genuine missing outcome rule, and the child's repair changes visible reality before play continues.",
     "prd": {
       "stage": "Experience → Notice & Teach → Guided Practice",
-      "hypotheses": ["H1", "H2", "H3", "H4"],
+      "hypotheses": [
+        "H1",
+        "H2",
+        "H3",
+        "H4"
+      ],
       "learningPurpose": "Show the core insight: what is obvious in the child's head is not yet available to the listener, and adding the missing information changes what Jamie can actually do.",
       "acceptance": [
         "The visible world may begin immediately or remain provisional after the first description; harmless presentation details may be filled in by AI, but gameplay rules and gameplay state may not be invented.",
@@ -15,7 +20,7 @@
         "After those two cards are revealed, Jamie reaches a real next-step gap because the child has not said what happens after seeing the pair, and Jamie actually exposes that gap to the child.",
         "The first breakdown is grounded listener feedback; it must not silently supply a Matching Pairs outcome rule or reduce the moment to generic praise.",
         "The child's repair supplies the outcome rule for the branch Jamie actually encountered. Jamie immediately applies that rule to the visible pair.",
-        "Any short reflection after the repair should connect the success to what the listener needed to know without turning the interaction into a tutoring checklist."
+        "A successful repair should close the old listener gap and let play continue; any reflection is deferred until a later earned moment such as a grounded game ending."
       ]
     },
     "manualReview": [
@@ -24,18 +29,35 @@
       "After Jamie flips two cards, the learner-facing reply should naturally expose that Jamie cannot continue yet.",
       "The listener gap must not propose either Matching Pairs outcome branch for the child.",
       "The repair turn should answer only the branch that actually occurred.",
-      "The interaction should still feel like playing with a capable friend, not answering a tutoring checklist."
+      "The interaction should still feel like playing with a capable friend, not answering a tutoring checklist.",
+      "After the repair, the previous gap should be resolved and a later reflection candidate may be earned, but Jamie should continue playing instead of reflecting immediately."
     ],
     "turns": [
       {
         "query": "It's a card game with matching pictures.",
         "assert": {
           "noGameplayLeakage": true,
-          "worldTextMustNotContain": ["face down", "face-down", "face up", "face-up", "flip", "turn over", "keep", "win", "score"],
+          "worldTextMustNotContain": [
+            "face down",
+            "face-down",
+            "face up",
+            "face-up",
+            "flip",
+            "turn over",
+            "keep",
+            "win",
+            "score"
+          ],
           "worldGameplayStateMustBeNeutral": true,
           "worldReadyMustBeFalse": true,
           "actionTypes": [],
-          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
         }
       },
       {
@@ -44,20 +66,37 @@
           "actionTypes": [],
           "minObjects": 2,
           "allObjectStates": "face_down",
-          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
         }
       },
       {
         "query": "On your turn, flip any two cards.",
         "stopScenarioOnFailure": true,
         "assert": {
-          "actionTypes": ["reveal_object", "reveal_object"],
+          "actionTypes": [
+            "reveal_object",
+            "reveal_object"
+          ],
           "captureBaseline": true,
           "noRuntimeActionEffectsInPatch": true,
           "actionTargetsExist": true,
           "listenerGapAfterAction": true,
           "noCandidateRuleLeakage": true,
-          "replyMustNotContain": ["which two", "which cards", "correct", "incorrect", "good job", "right answer", "wrong answer"]
+          "replyMustNotContain": [
+            "which two",
+            "which cards",
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
         }
       },
       {
@@ -66,7 +105,16 @@
           "actionTypesMatchRevealedPair": true,
           "noRuntimeActionEffectsInPatch": true,
           "actionTargetsExist": true,
-          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer",
+            "when you teach someone",
+            "that's what let me keep going",
+            "you knew something i didn't"
+          ]
         }
       }
     ]
@@ -78,7 +126,9 @@
     "description": "Jamie should understand ordinary Grade 3–4 disfluency and benign underspecification. It may make an ordinary player choice or ask a natural clarification when the child has not explicitly delegated that choice, but it should not turn normal child language into a failure.",
     "prd": {
       "stage": "Cross-cutting Listener Model",
-      "hypotheses": ["H3"],
+      "hypotheses": [
+        "H3"
+      ],
       "learningPurpose": "Demonstrate that the AI is linguistically smart while remaining pedagogically selective about what counts as a real communication gap.",
       "acceptance": [
         "The child's self-correction determines the final intended instruction: two cards, not three.",
@@ -94,13 +144,40 @@
       "The response should feel like a capable friend understanding a child, not a parser demanding perfect syntax."
     ],
     "turns": [
-      {"query": "It's a card game with matching pictures."},
-      {"query": "Put all the cards face down to start."},
+      {
+        "query": "It's a card game with matching pictures.",
+        "assert": {
+          "noGameplayLeakage": true,
+          "actionTypes": [],
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
+        }
+      },
+      {
+        "query": "Put all the cards face down to start."
+      },
       {
         "query": "Flip three—no, sorry, two of them.",
         "assert": {
           "actionOrClarifyCount": 2,
-          "replyMustNotContain": ["which three", "flip three cards", "three cards should", "correct", "incorrect", "good job", "right answer", "wrong answer", "not clear enough", "incomplete answer", "you need to explain"]
+          "replyMustNotContain": [
+            "which three",
+            "flip three cards",
+            "three cards should",
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer",
+            "not clear enough",
+            "incomplete answer",
+            "you need to explain"
+          ]
         }
       }
     ]
@@ -112,7 +189,9 @@
     "description": "Jamie must follow the child's version of a familiar game rather than silently restoring the conventional rule from pretraining.",
     "prd": {
       "stage": "Guided Practice",
-      "hypotheses": ["H3"],
+      "hypotheses": [
+        "H3"
+      ],
       "learningPurpose": "Show the central AI design constraint: smart enough to understand the child, constrained enough not to become a hidden answer key.",
       "acceptance": [
         "The child's stated conditional rule becomes the rule for this session even if it conflicts with conventional Matching Pairs.",
@@ -127,13 +206,31 @@
       "The reply should not contain language such as normally, usually, or standard rule."
     ],
     "turns": [
-      {"query": "It's a card game with matching pictures."},
-      {"query": "Put all the cards face down to start."},
+      {
+        "query": "It's a card game with matching pictures.",
+        "assert": {
+          "noGameplayLeakage": true,
+          "actionTypes": [],
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
+        }
+      },
+      {
+        "query": "Put all the cards face down to start."
+      },
       {
         "query": "Flip any two cards.",
         "stopScenarioOnFailure": true,
         "assert": {
-          "actionTypes": ["reveal_object", "reveal_object"],
+          "actionTypes": [
+            "reveal_object",
+            "reveal_object"
+          ],
           "noRuntimeActionEffectsInPatch": true,
           "actionTargetsExist": true
         }
@@ -144,7 +241,17 @@
           "actionTypesMatchVariantPair": true,
           "noRuntimeActionEffectsInPatch": true,
           "actionTargetsExist": true,
-          "replyMustNotContain": ["normally", "usually", "standard rule", "that's not how", "correct", "incorrect", "good job", "right answer", "wrong answer"]
+          "replyMustNotContain": [
+            "normally",
+            "usually",
+            "standard rule",
+            "that's not how",
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
         }
       }
     ]
@@ -156,7 +263,10 @@
     "description": "When the child only says that Jamie is wrong, Jamie should help locate the mismatch rather than guessing the intended correction or defending its interpretation.",
     "prd": {
       "stage": "Global Repair",
-      "hypotheses": ["H1", "H2"],
+      "hypotheses": [
+        "H1",
+        "H2"
+      ],
       "learningPurpose": "Move the child from noticing a mismatch toward identifying the exact part that needs to be re-explained.",
       "acceptance": [
         "After a vague rejection, Jamie asks which part was wrong or otherwise invites the child to locate the mismatch.",
@@ -170,13 +280,20 @@
       "This probe is useful for demonstrating design depth, but it is not required before the take-home demo is credible."
     ],
     "turns": [
-      {"query": "It's a card game with matching pictures."},
-      {"query": "Put all the cards face down to start."},
+      {
+        "query": "It's a card game with matching pictures."
+      },
+      {
+        "query": "Put all the cards face down to start."
+      },
       {
         "query": "Flip any two cards.",
         "stopScenarioOnFailure": true,
         "assert": {
-          "actionTypes": ["reveal_object", "reveal_object"],
+          "actionTypes": [
+            "reveal_object",
+            "reveal_object"
+          ],
           "noRuntimeActionEffectsInPatch": true,
           "actionTargetsExist": true
         }
@@ -186,7 +303,13 @@
         "assert": {
           "actionTypes": [],
           "noCandidateRuleLeakage": true,
-          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer"]
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer"
+          ]
         }
       }
     ]
@@ -198,7 +321,10 @@
     "description": "A familiar grid game should progressively appear from the child's explanation, while Jamie remains constrained to the rules the child actually says.",
     "prd": {
       "stage": "Breadth probe",
-      "hypotheses": ["H3", "H4"],
+      "hypotheses": [
+        "H3",
+        "H4"
+      ],
       "learningPurpose": "Check whether the same AI listener/world mechanism works beyond cards without a bespoke Tic-Tac-Toe implementation.",
       "acceptance": [
         "A 3×3 grid can appear as soon as the child describes it.",
@@ -217,13 +343,29 @@
         "query": "It's played on a three by three grid.",
         "assert": {
           "actionTypes": [],
-          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "three in a row", "win"]
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer",
+            "three in a row",
+            "win"
+          ]
         }
       },
       {
         "query": "I use X and you use O. You go first and put your O in any empty square.",
         "assert": {
-          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "three in a row", "winner"]
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer",
+            "three in a row",
+            "winner"
+          ]
         }
       }
     ]
@@ -235,7 +377,10 @@
     "description": "Jamie should understand the three named choices and act when invited, but must not import the familiar beats/loses relationships unless the child teaches them.",
     "prd": {
       "stage": "Breadth probe",
-      "hypotheses": ["H3", "H4"],
+      "hypotheses": [
+        "H3",
+        "H4"
+      ],
       "learningPurpose": "Check that a knowledgeable LLM can render and participate in a familiar non-card game without turning pretraining into an answer key.",
       "acceptance": [
         "Rock, paper, and scissors can become visible choices from the child's words.",
@@ -252,13 +397,34 @@
         "query": "We both choose rock, paper, or scissors at the same time.",
         "assert": {
           "actionTypes": [],
-          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "rock beats scissors", "paper beats rock", "scissors beats paper", "winner"]
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer",
+            "rock beats scissors",
+            "paper beats rock",
+            "scissors beats paper",
+            "winner"
+          ]
         }
       },
       {
         "query": "Pick one now.",
         "assert": {
-          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "rock beats scissors", "paper beats rock", "scissors beats paper", "I win", "you win"]
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer",
+            "rock beats scissors",
+            "paper beats rock",
+            "scissors beats paper",
+            "I win",
+            "you win"
+          ]
         }
       }
     ]
@@ -270,7 +436,10 @@
     "description": "A simple path-and-token game should build progressively and let Jamie move only when the child provides the movement instruction.",
     "prd": {
       "stage": "Breadth probe",
-      "hypotheses": ["H3", "H4"],
+      "hypotheses": [
+        "H3",
+        "H4"
+      ],
       "learningPurpose": "Check whether generic objects plus update_object are enough for a simple spatial game that is structurally different from matching cards.",
       "acceptance": [
         "The path and two tokens can appear from the initial description.",
@@ -287,13 +456,32 @@
         "query": "It's a race game with a path of six spaces. We each have a token on Start.",
         "assert": {
           "actionTypes": [],
-          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "roll", "dice", "first to finish wins", "winner"]
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer",
+            "roll",
+            "dice",
+            "first to finish wins",
+            "winner"
+          ]
         }
       },
       {
         "query": "Move your token forward two spaces.",
         "assert": {
-          "replyMustNotContain": ["correct", "incorrect", "good job", "right answer", "wrong answer", "roll", "dice", "winner"]
+          "replyMustNotContain": [
+            "correct",
+            "incorrect",
+            "good job",
+            "right answer",
+            "wrong answer",
+            "roll",
+            "dice",
+            "winner"
+          ]
         }
       }
     ]
