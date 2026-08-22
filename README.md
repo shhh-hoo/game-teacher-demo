@@ -106,23 +106,23 @@ The browser expects a payload in this shape:
 
 ## Validation
 
-During implementation, prefer structural/micro checks. Once the v11 vertical slice is coherent, run the v11 lesson path and then one full v11 regression rather than repeatedly deploying intermediate architectures.
-
-Primary regression examples:
+During implementation, prefer structural/micro checks. Once the v11 vertical slice is coherent, run the direct v11 lesson contract and then one regression pass rather than repeatedly deploying intermediate architectures.
 
 ```bash
 DIFY_TEST_VERSION=v11-direct \
 DIFY_EXPECT_DSL_VERSION=v11 \
 DIFY_EXPECT_BUILD_ID=v11-runtime-first-mastery-gate-r1-20260823 \
-node tests/e2e/run-dify.mjs --version v11 --scenario golden-path-learning-loop
+node tests/e2e/run-v11-lesson-contract.mjs --verbose
 
 DIFY_TEST_VERSION=v11-direct \
 DIFY_EXPECT_DSL_VERSION=v11 \
 DIFY_EXPECT_BUILD_ID=v11-runtime-first-mastery-gate-r1-20260823 \
-node tests/e2e/run-dify.mjs --version v11 --scenario v11-full-lesson-fresh-listener
+node tests/e2e/run-dify.mjs --version v11 --scenario golden-path-learning-loop
 ```
 
-`tests/e2e/run-ai-full-game.mjs` adds broad unscripted evidence by having an AI child invent and teach a small original game. It should be run only after the deterministic v11 gates are green.
+The dedicated v11 lesson runner is authoritative for the mastery gate: ordinary successful actions must remain in guided `practice`; only a grounded completed replay may trigger the fresh-listener reset.
+
+`tests/e2e/run-ai-full-game.mjs` remains broad unscripted evidence, but its v10 completion semantics must not be treated as a v11 lesson-completion gate until it is updated to continue through independent + transfer.
 
 ## Repository source of truth
 
