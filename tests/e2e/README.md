@@ -2,53 +2,52 @@
 
 This harness supports the take-home prototype and deliberately separates **hard behavioral contracts** from **soft learner-experience quality**.
 
-The current product question is:
+The v11 product question is:
 
-> Can a Grade 3–4 child explain a game, see that explanation become executable, encounter a real listener gap, repair it, continue playing, and eventually reach a child-taught ending without Jamie importing an answer key?
+> Can a Grade 3–4 child first experience a clear procedure, then teach Jamie a game, see that explanation become executable, repair a real listener gap, complete one supported replay, and finally teach a fresh listener without Jamie importing an answer key?
 
-The core loop is:
+The lesson loop is:
 
-**Explain → Act → Encounter gap → Repair → Reality changes → Continue → Grounded ending**
+**Model → Experience → Real gap → Teach/Repair → Guided replay → Fresh-listener independent replay → Transfer → Complete**
 
 ## Current runtime target
 
-The staged DSL scenarios use `versions` tags for `v10.1`, `v10.2`, `v10.3`, and `v11`. `--version` is required now that some scenarios are version-specific:
+`main` keeps the locked v10 runtime as the behavioural fallback. This branch validates the direct v11 target. Intermediate v10.1/v10.2/v10.3 scenario tags may remain useful architecture probes, but they are not deployment gates.
 
-```bash
-node tests/e2e/run-dify.mjs --version v10.3
+```text
+debug.dsl_version = v11
+debug.build_id = v11-runtime-first-mastery-gate-r1-20260823
 ```
 
-`--version` filters the catalog and defaults the required runtime identity check; it does **not** switch the deployed Dify application or its API key. `DIFY_EXPECT_DSL_VERSION` may explicitly override the expected payload version, and `DIFY_TEST_VERSION` may override the human trace label. Without those overrides, both default to `--version`. A mismatched `debug.dsl_version` or requested build ID stops the scenario immediately, before behavioral assertions are treated as evidence.
-
-The current deployment baselines are the four formal filenames under `.artifacts/dify-deliverables/`. They contain the audited `*-fixed.yml` work; do not import an older generated copy or keep a parallel `-fixed` artifact in the repo.
+`--version v11` filters the catalog and defaults the required DSL identity check. It does **not** switch the deployed Dify application or API key. `DIFY_EXPECT_BUILD_ID` should be set for the final run so a stale publication cannot produce false behavioral evidence.
 
 ## Run the deterministic regressions
 
-After importing and publishing the fixed v10.1 DSL, run only the golden path first:
+After importing and publishing the final v11 DSL, run the full-lesson contract first rather than replaying intermediate architectures:
 
 ```bash
 export DIFY_API_KEY='app-...'
-export DIFY_TEST_VERSION='v10.1-fixed-local'
-export DIFY_EXPECT_DSL_VERSION='v10.1'
-export DIFY_EXPECT_BUILD_ID='v10.1-rule-ir-shadow-fixed-20260823'
+export DIFY_TEST_VERSION='v11-direct'
+export DIFY_EXPECT_DSL_VERSION='v11'
+export DIFY_EXPECT_BUILD_ID='v11-runtime-first-mastery-gate-r1-20260823'
 
 node tests/e2e/run-dify.mjs \
-  --version v10.1 \
-  --scenario golden-path-learning-loop \
+  --version v11 \
+  --scenario v11-full-lesson-fresh-listener \
   --verbose
 ```
 
-Treat assertions as valid only if Dify returned a frontend response payload and its `debug.dsl_version` is `v10.1` (the runner enforces this when `DIFY_EXPECT_DSL_VERSION` is set). The expected fixed build is `v10.1-rule-ir-shadow-fixed-20260823`. If turn 1 still returns HTTP 500, investigate the Dify import/runtime/schema failure before running more scenarios or changing teaching behavior.
-
-Once that gate passes, the other existing regressions can be selected in the same way:
+Then run the primary v11 regressions:
 
 ```bash
-node tests/e2e/run-dify.mjs --version v10.1 --scenario faithful-listener-not-answer-key
-node tests/e2e/run-dify.mjs --version v10.1 --scenario smart-listener-not-pedantic
+node tests/e2e/run-dify.mjs --version v11 --scenario golden-path-learning-loop
+node tests/e2e/run-dify.mjs --version v11 --scenario faithful-listener-not-answer-key
+node tests/e2e/run-dify.mjs --version v11 --scenario smart-listener-not-pedantic
 ```
 
-The three scenarios have different jobs:
+The scenarios have different jobs:
 
+- `v11-full-lesson-fresh-listener` — prove evidence-driven phase progression, supported replay, fresh-listener reset, independent isolation, transfer, and lesson completion.
 - `golden-path-learning-loop` — prove progressive world creation, delegated player choice, a genuine post-action gap, child repair, and visible reality change without immediate lecture/reflection.
 - `faithful-listener-not-answer-key` — prove that a child-defined rule overrides familiar-game priors.
 - `smart-listener-not-pedantic` — prove that normal Grade 3–4 disfluency and self-correction do not manufacture a fake communication failure.
@@ -68,15 +67,19 @@ Hard checks affect the exit code. They cover things the product cannot get wrong
 - a genuine missing transition may coexist with an action that is executable now;
 - child repair applies to the actual current world state;
 - child-defined rules outrank familiar-game priors;
+- supported v11 transitions are owned by Runtime Primary, with bounded fallback only when needed;
+- practice cannot graduate from a count of ordinary actions; one complete grounded guided replay is required;
+- the fresh listener cannot use durable student history, old listener facts, or old executable rules as active knowledge;
+- `game_complete` is distinct from `lesson_complete`;
 - Jamie may not claim a physical move that the validated plan did not authorize.
 
-Soft quality does not fail the deterministic run. Examples include exact wording, whether Jamie says `Now what?` on every appropriate turn, and general conversational smoothness.
+Soft quality does not fail the deterministic run. Examples include exact wording and general conversational smoothness.
 
 A harness problem must not be converted into a guessed runtime failure, and a provider/runtime problem must not be converted into a learner communication failure.
 
 ## Golden path semantics
 
-`golden-path-learning-loop` intentionally stops after proving the core repair loop; it is not the full-game completion test.
+`golden-path-learning-loop` intentionally stops after proving the core repair loop; it is not the full lesson test.
 
 1. The child describes a card game with matching pictures. The world may appear provisionally, but gameplay rules may not be invented.
 2. The child teaches the face-down setup.
@@ -84,17 +87,31 @@ A harness problem must not be converted into a guessed runtime failure, and a pr
 4. Because the child has not yet taught the outcome branch, a grounded post-action listener gap is allowed.
 5. The harness inspects the revealed pair and supplies only the branch needed for the state Jamie actually encountered.
 6. Jamie immediately applies the repair to the same pair.
-7. The old gap is resolved and play continues. A repair may earn an internal reflection candidate, but there should be no immediate lesson-summary speech.
+7. The old gap is resolved and play continues. A repair may earn internal teaching evidence, but there should be no immediate lesson-summary speech.
 
 Pair identity is derived from visible identity fields such as `symbol` / `caption`, never from a generic label such as `Card`.
 
+## v11 lesson semantics
+
+The full-lesson scenario must enforce these phase boundaries:
+
+1. The first genuine blocking gap in `experience` earns `teach` and a `teach_moment`.
+2. Once the missing information becomes executable, the lesson moves to scaffolded `practice`.
+3. Practice may contain any number of successful intermediate actions. **Only a child-grounded `game_complete` with non-empty `completion_evidence` counts as the one successful guided replay.**
+4. That completed replay enters `independent`, clears active listener knowledge + executable Rule IR + pending gap state, and resets physical progress to the preserved baseline.
+5. The learner must see the final grounded action before the reset animation; a reset must not erase the causal evidence of the child's explanation.
+6. Independent has no scaffold. A bare `Go ahead` immediately after reset must produce no game action based on the previous listener's knowledge.
+7. A grounded independent game ending enters `transfer`, not `complete`.
+8. A trivial response such as `what?` does not complete transfer. A short substantive transfer response can complete the lesson.
+
 ## Grounded completion: AI full-game smoke
 
-Use [`run-ai-full-game.mjs`](./run-ai-full-game.mjs) to test whether the same architecture can finish an unscripted original game rather than only a fixed regression transcript.
+Use [`run-ai-full-game.mjs`](./run-ai-full-game.mjs) only after the deterministic v11 lesson gate is green. The AI child should be allowed to continue through independent and transfer rather than treating the first `game_complete` as lesson completion.
 
 ```bash
-export DIFY_TEST_VERSION='v10-r4'
-export DIFY_EXPECT_DSL_VERSION='v10'
+export DIFY_TEST_VERSION='v11-direct'
+export DIFY_EXPECT_DSL_VERSION='v11'
+export DIFY_EXPECT_BUILD_ID='v11-runtime-first-mastery-gate-r1-20260823'
 
 export GAME_TEACHER_PROXY_URL='https://game-teacher-demo.vercel.app/api/chat'
 export AI_FULL_GAME_API_KEY='...'
@@ -104,21 +121,23 @@ export AI_FULL_GAME_MODEL='your-model'
 node tests/e2e/run-ai-full-game.mjs --verbose
 ```
 
-The full-game smoke passes only when:
+For v11, the full-lesson smoke passes only when:
 
-- `game_complete=true`;
-- `phase=complete`;
-- `completion_evidence` is non-empty;
-- `pending_gap=null`;
-- no `pipeline_errors` occurred in the run.
+- the learner has produced grounded gameplay evidence;
+- the fresh-listener independent phase was actually reached;
+- the independent game reached its child-taught ending;
+- transfer was reached and answered substantively;
+- `lesson_complete=true` / `phase=complete` is grounded in the lesson controller;
+- `pending_gap=null` at completion;
+- no unrecoverable `pipeline_errors` occurred.
 
-The current no-thinking v10 r4 runtime has passed this smoke on an AI-generated original game, including visible state progression and a grounded child-taught ending. This is broad smoke evidence, not proof of production-ready arbitrary-game breadth.
+The locked no-thinking v10 r4 runtime remains useful historical evidence that the semantic core can complete an AI-generated original game. It is not the v11 acceptance result.
 
 See [`AI_FULL_GAME.md`](./AI_FULL_GAME.md) for setup and [`LIVE_TRACE.md`](./LIVE_TRACE.md) for crash-safe live logging.
 
 ## Optional whole-scenario AI judge
 
-For semantic qualities that do not have one exact correct wording, add `--judge`:
+For semantic qualities that do not have one exact correct wording, add `--judge` after deterministic v11 correctness is established:
 
 ```bash
 export AI_EVAL_API_KEY='...'
@@ -126,20 +145,12 @@ export AI_EVAL_BASE_URL='https://your-openai-compatible-provider.example/v1'
 export AI_EVAL_MODEL='your-evaluator-model'
 
 node tests/e2e/run-dify.mjs \
-  --version v10.1 \
+  --version v11 \
   --scenario golden-path-learning-loop \
   --judge
 ```
 
-The judge runs once after the complete deterministic scenario and scores:
-
-- conversational naturalness;
-- listener-centered communication;
-- child agency;
-- grounded repair;
-- overall loop coherence.
-
-It is intentionally soft-only: its result is saved in the trace but never changes the deterministic exit code.
+The judge runs once after the complete deterministic scenario and scores conversational naturalness, listener-centered communication, child agency, grounded repair, and overall loop coherence. It is soft-only: its result is saved in the trace but never changes the deterministic exit code.
 
 ## Failure categories
 
