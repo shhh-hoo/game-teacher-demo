@@ -50,7 +50,7 @@ const state = {
   messages: [],
   modelStep: 0,
   modelPosition: 0,
-  modelMessage: 'I’ll teach you a tiny game first. Help the rabbit reach the carrot. Click the first stone.',
+  modelMessage: 'Read the whole game first. Jamie will not add new rules while you play.',
 };
 
 sessionStorage.setItem('gameTeacherUserId', state.userId);
@@ -118,8 +118,16 @@ function renderModelExperience() {
           <div class="avatar">🙂</div>
           <div><b>Jamie</b><small>Your friend · teaching you first</small></div>
         </div>
-        <div class="model-message" aria-live="polite">${escapeHtml(state.modelMessage)}</div>
-        <p>Jamie gives you just enough information for the next move.</p>
+        <div class="model-message" aria-label="Complete rules for Rabbit Star Hop">
+          <b>Here’s the whole game:</b>
+          <ol>
+            <li>Click stone 1 to start.</li>
+            <li>Move to the next stone.</li>
+            <li>If you land on ★, jump over the next stone.</li>
+            <li>Reach the carrot to finish.</li>
+          </ol>
+        </div>
+        <p aria-live="polite">${escapeHtml(state.modelMessage)}</p>
       </div>
 
       <div class="model-world">
@@ -140,7 +148,7 @@ function renderModelExperience() {
           <button class="model-goal" data-model-target="carrot" ${expectedTarget === 'carrot' ? '' : 'disabled'} aria-label="Carrot goal">🥕</button>
         </div>
         <div class="model-actions">
-          <span>${state.modelStep >= 3 ? 'You used Jamie’s explanation to finish the game.' : 'Listen, then make the next move.'}</span>
+          <span>${state.modelStep >= 3 ? 'You finished from one complete explanation.' : 'Use the rules Jamie already gave you.'}</span>
           ${state.modelStep >= 3 ? '<button class="primary" id="teachJamieButton">Now teach Jamie</button>' : ''}
         </div>
       </div>
@@ -384,7 +392,7 @@ function startLesson() {
   state.messages = [];
   state.modelStep = 0;
   state.modelPosition = 0;
-  state.modelMessage = 'I’ll teach you a tiny game first. Help the rabbit reach the carrot. Click the first stone.';
+  state.modelMessage = 'Read the whole game first. Jamie will not add new rules while you play.';
   sessionStorage.removeItem('gameTeacherConversationId');
   render();
 }
@@ -395,15 +403,15 @@ function advanceModelGame(target) {
   if (state.modelStep === 0 && target === 'stone-1') {
     state.modelStep = 1;
     state.modelPosition = 1;
-    state.modelMessage = 'Great. Move one stone at a time. The star stone has a special hop—click it next.';
+    state.modelMessage = 'You’re on stone 1. Keep using the same rules.';
   } else if (state.modelStep === 1 && target === 'stone-2') {
     state.modelStep = 2;
-    state.modelPosition = 3;
-    state.modelMessage = 'The star gave you one extra hop, so the rabbit reached stone 3. Now click the carrot.';
+    state.modelPosition = 4;
+    state.modelMessage = 'The ★ rule jumped the rabbit over stone 3 to stone 4. Keep using the same rules.';
   } else if (state.modelStep === 2 && target === 'carrot') {
     state.modelStep = 3;
     state.modelPosition = 5;
-    state.modelMessage = 'You did it! You could play because you knew what to do before each move.';
+    state.modelMessage = 'You finished the game from one complete explanation. Now switch roles.';
   }
 
   render();
@@ -439,7 +447,7 @@ function restartLesson() {
   state.messages = [];
   state.modelStep = 0;
   state.modelPosition = 0;
-  state.modelMessage = 'I’ll teach you a tiny game first. Help the rabbit reach the carrot. Click the first stone.';
+  state.modelMessage = 'Read the whole game first. Jamie will not add new rules while you play.';
   sessionStorage.removeItem('gameTeacherConversationId');
   render();
 }
