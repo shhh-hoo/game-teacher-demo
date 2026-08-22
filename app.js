@@ -1,9 +1,9 @@
 const app = document.querySelector('#app');
 
-const PHASES = ['experience', 'notice', 'teach', 'practice', 'independent', 'transfer'];
+const PHASES = ['model', 'experience', 'teach', 'practice', 'independent', 'transfer'];
 const PHASE_LABELS = {
+  model: 'Watch',
   experience: 'Try',
-  notice: 'Notice',
   teach: 'Learn',
   practice: 'Practice',
   independent: 'Show',
@@ -27,7 +27,9 @@ function blankWorld() {
 }
 
 function normalizePhase(phase) {
-  return phase === 'guided' ? 'practice' : phase;
+  if (phase === 'guided') return 'practice';
+  if (phase === 'notice') return 'teach';
+  return phase;
 }
 
 const state = {
@@ -46,6 +48,9 @@ const state = {
   worldBaseline: null,
   support: null,
   messages: [],
+  modelStep: 0,
+  modelPosition: 0,
+  modelMessage: 'Read the whole game first. Jamie will not add new rules while you play.',
 };
 
 sessionStorage.setItem('gameTeacherUserId', state.userId);
@@ -61,8 +66,8 @@ function render() {
         ${state.apiError ? '<div class="status-pill error">Connection issue</div>' : ''}
       </header>
 
-      ${state.screen === 'lesson' ? renderProgress() : ''}
-      ${state.screen === 'home' ? renderHome() : renderLesson()}
+      ${state.screen !== 'home' ? renderProgress() : ''}
+      ${state.screen === 'home' ? renderHome() : state.screen === 'model' ? renderModelExperience() : renderLesson()}
     </div>
   `;
 
@@ -92,7 +97,61 @@ function renderHome() {
       <div class="eyebrow">A game you already know</div>
       <h2>Can you teach Jamie well enough to make the game playable?</h2>
       <p>Describe the game naturally. Jamie will build only the game world your explanation supports, then try to play it.</p>
-      <button class="primary start-button" id="startButton">Start teaching</button>
+      <button class="primary start-button" id="startButton">Start the lesson</button>
+    </section>
+  `;
+}
+
+function renderModelExperience() {
+  const expectedTarget = ['stone-1', 'stone-2', 'carrot'][state.modelStep] || '';
+  const modelObjects = [
+    { id: 'stone-1', label: '1' },
+    { id: 'stone-2', label: '★', star: true },
+    { id: 'stone-3', label: '3' },
+    { id: 'stone-4', label: '4' },
+  ];
+
+  return `
+    <section class="card model-lesson">
+      <div class="model-friend">
+        <div class="friend-header">
+          <div class="avatar">🙂</div>
+          <div><b>Jamie</b><small>Your friend · teaching you first</small></div>
+        </div>
+        <div class="model-message" aria-label="Complete rules for Rabbit Star Hop">
+          <b>Here’s the whole game:</b>
+          <ol>
+            <li>Click stone 1 to start.</li>
+            <li>Move to the next stone.</li>
+            <li>If you land on ★, jump over the next stone.</li>
+            <li>Reach the carrot to finish.</li>
+          </ol>
+        </div>
+        <p aria-live="polite">${escapeHtml(state.modelMessage)}</p>
+      </div>
+
+      <div class="model-world">
+        <div class="game-head">
+          <div><div class="eyebrow">Jamie’s tiny game</div><h3>Rabbit Star Hop</h3></div>
+          <div class="phase-pill">Model</div>
+        </div>
+        <div class="rabbit-path" aria-label="Rabbit Star Hop board">
+          <div class="model-token" style="--rabbit-position:${state.modelPosition}">🐇</div>
+          ${modelObjects.map((object, index) => `
+            <button
+              class="model-stone ${object.star ? 'star' : ''} ${index + 1 <= state.modelPosition ? 'visited' : ''}"
+              data-model-target="${object.id}"
+              ${object.id === expectedTarget ? '' : 'disabled'}
+              aria-label="${object.star ? 'Star stone' : `Stone ${object.label}`}"
+            >${object.label}</button>
+          `).join('')}
+          <button class="model-goal" data-model-target="carrot" ${expectedTarget === 'carrot' ? '' : 'disabled'} aria-label="Carrot goal">🥕</button>
+        </div>
+        <div class="model-actions">
+          <span>${state.modelStep >= 3 ? 'You finished from one complete explanation.' : 'Use the rules Jamie already gave you.'}</span>
+          ${state.modelStep >= 3 ? '<button class="primary" id="teachJamieButton">Now teach Jamie</button>' : ''}
+        </div>
+      </div>
     </section>
   `;
 }
@@ -229,6 +288,7 @@ function renderWorldObject(object) {
 }
 
 function renderSupport() {
+  if (['independent', 'transfer', 'complete'].includes(normalizePhase(state.phase))) return '';
   if (!state.support) return '';
 
   if (state.support.type === 'teach_moment' || state.support.type === 'micro_teach') {
@@ -277,6 +337,7 @@ function renderWorldFooter() {
 
 function bindEvents() {
   document.querySelector('#startButton')?.addEventListener('click', startLesson);
+  document.querySelector('#teachJamieButton')?.addEventListener('click', beginTeaching);
   document.querySelector('#sendButton')?.addEventListener('click', () => submitMessage());
   document.querySelector('#micButton')?.addEventListener('click', toggleVoiceInput);
   document.querySelector('#studentInput')?.addEventListener('input', event => {
@@ -306,6 +367,10 @@ function bindEvents() {
     });
   });
 
+  document.querySelectorAll('[data-model-target]').forEach(button => {
+    button.addEventListener('click', () => advanceModelGame(button.dataset.modelTarget));
+  });
+
   requestAnimationFrame(() => {
     const log = document.querySelector('#chatLog');
     if (log) log.scrollTop = log.scrollHeight;
@@ -314,8 +379,8 @@ function bindEvents() {
 
 function startLesson() {
   stopRecognition();
-  state.screen = 'lesson';
-  state.phase = 'experience';
+  state.screen = 'model';
+  state.phase = 'model';
   state.mode = 'required';
   state.apiError = '';
   state.inputDraft = '';
@@ -324,8 +389,43 @@ function startLesson() {
   state.worldBaseline = null;
   state.support = null;
   state.conversationId = '';
+  state.messages = [];
+  state.modelStep = 0;
+  state.modelPosition = 0;
+  state.modelMessage = 'Read the whole game first. Jamie will not add new rules while you play.';
+  sessionStorage.removeItem('gameTeacherConversationId');
+  render();
+}
+
+function advanceModelGame(target) {
+  if (state.screen !== 'model') return;
+
+  if (state.modelStep === 0 && target === 'stone-1') {
+    state.modelStep = 1;
+    state.modelPosition = 1;
+    state.modelMessage = 'You’re on stone 1. Keep using the same rules.';
+  } else if (state.modelStep === 1 && target === 'stone-2') {
+    state.modelStep = 2;
+    state.modelPosition = 4;
+    state.modelMessage = 'The ★ rule jumped the rabbit over stone 3 to stone 4. Keep using the same rules.';
+  } else if (state.modelStep === 2 && target === 'carrot') {
+    state.modelStep = 3;
+    state.modelPosition = 5;
+    state.modelMessage = 'You finished the game from one complete explanation. Now switch roles.';
+  }
+
+  render();
+}
+
+function beginTeaching() {
+  state.screen = 'lesson';
+  state.phase = 'experience';
+  state.world = blankWorld();
+  state.worldBaseline = null;
+  state.support = null;
+  state.conversationId = '';
   state.messages = [
-    { role: 'ai', text: "Teach me a game you know. I've never played it before." },
+    { role: 'ai', text: "Now teach me a game you know. I've never played it before." },
   ];
   sessionStorage.removeItem('gameTeacherConversationId');
   render();
@@ -345,6 +445,9 @@ function restartLesson() {
   state.support = null;
   state.conversationId = '';
   state.messages = [];
+  state.modelStep = 0;
+  state.modelPosition = 0;
+  state.modelMessage = 'Read the whole game first. Jamie will not add new rules while you play.';
   sessionStorage.removeItem('gameTeacherConversationId');
   render();
 }

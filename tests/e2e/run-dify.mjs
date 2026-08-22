@@ -25,32 +25,40 @@ const verbose = args.includes('--verbose');
 const judgeEnabled = args.includes('--judge');
 
 if (args.includes('--list')) {
-  for (const scenario of scenarios) console.log(scenario.name);
+  for (const scenario of scenarios) console.log(`${scenario.name} · ${(scenario.versions || []).join(', ')}`);
   process.exit(0);
 }
 
 const apiKey = process.env.DIFY_API_KEY;
 const baseUrl = (process.env.DIFY_API_BASE_URL || 'https://api.dify.ai/v1').replace(/\/$/, '');
-const versionLabel = getArg('--label') || process.env.DIFY_TEST_VERSION;
-const expectedDslVersion = process.env.DIFY_EXPECT_DSL_VERSION || '';
+const requestedVersion = getArg('--version');
+const knownVersions = [...new Set(scenarios.flatMap(scenario => scenario.versions || []))].sort();
+if (!requestedVersion) {
+  console.error(`Missing --version. Choose one of: ${knownVersions.join(', ')}.`);
+  process.exit(1);
+}
+if (!knownVersions.includes(requestedVersion)) {
+  console.error(`Unknown version ${requestedVersion}. Choose one of: ${knownVersions.join(', ')}.`);
+  process.exit(1);
+}
+const versionLabel = getArg('--label') || process.env.DIFY_TEST_VERSION || requestedVersion;
+const expectedDslVersion = process.env.DIFY_EXPECT_DSL_VERSION || requestedVersion;
+const expectedBuildId = process.env.DIFY_EXPECT_BUILD_ID || '';
 const requestedScenario = getArg('--scenario');
 const repeat = Math.max(1, Number(getArg('--repeat') || 1));
 
+const selected = scenarios.filter(scenario => {
+  if (requestedScenario && scenario.name !== requestedScenario) return false;
+  if (requestedVersion && !(scenario.versions || []).includes(requestedVersion)) return false;
+  return true;
+});
+if (!selected.length) {
+  console.error(`No scenarios matched scenario=${requestedScenario || '*'} version=${requestedVersion}.`);
+  console.error('Use --list to see available scenario names.');
+  process.exit(1);
+}
 if (!apiKey) {
   console.error('Missing DIFY_API_KEY.');
-  process.exit(1);
-}
-if (!versionLabel) {
-  console.error('Missing version label. Use --label v8 (or set DIFY_TEST_VERSION).');
-  process.exit(1);
-}
-
-const selected = requestedScenario
-  ? scenarios.filter(scenario => scenario.name === requestedScenario)
-  : scenarios;
-if (!selected.length) {
-  console.error(`Unknown scenario: ${requestedScenario}`);
-  console.error('Use --list to see available scenario names.');
   process.exit(1);
 }
 
@@ -81,6 +89,17 @@ function parseDifyAnswer(answer) {
     }
   }
   throw new Error(`Dify answer is not frontend JSON: ${answer.slice(0, 800)}`);
+}
+
+function assertRuntimeIdentity(payload) {
+  const actualVersion = String(payload?.debug?.dsl_version || '').trim();
+  if (expectedDslVersion && actualVersion !== expectedDslVersion) {
+    throw new HarnessError(`Runtime identity mismatch: expected DSL ${expectedDslVersion}, got ${JSON.stringify(actualVersion || null)}.`);
+  }
+  const actualBuild = String(payload?.debug?.build_id || '').trim();
+  if (expectedBuildId && actualBuild !== expectedBuildId) {
+    throw new HarnessError(`Runtime identity mismatch: expected build ${expectedBuildId}, got ${JSON.stringify(actualBuild || null)}.`);
+  }
 }
 
 async function sendTurn({ query, conversationId, user }) {
@@ -221,7 +240,7 @@ function replyExposesOpenGap(reply) {
   return /\b(?:don['’]?t know|do not know|not sure|need to know|what happens|what next|now what)\b/i.test(text);
 }
 
-function extraAssertions({ expected, payload, previousWorld, worldAfterPatch, actions }) {
+function extraAssertions({ expected, payload, previousPayload, previousWorld, worldAfterPatch, actions }) {
   const results = [];
   const pass = (name, detail = '') => ({ name, ok: true, detail });
   const fail = (name, detail) => ({ name, ok: false, detail });
@@ -231,6 +250,13 @@ function extraAssertions({ expected, payload, previousWorld, worldAfterPatch, ac
     results.push(actual === expectedDslVersion
       ? pass('protocol.dsl-version', actual)
       : fail('protocol.dsl-version', `Expected runtime DSL ${expectedDslVersion}; got ${JSON.stringify(actual || null)}.`));
+  }
+
+  if (expectedBuildId) {
+    const actual = String(payload?.debug?.build_id || '').trim();
+    results.push(actual === expectedBuildId
+      ? pass('protocol.build-id', actual)
+      : fail('protocol.build-id', `Expected runtime build ${expectedBuildId}; got ${JSON.stringify(actual || null)}.`));
   }
 
   const internalLeakage = findInternalGapLeakage(payload);
@@ -291,6 +317,234 @@ function extraAssertions({ expected, payload, previousWorld, worldAfterPatch, ac
       : fail(name, `Revealed pair was ${pair.matches ? 'matching' : 'non-matching'} (${pair.identity.join(' vs ')}); expected ${JSON.stringify(expectedTypes)}, got ${JSON.stringify(actual)}`));
   }
 
+  const debug = payload?.debug || {};
+  const architectureEvents = debug?.architecture_trace?.events || [];
+  const executableRules = debug?.executable_rules?.rules || debug?.rule_ir_shadow?.rules || [];
+
+  if (Array.isArray(expected.architectureEvents)) {
+    const actual = new Set(architectureEvents.map(event => event?.event));
+    const missing = expected.architectureEvents.filter(event => !actual.has(event));
+    results.push(missing.length
+      ? fail('architecture.events', `Missing events: ${missing.join(', ')}`)
+      : pass('architecture.events', expected.architectureEvents.join(', ')));
+  }
+
+  if (Array.isArray(expected.actionSourceOneOf)) {
+    results.push(expected.actionSourceOneOf.includes(debug.action_source)
+      ? pass('architecture.action-source', debug.action_source)
+      : fail('architecture.action-source', `Expected one of ${expected.actionSourceOneOf.join(', ')}; got ${JSON.stringify(debug.action_source)}.`));
+  }
+
+  if (typeof expected.actionSourceIs === 'string') {
+    results.push(debug.action_source === expected.actionSourceIs
+      ? pass('architecture.action-source-exact', debug.action_source)
+      : fail('architecture.action-source-exact', `Expected ${expected.actionSourceIs}; got ${JSON.stringify(debug.action_source)}.`));
+  }
+
+  if (Array.isArray(expected.comparisonResultOneOf)) {
+    const actual = debug?.runtime_shadow?.comparison_result;
+    results.push(expected.comparisonResultOneOf.includes(actual)
+      ? pass('architecture.comparison-result', actual)
+      : fail('architecture.comparison-result', `Expected one of ${expected.comparisonResultOneOf.join(', ')}; got ${JSON.stringify(actual)}.`));
+  }
+
+  if (typeof expected.runtimeStatusIs === 'string') {
+    const actual = debug?.runtime_shadow?.status;
+    results.push(actual === expected.runtimeStatusIs
+      ? pass('architecture.runtime-status', actual)
+      : fail('architecture.runtime-status', `Expected ${expected.runtimeStatusIs}; got ${JSON.stringify(actual)}.`));
+  }
+
+  if (Array.isArray(expected.runtimeReasonIncludesOneOf)) {
+    const reasons = [
+      debug?.runtime_shadow?.reason,
+      ...(debug?.rule_ir_shadow?.unsupported || []).map(item => item?.reason),
+    ].filter(Boolean).map(String);
+    const match = expected.runtimeReasonIncludesOneOf.some(token =>
+      reasons.some(reason => reason.toLowerCase().includes(String(token).toLowerCase())));
+    results.push(match
+      ? pass('architecture.runtime-unsupported-reason', reasons.join(' | '))
+      : fail('architecture.runtime-unsupported-reason', `Expected one of ${expected.runtimeReasonIncludesOneOf.join(', ')} in ${JSON.stringify(reasons)}.`));
+  }
+
+  if (typeof expected.runtimeDecisionIs === 'string') {
+    const actual = debug?.runtime_shadow?.runtime_decision;
+    results.push(actual === expected.runtimeDecisionIs
+      ? pass('architecture.runtime-decision', actual)
+      : fail('architecture.runtime-decision', `Expected ${expected.runtimeDecisionIs}; got ${JSON.stringify(actual)}.`));
+  }
+
+  if (typeof expected.actionPlanSourceIs === 'string') {
+    results.push(debug?.action_plan_source === expected.actionPlanSourceIs
+      ? pass('architecture.action-plan-source', debug.action_plan_source)
+      : fail('architecture.action-plan-source', `Expected ${expected.actionPlanSourceIs}; got ${JSON.stringify(debug?.action_plan_source)}.`));
+  }
+
+  if (Array.isArray(expected.runtimeCandidateActionTypes)) {
+    const actual = normalizedActionTypes(debug?.runtime_shadow?.candidate_plan?.actions || []);
+    results.push(JSON.stringify(actual) === JSON.stringify(expected.runtimeCandidateActionTypes)
+      ? pass('architecture.runtime-candidate-actions', actual.join(', ') || 'none')
+      : fail('architecture.runtime-candidate-actions', `Expected ${JSON.stringify(expected.runtimeCandidateActionTypes)}; got ${JSON.stringify(actual)}.`));
+  }
+
+  if (expected.runtimeCandidateTargetsExist) {
+    const ids = new Set((worldAfterPatch?.objects || []).map(object => String(object?.id)));
+    const candidates = debug?.runtime_shadow?.candidate_plan?.actions || [];
+    const targeted = candidates.filter(action => ['update_object', 'reveal_object', 'hide_object', 'remove_object'].includes(action?.type));
+    const legal = targeted.length > 0 && targeted.every(action => ids.has(String(action?.object_id)));
+    results.push(legal
+      ? pass('architecture.runtime-candidate-targets', targeted.map(action => action.object_id).join(', '))
+      : fail('architecture.runtime-candidate-targets', `Runtime candidate targets are missing or illegal: ${JSON.stringify(targeted)}.`));
+  }
+
+  if (Array.isArray(expected.plannerActionTypes)) {
+    const actual = normalizedActionTypes(debug?.action_plan?.actions || []);
+    results.push(JSON.stringify(actual) === JSON.stringify(expected.plannerActionTypes)
+      ? pass('architecture.planner-actions', actual.join(', ') || 'none')
+      : fail('architecture.planner-actions', `Expected ${JSON.stringify(expected.plannerActionTypes)}; got ${JSON.stringify(actual)}.`));
+  }
+
+  if (Number.isFinite(expected.activeRuleCountAtLeast)) {
+    const count = executableRules.filter(rule => rule?.status === 'active').length;
+    results.push(count >= expected.activeRuleCountAtLeast
+      ? pass('architecture.active-rule-count', String(count))
+      : fail('architecture.active-rule-count', `Expected at least ${expected.activeRuleCountAtLeast}; got ${count}.`));
+  }
+
+  if (expected.supersededRuleVisible) {
+    const visible = executableRules.some(rule => rule?.status === 'superseded')
+      && architectureEvents.some(event => event?.event === 'rule_superseded');
+    results.push(visible
+      ? pass('architecture.superseded-rule-visible')
+      : fail('architecture.superseded-rule-visible', 'No superseded Rule IR plus rule_superseded trace event was visible.'));
+  }
+
+  if (expected.ruleReplacementTargetCounts) {
+    const replacementEvent = [...architectureEvents].reverse().find(event => event?.event === 'rule_superseded');
+    const oldRule = executableRules.find(rule => rule?.rule_id === replacementEvent?.rule_id);
+    const newRule = executableRules.find(rule => rule?.rule_id === replacementEvent?.superseded_by);
+    const oldCount = Number(oldRule?.action?.eligible_targets?.count);
+    const newCount = Number(newRule?.action?.eligible_targets?.count);
+    const valid = oldRule?.rule_id
+      && newRule?.rule_id
+      && oldRule.rule_id !== newRule.rule_id
+      && oldRule.status === 'superseded'
+      && newRule.status === 'active'
+      && newRule.supersedes === oldRule.rule_id
+      && oldCount === Number(expected.ruleReplacementTargetCounts.old)
+      && newCount === Number(expected.ruleReplacementTargetCounts.new);
+    results.push(valid
+      ? pass('architecture.rule-replacement', `${oldRule.rule_id}:${oldCount} -> ${newRule.rule_id}:${newCount}`)
+      : fail('architecture.rule-replacement', `Expected immutable ${expected.ruleReplacementTargetCounts.old} -> ${expected.ruleReplacementTargetCounts.new} replacement; event=${JSON.stringify(replacementEvent)} old=${JSON.stringify(oldRule)} new=${JSON.stringify(newRule)}.`));
+  }
+
+  if (expected.ruleIrUnchanged) {
+    const before = previousPayload?.debug?.executable_rules?.rules || previousPayload?.debug?.rule_ir_shadow?.rules || [];
+    results.push(JSON.stringify(before) === JSON.stringify(executableRules)
+      ? pass('architecture.rule-ir-unchanged')
+      : fail('architecture.rule-ir-unchanged', 'Bounded fallback changed executable Rule IR.'));
+  }
+
+  if (Array.isArray(expected.typedGapOneOf)) {
+    const type = debug?.controller?.pending_gap?.type || debug?.action_plan?.blocked_now?.type || null;
+    results.push(expected.typedGapOneOf.includes(type)
+      ? pass('architecture.typed-gap', type)
+      : fail('architecture.typed-gap', `Expected one of ${expected.typedGapOneOf.join(', ')}; got ${JSON.stringify(type)}.`));
+  }
+
+  if (typeof expected.phaseIs === 'string') {
+    results.push(payload?.phase === expected.phaseIs
+      ? pass('lesson.phase', payload.phase)
+      : fail('lesson.phase', `Expected ${expected.phaseIs}; got ${JSON.stringify(payload?.phase)}.`));
+  }
+
+  if (typeof expected.supportTypeIs === 'string') {
+    results.push(payload?.support?.type === expected.supportTypeIs
+      ? pass('lesson.support-type', payload.support.type)
+      : fail('lesson.support-type', `Expected ${expected.supportTypeIs}; got ${JSON.stringify(payload?.support?.type)}.`));
+  }
+
+  if (expected.supportAbsent) {
+    results.push(payload?.support == null
+      ? pass('lesson.support-absent')
+      : fail('lesson.support-absent', `Expected no scaffold; got ${JSON.stringify(payload.support)}.`));
+  }
+
+  if (expected.freshListenerReset) {
+    const controller = debug?.controller;
+    const gapState = debug?.gap_state;
+    const reset = controller
+      && gapState
+      && controller.reset_listener === true
+      && controller.reset_rules === true
+      && Object.prototype.hasOwnProperty.call(controller, 'pending_gap')
+      && controller.pending_gap === null
+      && Object.prototype.hasOwnProperty.call(gapState, 'pending')
+      && gapState.pending === null
+      && debug?.listener_fact_count === 0
+      && debug?.listener_instruction_count === 0
+      && executableRules.length === 0;
+    results.push(reset
+      ? pass('lesson.fresh-listener-reset')
+      : fail('lesson.fresh-listener-reset', 'Listener facts/instructions, executable Rule IR, controller gap, and stored gap state were not all cleared.'));
+  }
+
+  if (expected.freshListenerIsolation) {
+    const isolated = debug?.listener_fact_count === 0
+      && debug?.listener_instruction_count === 0
+      && executableRules.length === 0
+      && Number(debug?.student_instruction_history_count || 0) > 0
+      && actions.filter(action => !['wait', 'reset_to_baseline'].includes(action?.type)).length === 0;
+    results.push(isolated
+      ? pass('lesson.fresh-listener-isolation')
+      : fail('lesson.fresh-listener-isolation', 'Old student evidence remained usable by the fresh Jamie path.'));
+  }
+
+  if (expected.freshResetPreservesTurnAndCounters) {
+    const gameState = debug?.game_state_snapshot;
+    const baseline = debug?.render_baseline_snapshot;
+    const baselineHasWorldState = baseline && (baseline.turn != null || (baseline.counters || []).length > 0);
+    const preserved = gameState && baselineHasWorldState
+      && gameState.turn === baseline.turn
+      && JSON.stringify(gameState.counters || []) === JSON.stringify(baseline.counters || []);
+    results.push(preserved
+      ? pass('lesson.fresh-reset-world-state')
+      : fail('lesson.fresh-reset-world-state', `Reset world differs from render baseline: game=${JSON.stringify(gameState)} baseline=${JSON.stringify(baseline)}.`));
+  }
+
+  if (expected.controllerContract) {
+    const controller = debug?.controller || {};
+    const missing = ['response_mode', 'response_intent', 'next_phase'].filter(key => typeof controller[key] !== 'string' || !controller[key]);
+    results.push(missing.length === 0
+      ? pass('lesson.controller-contract', `${controller.response_mode}/${controller.response_intent}/${controller.next_phase}`)
+      : fail('lesson.controller-contract', `Missing controller fields: ${missing.join(', ')}.`));
+  }
+
+  for (const [expectedKey, controllerKey, name] of [
+    ['responseModeIs', 'response_mode', 'lesson.response-mode'],
+    ['responseIntentIs', 'response_intent', 'lesson.response-intent'],
+    ['nextPhaseIs', 'next_phase', 'lesson.next-phase'],
+  ]) {
+    if (typeof expected[expectedKey] !== 'string') continue;
+    const actual = debug?.controller?.[controllerKey];
+    results.push(actual === expected[expectedKey]
+      ? pass(name, actual)
+      : fail(name, `Expected ${expected[expectedKey]}; got ${JSON.stringify(actual)}.`));
+  }
+
+  if (typeof expected.gameCompleteIs === 'boolean') {
+    const actual = Boolean(debug.game_complete || debug?.controller?.game_complete);
+    results.push(actual === expected.gameCompleteIs
+      ? pass('lesson.game-complete', String(expected.gameCompleteIs))
+      : fail('lesson.game-complete', `Expected ${expected.gameCompleteIs}; got ${actual}.`));
+  }
+
+  if (typeof expected.lessonCompleteIs === 'boolean') {
+    results.push(Boolean(debug?.controller?.lesson_complete) === expected.lessonCompleteIs
+      ? pass('lesson.lesson-complete', String(expected.lessonCompleteIs))
+      : fail('lesson.lesson-complete', `Expected ${expected.lessonCompleteIs}; got ${Boolean(debug?.controller?.lesson_complete)}.`));
+  }
+
   return results;
 }
 
@@ -323,6 +577,7 @@ const completedDialogues = [];
 
 console.log(`Dify E2E · ${versionLabel}`);
 if (expectedDslVersion) console.log(`Runtime DSL expected · ${expectedDslVersion}`);
+if (expectedBuildId) console.log(`Runtime build expected · ${expectedBuildId}`);
 if (judgeEnabled) console.log('AI judge · enabled (soft evaluation only)');
 if (verbose) {
   console.log(`Scenarios: ${selected.length} × ${repeat}`);
@@ -336,6 +591,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
     let conversationId = '';
     let world = blankWorld();
     let baseline = null;
+    let previousPayload = null;
     const turnsTrace = [];
     const dialogue = [];
     let scenarioBehaviorFailures = 0;
@@ -357,6 +613,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
         const result = await sendTurn({ query, conversationId, user });
         conversationId = result.data.conversation_id || conversationId;
         const payload = result.payload;
+        assertRuntimeIdentity(payload);
         const actions = flattenActions(payload.ui_action);
         const worldAfterPatch = applyWorldPatch(world, payload.world_patch);
         if (payload.capture_baseline && !baseline) baseline = JSON.parse(JSON.stringify(worldAfterPatch));
@@ -364,7 +621,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
 
         const assertionResults = [
           ...runAssertions({ expected: turn.assert || {}, payload, previousWorld, worldAfterPatch, actions }),
-          ...extraAssertions({ expected: turn.assert || {}, payload, previousWorld, worldAfterPatch, actions }),
+          ...extraAssertions({ expected: turn.assert || {}, payload, previousPayload, previousWorld, worldAfterPatch, actions }),
         ];
         const softSignals = qualitySignals({ expected: turn.assert || {}, payload });
         const failures = assertionResults.filter(resultItem => !resultItem.ok);
@@ -415,6 +672,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
           worldAfterActions: world,
           baseline,
         });
+        previousPayload = payload;
 
         if (failures.length && turn.stopScenarioOnFailure) {
           console.log('  ↳ stop · prerequisite turn failed; later state-dependent turns skipped');
@@ -448,7 +706,9 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
     const trace = {
       versionLabel,
       expectedDslVersion: expectedDslVersion || null,
+      expectedBuildId: expectedBuildId || null,
       observedDslVersion: turnsTrace.find(turn => turn?.payload?.debug?.dsl_version)?.payload?.debug?.dsl_version || null,
+      observedBuildId: turnsTrace.find(turn => turn?.payload?.debug?.build_id)?.payload?.debug?.build_id || null,
       scenario: scenario.name,
       description: scenario.description,
       manualReview: scenario.manualReview || [],
