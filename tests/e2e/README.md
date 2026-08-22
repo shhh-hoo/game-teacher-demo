@@ -20,16 +20,31 @@ node tests/e2e/run-dify.mjs --version v10.3
 
 `DIFY_TEST_VERSION` remains a human trace label. `DIFY_EXPECT_DSL_VERSION` checks what the published Dify runtime actually emitted.
 
+The current deployment baselines are the four formal filenames under `.artifacts/dify-deliverables/`. They contain the audited `*-fixed.yml` work; do not import an older generated copy or keep a parallel `-fixed` artifact in the repo.
+
 ## Run the deterministic regressions
+
+After importing and publishing the fixed v10.1 DSL, run only the golden path first:
 
 ```bash
 export DIFY_API_KEY='app-...'
-export DIFY_TEST_VERSION='v10-r4'
-export DIFY_EXPECT_DSL_VERSION='v10'
+export DIFY_TEST_VERSION='v10.1-fixed-local'
+export DIFY_EXPECT_DSL_VERSION='v10.1'
+export DIFY_EXPECT_BUILD_ID='v10.1-rule-ir-shadow-fixed-20260823'
 
-node tests/e2e/run-dify.mjs --version v10.1 --scenario golden-path-learning-loop
-node tests/e2e/run-dify.mjs --scenario faithful-listener-not-answer-key
-node tests/e2e/run-dify.mjs --scenario smart-listener-not-pedantic
+node tests/e2e/run-dify.mjs \
+  --version v10.1 \
+  --scenario golden-path-learning-loop \
+  --verbose
+```
+
+Treat assertions as valid only if Dify returned a frontend response payload and its `debug.dsl_version` is `v10.1` (the runner enforces this when `DIFY_EXPECT_DSL_VERSION` is set). The expected fixed build is `v10.1-rule-ir-shadow-fixed-20260823`. If turn 1 still returns HTTP 500, investigate the Dify import/runtime/schema failure before running more scenarios or changing teaching behavior.
+
+Once that gate passes, the other existing regressions can be selected in the same way:
+
+```bash
+node tests/e2e/run-dify.mjs --version v10.1 --scenario faithful-listener-not-answer-key
+node tests/e2e/run-dify.mjs --version v10.1 --scenario smart-listener-not-pedantic
 ```
 
 The three scenarios have different jobs:

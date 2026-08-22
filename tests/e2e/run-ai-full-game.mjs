@@ -175,9 +175,16 @@ function compactJamie(payload) {
       runtime_status: runtimeShadow.status || null,
       runtime_action_candidate: runtimeShadow.candidate_plan || null,
       comparison_result: runtimeShadow.comparison_result || null,
+      runtime_decision: runtimeShadow.runtime_decision || null,
       action_source: debug.action_source || null,
+      action_plan_source: debug.action_plan_source || null,
       typed_gap: debug?.controller?.pending_gap || debug?.action_plan?.blocked_now || null,
       fallback_reason: runtimeShadow.reason || null,
+      controller_contract: {
+        response_mode: debug?.controller?.response_mode || null,
+        response_intent: debug?.controller?.response_intent || null,
+        next_phase: debug?.controller?.next_phase || null,
+      },
       latest_events: (debug?.architecture_trace?.events || []).slice(-4),
     },
   };

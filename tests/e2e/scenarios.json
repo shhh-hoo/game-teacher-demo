@@ -542,6 +542,50 @@
     ]
   },
   {
+    "name": "architecture-ambiguous-constrained-target-unsupported",
+    "versions": ["v10.2", "v10.3", "v11"],
+    "suite": "architecture",
+    "demoRole": "Prove that a constrained target must be uniquely grounded before Runtime may act.",
+    "description": "Two eligible objects make a singular constrained target ambiguous; Compiler or Runtime must report unsupported instead of selecting the first object.",
+    "turns": [
+      {
+        "query": "Create two identical face-down tiles called tile A and tile B."
+      },
+      {
+        "query": "When I say go, reveal the face-down tile. Go.",
+        "assert": {
+          "runtimeStatusIs": "unsupported",
+          "runtimeReasonIncludesOneOf": ["ambiguous", "constrained", "target"],
+          "actionSourceOneOf": ["planner_shadow", "fallback"]
+        }
+      }
+    ]
+  },
+  {
+    "name": "architecture-runtime-disagree-requires-fallback",
+    "versions": ["v10.3"],
+    "suite": "architecture",
+    "demoRole": "Prove that an executable Runtime candidate cannot take authority after a deterministic disagreement.",
+    "description": "A still-applicable state rule produces a Runtime candidate while the current off-topic Planner result does not; disagreement must route through bounded fallback.",
+    "turns": [
+      {
+        "query": "Create two face-up cards. Whenever exactly two cards are face up, set the turn to Jamie.",
+        "assert": {
+          "activeRuleCountAtLeast": 1
+        }
+      },
+      {
+        "query": "What color is the table?",
+        "assert": {
+          "runtimeStatusIs": "executable",
+          "comparisonResultOneOf": ["disagree"],
+          "runtimeDecisionIs": "fallback",
+          "actionSourceOneOf": ["fallback"]
+        }
+      }
+    ]
+  },
+  {
     "name": "architecture-runtime-preferred-bounded-fallback",
     "versions": ["v10.3", "v11"],
     "suite": "architecture",
@@ -566,6 +610,28 @@
     ]
   },
   {
+    "name": "v11-runtime-first-normal-path",
+    "versions": ["v11"],
+    "suite": "architecture",
+    "demoRole": "Prove that a normal supported action goes directly from Rule IR to deterministic Runtime without the legacy AI Action Planner.",
+    "description": "After setup, a grounded free-choice removal rule should execute through the v11 Runtime Primary path.",
+    "turns": [
+      {
+        "query": "Create two available blue tokens named A and B."
+      },
+      {
+        "query": "When I say clear one, remove any one available blue token. Clear one now.",
+        "assert": {
+          "runtimeStatusIs": "executable",
+          "actionSourceOneOf": ["runtime"],
+          "actionPlanSourceIs": "1540-runtime-first",
+          "architectureEvents": ["runtime_first_result"],
+          "controllerContract": true
+        }
+      }
+    ]
+  },
+  {
     "name": "v11-full-lesson-fresh-listener",
     "versions": ["v11"],
     "suite": "lesson",
@@ -573,10 +639,11 @@
     "description": "A genuine gap earns teaching, two guided successes trigger a full listener/rule reset, and old student evidence cannot authorize a fresh Jamie action.",
     "turns": [
       {
-        "query": "It's a path game with two tokens, one for me and one for you.",
+        "query": "It's a path game with two tokens, one for me and one for you. The turn marker starts on Jamie and the move counter starts at zero.",
         "assert": {
           "phaseIs": "experience",
-          "supportAbsent": true
+          "supportAbsent": true,
+          "controllerContract": true
         }
       },
       {
@@ -584,7 +651,11 @@
         "assert": {
           "phaseIs": "teach",
           "supportTypeIs": "teach_moment",
-          "lessonCompleteIs": false
+          "lessonCompleteIs": false,
+          "controllerContract": true,
+          "responseModeIs": "scaffold",
+          "responseIntentIs": "main_teach",
+          "nextPhaseIs": "teach"
         }
       },
       {
@@ -607,6 +678,7 @@
           "phaseIs": "independent",
           "supportAbsent": true,
           "freshListenerReset": true,
+          "freshResetPreservesTurnAndCounters": true,
           "lessonCompleteIs": false
         }
       },
@@ -616,15 +688,31 @@
           "phaseIs": "independent",
           "supportAbsent": true,
           "actionTypes": [],
+          "freshListenerIsolation": true,
           "lessonCompleteIs": false
         }
       },
       {
         "query": "For this new game, move your token one space; switch to my turn; the game ends when your token reaches the last space.",
         "assert": {
+          "phaseIs": "transfer",
           "supportAbsent": true,
           "gameCompleteIs": true,
-          "lessonCompleteIs": false
+          "lessonCompleteIs": false,
+          "responseIntentIs": "transfer_prompt",
+          "nextPhaseIs": "transfer"
+        }
+      },
+      {
+        "query": "what?",
+        "assert": {
+          "phaseIs": "transfer",
+          "supportAbsent": true,
+          "actionTypes": [],
+          "lessonCompleteIs": false,
+          "controllerContract": true,
+          "responseIntentIs": "transfer_retry",
+          "nextPhaseIs": "transfer"
         }
       },
       {
@@ -632,7 +720,11 @@
         "assert": {
           "phaseIs": "complete",
           "supportAbsent": true,
-          "lessonCompleteIs": true
+          "actionTypes": [],
+          "lessonCompleteIs": true,
+          "controllerContract": true,
+          "responseIntentIs": "lesson_complete",
+          "nextPhaseIs": "complete"
         }
       }
     ]

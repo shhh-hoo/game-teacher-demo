@@ -33,6 +33,7 @@ const apiKey = process.env.DIFY_API_KEY;
 const baseUrl = (process.env.DIFY_API_BASE_URL || 'https://api.dify.ai/v1').replace(/\/$/, '');
 const versionLabel = getArg('--label') || process.env.DIFY_TEST_VERSION;
 const expectedDslVersion = process.env.DIFY_EXPECT_DSL_VERSION || '';
+const expectedBuildId = process.env.DIFY_EXPECT_BUILD_ID || '';
 const requestedScenario = getArg('--scenario');
 const requestedVersion = getArg('--version');
 const repeat = Math.max(1, Number(getArg('--repeat') || 1));
@@ -236,6 +237,13 @@ function extraAssertions({ expected, payload, previousPayload, previousWorld, wo
       : fail('protocol.dsl-version', `Expected runtime DSL ${expectedDslVersion}; got ${JSON.stringify(actual || null)}.`));
   }
 
+  if (expectedBuildId) {
+    const actual = String(payload?.debug?.build_id || '').trim();
+    results.push(actual === expectedBuildId
+      ? pass('protocol.build-id', actual)
+      : fail('protocol.build-id', `Expected runtime build ${expectedBuildId}; got ${JSON.stringify(actual || null)}.`));
+  }
+
   const internalLeakage = findInternalGapLeakage(payload);
   if (internalLeakage.length) {
     results.push(fail(
@@ -319,6 +327,38 @@ function extraAssertions({ expected, payload, previousPayload, previousWorld, wo
       : fail('architecture.comparison-result', `Expected one of ${expected.comparisonResultOneOf.join(', ')}; got ${JSON.stringify(actual)}.`));
   }
 
+  if (typeof expected.runtimeStatusIs === 'string') {
+    const actual = debug?.runtime_shadow?.status;
+    results.push(actual === expected.runtimeStatusIs
+      ? pass('architecture.runtime-status', actual)
+      : fail('architecture.runtime-status', `Expected ${expected.runtimeStatusIs}; got ${JSON.stringify(actual)}.`));
+  }
+
+  if (Array.isArray(expected.runtimeReasonIncludesOneOf)) {
+    const reasons = [
+      debug?.runtime_shadow?.reason,
+      ...(debug?.rule_ir_shadow?.unsupported || []).map(item => item?.reason),
+    ].filter(Boolean).map(String);
+    const match = expected.runtimeReasonIncludesOneOf.some(token =>
+      reasons.some(reason => reason.toLowerCase().includes(String(token).toLowerCase())));
+    results.push(match
+      ? pass('architecture.runtime-unsupported-reason', reasons.join(' | '))
+      : fail('architecture.runtime-unsupported-reason', `Expected one of ${expected.runtimeReasonIncludesOneOf.join(', ')} in ${JSON.stringify(reasons)}.`));
+  }
+
+  if (typeof expected.runtimeDecisionIs === 'string') {
+    const actual = debug?.runtime_shadow?.runtime_decision;
+    results.push(actual === expected.runtimeDecisionIs
+      ? pass('architecture.runtime-decision', actual)
+      : fail('architecture.runtime-decision', `Expected ${expected.runtimeDecisionIs}; got ${JSON.stringify(actual)}.`));
+  }
+
+  if (typeof expected.actionPlanSourceIs === 'string') {
+    results.push(debug?.action_plan_source === expected.actionPlanSourceIs
+      ? pass('architecture.action-plan-source', debug.action_plan_source)
+      : fail('architecture.action-plan-source', `Expected ${expected.actionPlanSourceIs}; got ${JSON.stringify(debug?.action_plan_source)}.`));
+  }
+
   if (Number.isFinite(expected.activeRuleCountAtLeast)) {
     const count = executableRules.filter(rule => rule?.status === 'active').length;
     results.push(count >= expected.activeRuleCountAtLeast
@@ -377,6 +417,48 @@ function extraAssertions({ expected, payload, previousPayload, previousWorld, wo
       : fail('lesson.fresh-listener-reset', 'Listener, Rule IR, gap, and baseline state were not all reset.'));
   }
 
+  if (expected.freshListenerIsolation) {
+    const isolated = debug?.listener_instruction_count === 0
+      && executableRules.length === 0
+      && Number(debug?.student_instruction_history_count || 0) > 0
+      && actions.filter(action => !['wait', 'reset_to_baseline'].includes(action?.type)).length === 0;
+    results.push(isolated
+      ? pass('lesson.fresh-listener-isolation')
+      : fail('lesson.fresh-listener-isolation', 'Old student evidence remained usable by the fresh Jamie path.'));
+  }
+
+  if (expected.freshResetPreservesTurnAndCounters) {
+    const gameState = debug?.game_state_snapshot;
+    const baseline = debug?.render_baseline_snapshot;
+    const baselineHasWorldState = baseline && (baseline.turn != null || (baseline.counters || []).length > 0);
+    const preserved = gameState && baselineHasWorldState
+      && gameState.turn === baseline.turn
+      && JSON.stringify(gameState.counters || []) === JSON.stringify(baseline.counters || []);
+    results.push(preserved
+      ? pass('lesson.fresh-reset-world-state')
+      : fail('lesson.fresh-reset-world-state', `Reset world differs from render baseline: game=${JSON.stringify(gameState)} baseline=${JSON.stringify(baseline)}.`));
+  }
+
+  if (expected.controllerContract) {
+    const controller = debug?.controller || {};
+    const missing = ['response_mode', 'response_intent', 'next_phase'].filter(key => typeof controller[key] !== 'string' || !controller[key]);
+    results.push(missing.length === 0
+      ? pass('lesson.controller-contract', `${controller.response_mode}/${controller.response_intent}/${controller.next_phase}`)
+      : fail('lesson.controller-contract', `Missing controller fields: ${missing.join(', ')}.`));
+  }
+
+  for (const [expectedKey, controllerKey, name] of [
+    ['responseModeIs', 'response_mode', 'lesson.response-mode'],
+    ['responseIntentIs', 'response_intent', 'lesson.response-intent'],
+    ['nextPhaseIs', 'next_phase', 'lesson.next-phase'],
+  ]) {
+    if (typeof expected[expectedKey] !== 'string') continue;
+    const actual = debug?.controller?.[controllerKey];
+    results.push(actual === expected[expectedKey]
+      ? pass(name, actual)
+      : fail(name, `Expected ${expected[expectedKey]}; got ${JSON.stringify(actual)}.`));
+  }
+
   if (typeof expected.gameCompleteIs === 'boolean') {
     results.push(Boolean(debug.game_complete) === expected.gameCompleteIs
       ? pass('lesson.game-complete', String(expected.gameCompleteIs))
@@ -421,6 +503,7 @@ const completedDialogues = [];
 
 console.log(`Dify E2E · ${versionLabel}`);
 if (expectedDslVersion) console.log(`Runtime DSL expected · ${expectedDslVersion}`);
+if (expectedBuildId) console.log(`Runtime build expected · ${expectedBuildId}`);
 if (judgeEnabled) console.log('AI judge · enabled (soft evaluation only)');
 if (verbose) {
   console.log(`Scenarios: ${selected.length} × ${repeat}`);
@@ -548,7 +631,9 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
     const trace = {
       versionLabel,
       expectedDslVersion: expectedDslVersion || null,
+      expectedBuildId: expectedBuildId || null,
       observedDslVersion: turnsTrace.find(turn => turn?.payload?.debug?.dsl_version)?.payload?.debug?.dsl_version || null,
+      observedBuildId: turnsTrace.find(turn => turn?.payload?.debug?.build_id)?.payload?.debug?.build_id || null,
       scenario: scenario.name,
       description: scenario.description,
       manualReview: scenario.manualReview || [],
