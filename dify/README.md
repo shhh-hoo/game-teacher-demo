@@ -185,6 +185,12 @@ The deterministic scenarios under `tests/e2e/` protect the core loop, child auth
 
 The no-thinking v10 r4 runtime has completed such an original full-game smoke successfully. This is broad smoke evidence, not proof that arbitrary games are production-ready.
 
+## v10.1 local candidate
+
+The reviewable first migration stage is documented under [`v10_1/`](./v10_1/). It compiles current-turn, child-taught instructions into a separately persisted executable-rule shadow with deterministic provenance and correction validation. The legacy planner remains the sole action source, so this stage can be compared against v10 without changing learner-facing authority.
+
+The candidate is not described as published until its generated artifact has been imported and activated in Dify. Generated workflow YAML stays outside version control.
+
 ## Historical files
 
 The following are retained for design history only and are not active workflow source:

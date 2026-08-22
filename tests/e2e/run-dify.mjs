@@ -11,6 +11,10 @@ import {
   flattenActions,
   runAssertions,
 } from './assertions.mjs';
+import {
+  extractArchitectureTelemetry,
+  validateArchitectureTelemetry,
+} from './architecture-telemetry.mjs';
 import { findInternalGapLeakage } from './check-internal-gap-leakage.mjs';
 import { judgeTrace } from './judge.mjs';
 
@@ -33,6 +37,7 @@ const apiKey = process.env.DIFY_API_KEY;
 const baseUrl = (process.env.DIFY_API_BASE_URL || 'https://api.dify.ai/v1').replace(/\/$/, '');
 const versionLabel = getArg('--label') || process.env.DIFY_TEST_VERSION;
 const expectedDslVersion = process.env.DIFY_EXPECT_DSL_VERSION || '';
+const expectRuleIrShadow = process.env.DIFY_EXPECT_RULE_IR_SHADOW === '1';
 const requestedScenario = getArg('--scenario');
 const repeat = Math.max(1, Number(getArg('--repeat') || 1));
 
@@ -221,7 +226,7 @@ function replyExposesOpenGap(reply) {
   return /\b(?:don['’]?t know|do not know|not sure|need to know|what happens|what next|now what)\b/i.test(text);
 }
 
-function extraAssertions({ expected, payload, previousWorld, worldAfterPatch, actions }) {
+function extraAssertions({ expected, payload, previousWorld, worldAfterPatch, actions, studentTurns }) {
   const results = [];
   const pass = (name, detail = '') => ({ name, ok: true, detail });
   const fail = (name, detail) => ({ name, ok: false, detail });
@@ -291,6 +296,10 @@ function extraAssertions({ expected, payload, previousWorld, worldAfterPatch, ac
       : fail(name, `Revealed pair was ${pair.matches ? 'matching' : 'non-matching'} (${pair.identity.join(' vs ')}); expected ${JSON.stringify(expectedTypes)}, got ${JSON.stringify(actual)}`));
   }
 
+  if (expectRuleIrShadow) {
+    results.push(...validateArchitectureTelemetry(payload, studentTurns));
+  }
+
   return results;
 }
 
@@ -323,6 +332,7 @@ const completedDialogues = [];
 
 console.log(`Dify E2E · ${versionLabel}`);
 if (expectedDslVersion) console.log(`Runtime DSL expected · ${expectedDslVersion}`);
+if (expectRuleIrShadow) console.log('Rule IR shadow · required');
 if (judgeEnabled) console.log('AI judge · enabled (soft evaluation only)');
 if (verbose) {
   console.log(`Scenarios: ${selected.length} × ${repeat}`);
@@ -364,7 +374,14 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
 
         const assertionResults = [
           ...runAssertions({ expected: turn.assert || {}, payload, previousWorld, worldAfterPatch, actions }),
-          ...extraAssertions({ expected: turn.assert || {}, payload, previousWorld, worldAfterPatch, actions }),
+          ...extraAssertions({
+            expected: turn.assert || {},
+            payload,
+            previousWorld,
+            worldAfterPatch,
+            actions,
+            studentTurns: [...dialogue.map(item => item.student), query],
+          }),
         ];
         const softSignals = qualitySignals({ expected: turn.assert || {}, payload });
         const failures = assertionResults.filter(resultItem => !resultItem.ok);
@@ -408,6 +425,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
           messageId: result.data.message_id,
           rawDifyResponse: result.data,
           payload,
+          architecture: extractArchitectureTelemetry(payload),
           assertions: assertionResults,
           qualitySignals: softSignals,
           previousWorld,
@@ -448,6 +466,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
     const trace = {
       versionLabel,
       expectedDslVersion: expectedDslVersion || null,
+      expectRuleIrShadow,
       observedDslVersion: turnsTrace.find(turn => turn?.payload?.debug?.dsl_version)?.payload?.debug?.dsl_version || null,
       scenario: scenario.name,
       description: scenario.description,

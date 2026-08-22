@@ -4,6 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { applyActions, applyWorldPatch, blankWorld, flattenActions } from './assertions.mjs';
+import {
+  extractArchitectureTelemetry,
+  validateArchitectureTelemetry,
+} from './architecture-telemetry.mjs';
 
 const args = process.argv.slice(2);
 const getArg = name => {
@@ -14,6 +18,7 @@ const getArg = name => {
 const maxTurns = Math.max(4, Number(getArg('--max-turns') || process.env.FULL_GAME_MAX_TURNS || 14));
 const versionLabel = getArg('--label') || process.env.DIFY_TEST_VERSION || 'ai-full-game';
 const expectedDslVersion = process.env.DIFY_EXPECT_DSL_VERSION || '';
+const expectRuleIrShadow = process.env.DIFY_EXPECT_RULE_IR_SHADOW === '1';
 const verbose = args.includes('--verbose');
 const keepGoing = args.includes('--keep-going');
 
@@ -310,6 +315,7 @@ function traceSnapshot() {
     status: finalStatus,
     versionLabel,
     expectedDslVersion: expectedDslVersion || null,
+    expectRuleIrShadow,
     aiChildModel: aiModel,
     gameSpec: spec,
     maxTurns,
@@ -368,7 +374,7 @@ console.log(`Conversation · ${textPath}`);
 console.log('');
 
 try {
-  await appendLive({ type: 'run_start', versionLabel, expectedDslVersion: expectedDslVersion || null, aiChildModel: aiModel, maxTurns });
+  await appendLive({ type: 'run_start', versionLabel, expectedDslVersion: expectedDslVersion || null, expectRuleIrShadow, aiChildModel: aiModel, maxTurns });
   await writeSnapshot();
 
   spec = await createGameSpec();
@@ -407,6 +413,15 @@ try {
     const pipelineErrors = Array.isArray(payload?.debug?.pipeline_errors) ? payload.debug.pipeline_errors : [];
     if (pipelineErrors.length) hardFailures.push(`Turn ${turnIndex}: pipeline_errors=${pipelineErrors.join(', ')}`);
 
+    const studentTurns = [...dialogue.map(item => item.student), child.message];
+    const architectureAssertions = expectRuleIrShadow
+      ? validateArchitectureTelemetry(payload, studentTurns)
+      : [];
+    for (const failure of architectureAssertions.filter(item => !item.ok)) {
+      hardFailures.push(`Turn ${turnIndex}: ${failure.name}: ${failure.detail}`);
+    }
+    const architecture = extractArchitectureTelemetry(payload);
+
     const worldAfterPatch = applyWorldPatch(world, payload?.world_patch || {});
     if (payload?.capture_baseline) baseline = structuredClone(worldAfterPatch);
     const actions = flattenActions(payload?.ui_action);
@@ -419,9 +434,9 @@ try {
     if (phantomAction) hardFailures.push(`Turn ${turnIndex}: Jamie claimed a physical action but ui_action contained no executable actions.`);
 
     dialogue.push({ student: child.message, jamie: payload?.reply || '' });
-    turns.push({ index: turnIndex, student: child.message, child_reason: child.reason, repeat_due_to_jamie: child.repeatDueToJamie, jamie: payload?.reply || '', elapsed_ms: result.elapsedMs, phantom_action: phantomAction, payload, world_before: previousWorld, world_after: world });
+    turns.push({ index: turnIndex, student: child.message, child_reason: child.reason, repeat_due_to_jamie: child.repeatDueToJamie, jamie: payload?.reply || '', elapsed_ms: result.elapsedMs, phantom_action: phantomAction, architecture, architecture_assertions: architectureAssertions, payload, world_before: previousWorld, world_after: world });
 
-    await checkpoint({ type: 'dify_turn', turn: turnIndex, elapsed_ms: result.elapsedMs, payload, world_before: previousWorld, world_after: world, phantom_action: phantomAction });
+    await checkpoint({ type: 'dify_turn', turn: turnIndex, elapsed_ms: result.elapsedMs, architecture, architecture_assertions: architectureAssertions, payload, world_before: previousWorld, world_after: world, phantom_action: phantomAction });
     await appendConversation([`Student: ${child.message}`, `Jamie: ${payload?.reply || '(no reply)'}`, `Actions: ${actions.map(a => a.type).join(', ') || 'none'}`, `Pipeline errors: ${pipelineErrors.join(', ') || 'none'}`, '']);
 
     console.log(`${turnIndex}. Student: ${child.message}`);
@@ -430,6 +445,7 @@ try {
       console.log(`   Actions: ${actions.map(a => a.type).join(', ') || 'none'}`);
       console.log(`   Pending gap: ${JSON.stringify(payload?.debug?.controller?.pending_gap || null)}`);
       console.log(`   Pipeline errors: ${pipelineErrors.join(', ') || 'none'}`);
+      console.log(`   Architecture: ${JSON.stringify(architecture)}`);
       if (payload?.debug?.action_plan?._validation) console.log(`   Planner validation: ${JSON.stringify(payload.debug.action_plan._validation)}`);
     }
 
