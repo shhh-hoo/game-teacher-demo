@@ -15,6 +15,7 @@ const maxTurns = Math.max(4, Number(getArg('--max-turns') || process.env.FULL_GA
 const versionLabel = getArg('--label') || process.env.DIFY_TEST_VERSION || 'ai-full-game';
 const expectedDslVersion = process.env.DIFY_EXPECT_DSL_VERSION || '';
 const verbose = args.includes('--verbose');
+const keepGoing = args.includes('--keep-going');
 
 const difyApiKey = String(process.env.DIFY_API_KEY || '').trim();
 const difyBaseUrl = String(process.env.DIFY_API_BASE_URL || 'https://api.dify.ai/v1').trim().replace(/\/$/, '');
@@ -31,6 +32,10 @@ if (!proxyUrl && !difyApiKey) {
 if (!aiApiKey || !aiBaseUrl || !aiModel) {
   console.error('Missing AI child config. Set AI_FULL_GAME_API_KEY, AI_FULL_GAME_BASE_URL, AI_FULL_GAME_MODEL (or reuse AI_EVAL_*).');
   process.exit(2);
+}
+
+function safeStamp() {
+  return new Date().toISOString().replace(/[:.]/g, '-');
 }
 
 function parseJsonObject(text, label = 'JSON') {
@@ -89,7 +94,8 @@ Hard constraints:
 - Do not require dice, external randomness, arithmetic beyond small counting, timers, physics, or hidden information that the visible world cannot represent.
 - Do not copy a famous game's canonical rules. Invent a simple game so Jamie cannot rely on pretrained rule knowledge.
 - The ending condition must be objectively observable in the visible world and achievable within the turn budget.
-- The child should be able to teach the rules naturally, one or two ideas at a time. The game may include repetition or a simple condition, but it must not be a puzzle designed to trick Jamie.
+- The child should be able to teach the rules naturally, one or two ideas at a time.
+- Do not invent a game that depends on the child physically taking turns inside this harness. Prefer a game Jamie can advance through its visible state by itself once taught.
 
 Return JSON only:
 {
@@ -108,13 +114,14 @@ You know the hidden game specification. Jamie does not. Your job is to teach nat
 Behavior:
 - Never change the hidden game rules.
 - Speak like a child in short, ordinary sentences, not like a test harness.
-- Teach only information Jamie needs; do not dump the entire game specification immediately unless the conversation naturally requires it.
+- Teach only information Jamie needs.
 - If Jamie asks a real question, answer it directly.
 - If Jamie already knows enough to continue, use a natural cue such as "keep going", "your turn", or a short reminder rather than re-teaching everything.
 - If Jamie repeats a question that you already clearly answered, you may restate it once, but flag this in repeat_due_to_jamie.
 - Teach the ending condition before it is reached.
 - Never claim that an object moved, disappeared, matched, scored, or otherwise changed unless that is visible in the supplied world state.
 - Never say the game is over merely to force completion. The world must actually satisfy the taught ending condition.
+- If Jamie says it performed a physical move but the supplied world state did not change, point that out naturally once. Do NOT experiment with capitalization, magic phrases, exact command syntax, or alternate trigger words. A real child would not debug the interface.
 - Do not mention prompts, tests, JSON, Dify, models, or hidden specifications.
 
 Return JSON only:
@@ -226,10 +233,15 @@ async function sendDifyTurn({ message, conversationId, userId }) {
     });
   }
 
-  const raw = await response.text();
-  if (!response.ok) throw new Error(`Game Teacher ${response.status}: ${raw.slice(0, 1000)}`);
-  const data = JSON.parse(raw);
+  const rawText = await response.text();
+  if (!response.ok) {
+    const error = new Error(`Game Teacher ${response.status}: ${rawText.slice(0, 4000)}`);
+    error.status = response.status;
+    error.rawResponse = rawText.slice(0, 12000);
+    throw error;
+  }
 
+  const data = JSON.parse(rawText);
   if (proxyUrl) {
     return {
       elapsedMs: Date.now() - startedAt,
@@ -265,14 +277,21 @@ function completionCheck(payload) {
   };
 }
 
-function safeStamp() {
-  return new Date().toISOString().replace(/[:.]/g, '-');
+function looksLikePhysicalActionClaim(reply) {
+  const text = String(reply || '').toLowerCase();
+  return /\b(i\s+)?(flip|flipped|reveal|revealed|hide|hid|remove|removed|take|took|collect|collected|move|moved|put|place|placed|turn|turned)\b/.test(text);
 }
 
 const traceRoot = path.resolve(process.cwd(), '.artifacts', 'dify-e2e');
 await fs.mkdir(traceRoot, { recursive: true });
 
-const spec = await createGameSpec();
+const stamp = safeStamp();
+const baseName = `${stamp}__${versionLabel}__ai-full-game`;
+const jsonPath = path.join(traceRoot, `${baseName}.json`);
+const livePath = path.join(traceRoot, `${baseName}__live.jsonl`);
+const textPath = path.join(traceRoot, `${baseName}__conversation.txt`);
+
+let spec = null;
 const userId = `game-teacher-ai-full-game-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 let conversationId = '';
 let world = blankWorld();
@@ -281,113 +300,190 @@ let lastJamie = null;
 const dialogue = [];
 const turns = [];
 const hardFailures = [];
+let completion = null;
+let interrupted = false;
+let finalStatus = 'running';
+
+function traceSnapshot() {
+  return {
+    kind: 'ai-full-game',
+    status: finalStatus,
+    versionLabel,
+    expectedDslVersion: expectedDslVersion || null,
+    aiChildModel: aiModel,
+    gameSpec: spec,
+    maxTurns,
+    keepGoing,
+    completion,
+    hardFailures,
+    conversationId,
+    userId,
+    turns,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function appendLive(event) {
+  await fs.appendFile(livePath, `${JSON.stringify({ ts: new Date().toISOString(), ...event })}\n`, 'utf8');
+}
+
+async function writeSnapshot() {
+  const tmp = `${jsonPath}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(traceSnapshot(), null, 2), 'utf8');
+  await fs.rename(tmp, jsonPath);
+}
+
+async function appendConversation(lines) {
+  const text = Array.isArray(lines) ? lines.join('\n') : String(lines);
+  await fs.appendFile(textPath, `${text}\n`, 'utf8');
+}
+
+async function checkpoint(event) {
+  if (event) await appendLive(event);
+  await writeSnapshot();
+}
+
+async function handleInterrupt(signal = 'SIGINT') {
+  if (interrupted) return;
+  interrupted = true;
+  finalStatus = 'interrupted';
+  hardFailures.push(`Interrupted by ${signal}.`);
+  try {
+    await checkpoint({ type: 'interrupted', signal });
+  } finally {
+    console.error(`\nInterrupted · partial trace saved to ${jsonPath}`);
+    console.error(`Live JSONL · ${livePath}`);
+    process.exit(130);
+  }
+}
+
+process.on('SIGINT', () => { void handleInterrupt('SIGINT'); });
+process.on('SIGTERM', () => { void handleInterrupt('SIGTERM'); });
 
 console.log(`AI full-game smoke · ${versionLabel}`);
 console.log(`AI child model · ${aiModel}`);
-console.log(`Game · ${spec.name}`);
-if (verbose) console.log(JSON.stringify(spec, null, 2));
+console.log(`Snapshot · ${jsonPath}`);
+console.log(`Live JSONL · ${livePath}`);
+console.log(`Conversation · ${textPath}`);
 console.log('');
 
-let completion = null;
+try {
+  await appendLive({ type: 'run_start', versionLabel, expectedDslVersion: expectedDslVersion || null, aiChildModel: aiModel, maxTurns });
+  await writeSnapshot();
 
-for (let turnIndex = 1; turnIndex <= maxTurns; turnIndex += 1) {
-  const child = await nextChildMessage({ spec, dialogue, world, jamie: lastJamie, turnIndex });
-  const previousWorld = structuredClone(world);
-  const result = await sendDifyTurn({ message: child.message, conversationId, userId });
-  conversationId = result.conversationId;
-  const payload = result.payload;
+  spec = await createGameSpec();
+  await checkpoint({ type: 'game_spec', spec });
 
-  if (expectedDslVersion) {
-    const actual = String(payload?.debug?.dsl_version || '').trim();
-    if (actual !== expectedDslVersion) {
-      hardFailures.push(`Runtime DSL mismatch: expected ${expectedDslVersion}, got ${JSON.stringify(actual || null)}.`);
+  console.log(`Game · ${spec.name}`);
+  if (verbose) console.log(JSON.stringify(spec, null, 2));
+  console.log('');
+
+  await appendConversation([`Game: ${spec.name}`, `Ending: ${spec.ending_condition}`, '']);
+
+  for (let turnIndex = 1; turnIndex <= maxTurns; turnIndex += 1) {
+    const child = await nextChildMessage({ spec, dialogue, world, jamie: lastJamie, turnIndex });
+    await appendLive({ type: 'child_turn', turn: turnIndex, message: child.message, reason: child.reason, repeat_due_to_jamie: child.repeatDueToJamie, world_before: world });
+
+    const previousWorld = structuredClone(world);
+    let result;
+    try {
+      result = await sendDifyTurn({ message: child.message, conversationId, userId });
+    } catch (error) {
+      finalStatus = 'error';
+      hardFailures.push(`Turn ${turnIndex}: ${String(error?.message || error)}`);
+      await checkpoint({ type: 'dify_error', turn: turnIndex, message: String(error?.message || error), status: error?.status ?? null, raw_response: error?.rawResponse ?? null });
+      await appendConversation([`Student: ${child.message}`, `Jamie: [DIFY ERROR] ${String(error?.message || error)}`, '']);
+      throw error;
+    }
+
+    conversationId = result.conversationId;
+    const payload = result.payload;
+
+    if (expectedDslVersion) {
+      const actual = String(payload?.debug?.dsl_version || '').trim();
+      if (actual !== expectedDslVersion) hardFailures.push(`Turn ${turnIndex}: runtime DSL mismatch: expected ${expectedDslVersion}, got ${JSON.stringify(actual || null)}.`);
+    }
+
+    const pipelineErrors = Array.isArray(payload?.debug?.pipeline_errors) ? payload.debug.pipeline_errors : [];
+    if (pipelineErrors.length) hardFailures.push(`Turn ${turnIndex}: pipeline_errors=${pipelineErrors.join(', ')}`);
+
+    const worldAfterPatch = applyWorldPatch(world, payload?.world_patch || {});
+    if (payload?.capture_baseline) baseline = structuredClone(worldAfterPatch);
+    const actions = flattenActions(payload?.ui_action);
+    world = applyActions(worldAfterPatch, actions, baseline);
+
+    const jamie = compactJamie(payload);
+    lastJamie = jamie;
+
+    const phantomAction = actions.length === 0 && looksLikePhysicalActionClaim(payload?.reply);
+    if (phantomAction) hardFailures.push(`Turn ${turnIndex}: Jamie claimed a physical action but ui_action contained no executable actions.`);
+
+    dialogue.push({ student: child.message, jamie: payload?.reply || '' });
+    turns.push({ index: turnIndex, student: child.message, child_reason: child.reason, repeat_due_to_jamie: child.repeatDueToJamie, jamie: payload?.reply || '', elapsed_ms: result.elapsedMs, phantom_action: phantomAction, payload, world_before: previousWorld, world_after: world });
+
+    await checkpoint({ type: 'dify_turn', turn: turnIndex, elapsed_ms: result.elapsedMs, payload, world_before: previousWorld, world_after: world, phantom_action: phantomAction });
+    await appendConversation([`Student: ${child.message}`, `Jamie: ${payload?.reply || '(no reply)'}`, `Actions: ${actions.map(a => a.type).join(', ') || 'none'}`, `Pipeline errors: ${pipelineErrors.join(', ') || 'none'}`, '']);
+
+    console.log(`${turnIndex}. Student: ${child.message}`);
+    console.log(`   Jamie: ${payload?.reply || '(no reply)'}`);
+    if (verbose) {
+      console.log(`   Actions: ${actions.map(a => a.type).join(', ') || 'none'}`);
+      console.log(`   Pending gap: ${JSON.stringify(payload?.debug?.controller?.pending_gap || null)}`);
+      console.log(`   Pipeline errors: ${pipelineErrors.join(', ') || 'none'}`);
+      if (payload?.debug?.action_plan?._validation) console.log(`   Planner validation: ${JSON.stringify(payload.debug.action_plan._validation)}`);
+    }
+
+    completion = completionCheck(payload);
+    if (completion.gameComplete || completion.phaseComplete) break;
+
+    if (!keepGoing && pipelineErrors.length) {
+      finalStatus = 'failed';
+      await checkpoint({ type: 'fail_fast', turn: turnIndex, reason: 'pipeline_error' });
+      break;
+    }
+    if (!keepGoing && phantomAction) {
+      finalStatus = 'failed';
+      await checkpoint({ type: 'fail_fast', turn: turnIndex, reason: 'phantom_action' });
+      break;
     }
   }
 
-  const pipelineErrors = Array.isArray(payload?.debug?.pipeline_errors) ? payload.debug.pipeline_errors : [];
-  if (pipelineErrors.length) {
-    hardFailures.push(`Turn ${turnIndex}: pipeline_errors=${pipelineErrors.join(', ')}`);
+  if (!completion) completion = { ok: false, gameComplete: false, phaseComplete: false, evidence: [], pendingGap: null, pipelineErrors: [] };
+  if (!completion.ok) {
+    if (!completion.gameComplete) hardFailures.push('Never reached debug.game_complete=true.');
+    if (!completion.phaseComplete) hardFailures.push('Never reached phase=complete.');
+    if (!Array.isArray(completion.evidence) || !completion.evidence.length) hardFailures.push('Completion evidence is empty.');
+    if (completion.pendingGap != null) hardFailures.push('A pending listener gap remains at completion.');
   }
+  if (turns.length >= maxTurns && !completion.ok) hardFailures.push(`Exceeded max turn budget (${maxTurns}).`);
 
-  const worldAfterPatch = applyWorldPatch(world, payload?.world_patch || {});
-  if (payload?.capture_baseline) baseline = structuredClone(worldAfterPatch);
-  const actions = flattenActions(payload?.ui_action);
-  world = applyActions(worldAfterPatch, actions, baseline);
+  const passed = hardFailures.length === 0 && completion.ok;
+  finalStatus = passed ? 'passed' : 'failed';
+  await checkpoint({ type: 'run_end', passed, completion, hardFailures });
 
-  const jamie = compactJamie(payload);
-  lastJamie = jamie;
-  dialogue.push({ student: child.message, jamie: payload?.reply || '' });
-  turns.push({
-    index: turnIndex,
-    student: child.message,
-    child_reason: child.reason,
-    repeat_due_to_jamie: child.repeatDueToJamie,
-    jamie: payload?.reply || '',
-    elapsed_ms: result.elapsedMs,
-    payload,
-    world_before: previousWorld,
-    world_after: world,
-  });
-
-  console.log(`${turnIndex}. Student: ${child.message}`);
-  console.log(`   Jamie: ${payload?.reply || '(no reply)'}`);
-  if (verbose) {
-    console.log(`   Actions: ${actions.map(a => a.type).join(', ') || 'none'}`);
-    console.log(`   Pending gap: ${JSON.stringify(payload?.debug?.controller?.pending_gap || null)}`);
+  console.log('');
+  console.log(passed ? 'PASS · grounded full-game completion reached' : 'FAIL · full-game completion not reached');
+  console.log(`Turns · ${turns.length}/${maxTurns}`);
+  console.log(`Completion evidence · ${JSON.stringify(completion.evidence || [])}`);
+  if (hardFailures.length) for (const failure of hardFailures) console.log(`- ${failure}`);
+  console.log(`Snapshot · ${jsonPath}`);
+  console.log(`Live JSONL · ${livePath}`);
+  console.log(`Conversation · ${textPath}`);
+  process.exitCode = passed ? 0 : 1;
+} catch (error) {
+  if (!interrupted) {
+    finalStatus = 'error';
+    if (!hardFailures.some(item => item.includes(String(error?.message || error)))) hardFailures.push(String(error?.message || error));
+    try {
+      await checkpoint({ type: 'run_error', message: String(error?.message || error), stack: String(error?.stack || '') });
+    } catch {
+      // Best effort: the original error is more important.
+    }
+    console.error('');
+    console.error(`ERROR · ${String(error?.message || error)}`);
+    console.error(`Partial snapshot · ${jsonPath}`);
+    console.error(`Live JSONL · ${livePath}`);
+    console.error(`Conversation · ${textPath}`);
+    process.exitCode = 2;
   }
-
-  completion = completionCheck(payload);
-  if (completion.gameComplete || completion.phaseComplete) break;
 }
-
-if (!completion) completion = { ok: false, gameComplete: false, phaseComplete: false, evidence: [], pendingGap: null, pipelineErrors: [] };
-if (!completion.ok) {
-  if (!completion.gameComplete) hardFailures.push('Never reached debug.game_complete=true.');
-  if (!completion.phaseComplete) hardFailures.push('Never reached phase=complete.');
-  if (!Array.isArray(completion.evidence) || !completion.evidence.length) hardFailures.push('Completion evidence is empty.');
-  if (completion.pendingGap != null) hardFailures.push('A pending listener gap remains at completion.');
-}
-if (turns.length >= maxTurns && !completion.ok) hardFailures.push(`Exceeded max turn budget (${maxTurns}).`);
-
-const passed = hardFailures.length === 0 && completion.ok;
-const trace = {
-  kind: 'ai-full-game',
-  versionLabel,
-  expectedDslVersion: expectedDslVersion || null,
-  aiChildModel: aiModel,
-  gameSpec: spec,
-  maxTurns,
-  passed,
-  completion,
-  hardFailures,
-  conversationId,
-  userId,
-  turns,
-};
-
-const stamp = safeStamp();
-const baseName = `${stamp}__${versionLabel}__ai-full-game`;
-const jsonPath = path.join(traceRoot, `${baseName}.json`);
-const textPath = path.join(traceRoot, `${baseName}__conversation.txt`);
-await fs.writeFile(jsonPath, JSON.stringify(trace, null, 2));
-await fs.writeFile(
-  textPath,
-  [
-    `Game: ${spec.name}`,
-    `Ending: ${spec.ending_condition}`,
-    '',
-    ...dialogue.flatMap(turn => [`Student: ${turn.student}`, `Jamie: ${turn.jamie}`, '']),
-  ].join('\n'),
-);
-
-console.log('');
-console.log(passed ? 'PASS · grounded full-game completion reached' : 'FAIL · full-game completion not reached');
-console.log(`Turns · ${turns.length}/${maxTurns}`);
-console.log(`Completion evidence · ${JSON.stringify(completion.evidence || [])}`);
-if (hardFailures.length) {
-  for (const failure of hardFailures) console.log(`- ${failure}`);
-}
-console.log(`Trace · ${jsonPath}`);
-console.log(`Conversation · ${textPath}`);
-
-process.exit(passed ? 0 : 1);
