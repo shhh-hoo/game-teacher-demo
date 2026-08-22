@@ -97,14 +97,14 @@ The browser expects a payload in this shape:
 The deterministic E2E harness lives under `tests/e2e/`. The primary regression set is:
 
 ```bash
-DIFY_TEST_VERSION=v10-r4 DIFY_EXPECT_DSL_VERSION=v10 \
-node tests/e2e/run-dify.mjs --scenario golden-path-learning-loop
+DIFY_TEST_VERSION=v10.1-fixed-local DIFY_EXPECT_DSL_VERSION=v10.1 \
+node tests/e2e/run-dify.mjs --version v10.1 --scenario golden-path-learning-loop
 
-DIFY_TEST_VERSION=v10-r4 DIFY_EXPECT_DSL_VERSION=v10 \
-node tests/e2e/run-dify.mjs --scenario faithful-listener-not-answer-key
+DIFY_TEST_VERSION=v10.1-fixed-local DIFY_EXPECT_DSL_VERSION=v10.1 \
+node tests/e2e/run-dify.mjs --version v10.1 --scenario faithful-listener-not-answer-key
 
-DIFY_TEST_VERSION=v10-r4 DIFY_EXPECT_DSL_VERSION=v10 \
-node tests/e2e/run-dify.mjs --scenario smart-listener-not-pedantic
+DIFY_TEST_VERSION=v10.1-fixed-local DIFY_EXPECT_DSL_VERSION=v10.1 \
+node tests/e2e/run-dify.mjs --version v10.1 --scenario smart-listener-not-pedantic
 ```
 
 `tests/e2e/run-ai-full-game.mjs` adds broad unscripted evidence by having an AI child invent and teach a small original game. It passes only on grounded completion with no pending gap or pipeline error. See [`tests/e2e/AI_FULL_GAME.md`](tests/e2e/AI_FULL_GAME.md) and [`tests/e2e/LIVE_TRACE.md`](tests/e2e/LIVE_TRACE.md).

@@ -31,21 +31,21 @@ if (args.includes('--list')) {
 
 const apiKey = process.env.DIFY_API_KEY;
 const baseUrl = (process.env.DIFY_API_BASE_URL || 'https://api.dify.ai/v1').replace(/\/$/, '');
-const versionLabel = getArg('--label') || process.env.DIFY_TEST_VERSION;
-const expectedDslVersion = process.env.DIFY_EXPECT_DSL_VERSION || '';
+const requestedVersion = getArg('--version');
+const knownVersions = [...new Set(scenarios.flatMap(scenario => scenario.versions || []))].sort();
+if (!requestedVersion) {
+  console.error(`Missing --version. Choose one of: ${knownVersions.join(', ')}.`);
+  process.exit(1);
+}
+if (!knownVersions.includes(requestedVersion)) {
+  console.error(`Unknown version ${requestedVersion}. Choose one of: ${knownVersions.join(', ')}.`);
+  process.exit(1);
+}
+const versionLabel = getArg('--label') || process.env.DIFY_TEST_VERSION || requestedVersion;
+const expectedDslVersion = process.env.DIFY_EXPECT_DSL_VERSION || requestedVersion;
 const expectedBuildId = process.env.DIFY_EXPECT_BUILD_ID || '';
 const requestedScenario = getArg('--scenario');
-const requestedVersion = getArg('--version');
 const repeat = Math.max(1, Number(getArg('--repeat') || 1));
-
-if (!apiKey) {
-  console.error('Missing DIFY_API_KEY.');
-  process.exit(1);
-}
-if (!versionLabel) {
-  console.error('Missing version label. Use --label v8 (or set DIFY_TEST_VERSION).');
-  process.exit(1);
-}
 
 const selected = scenarios.filter(scenario => {
   if (requestedScenario && scenario.name !== requestedScenario) return false;
@@ -53,8 +53,12 @@ const selected = scenarios.filter(scenario => {
   return true;
 });
 if (!selected.length) {
-  console.error(`No scenarios matched scenario=${requestedScenario || '*'} version=${requestedVersion || '*'}.`);
+  console.error(`No scenarios matched scenario=${requestedScenario || '*'} version=${requestedVersion}.`);
   console.error('Use --list to see available scenario names.');
+  process.exit(1);
+}
+if (!apiKey) {
+  console.error('Missing DIFY_API_KEY.');
   process.exit(1);
 }
 
@@ -85,6 +89,17 @@ function parseDifyAnswer(answer) {
     }
   }
   throw new Error(`Dify answer is not frontend JSON: ${answer.slice(0, 800)}`);
+}
+
+function assertRuntimeIdentity(payload) {
+  const actualVersion = String(payload?.debug?.dsl_version || '').trim();
+  if (expectedDslVersion && actualVersion !== expectedDslVersion) {
+    throw new HarnessError(`Runtime identity mismatch: expected DSL ${expectedDslVersion}, got ${JSON.stringify(actualVersion || null)}.`);
+  }
+  const actualBuild = String(payload?.debug?.build_id || '').trim();
+  if (expectedBuildId && actualBuild !== expectedBuildId) {
+    throw new HarnessError(`Runtime identity mismatch: expected build ${expectedBuildId}, got ${JSON.stringify(actualBuild || null)}.`);
+  }
 }
 
 async function sendTurn({ query, conversationId, user }) {
@@ -320,6 +335,12 @@ function extraAssertions({ expected, payload, previousPayload, previousWorld, wo
       : fail('architecture.action-source', `Expected one of ${expected.actionSourceOneOf.join(', ')}; got ${JSON.stringify(debug.action_source)}.`));
   }
 
+  if (typeof expected.actionSourceIs === 'string') {
+    results.push(debug.action_source === expected.actionSourceIs
+      ? pass('architecture.action-source-exact', debug.action_source)
+      : fail('architecture.action-source-exact', `Expected ${expected.actionSourceIs}; got ${JSON.stringify(debug.action_source)}.`));
+  }
+
   if (Array.isArray(expected.comparisonResultOneOf)) {
     const actual = debug?.runtime_shadow?.comparison_result;
     results.push(expected.comparisonResultOneOf.includes(actual)
@@ -359,6 +380,30 @@ function extraAssertions({ expected, payload, previousPayload, previousWorld, wo
       : fail('architecture.action-plan-source', `Expected ${expected.actionPlanSourceIs}; got ${JSON.stringify(debug?.action_plan_source)}.`));
   }
 
+  if (Array.isArray(expected.runtimeCandidateActionTypes)) {
+    const actual = normalizedActionTypes(debug?.runtime_shadow?.candidate_plan?.actions || []);
+    results.push(JSON.stringify(actual) === JSON.stringify(expected.runtimeCandidateActionTypes)
+      ? pass('architecture.runtime-candidate-actions', actual.join(', ') || 'none')
+      : fail('architecture.runtime-candidate-actions', `Expected ${JSON.stringify(expected.runtimeCandidateActionTypes)}; got ${JSON.stringify(actual)}.`));
+  }
+
+  if (expected.runtimeCandidateTargetsExist) {
+    const ids = new Set((worldAfterPatch?.objects || []).map(object => String(object?.id)));
+    const candidates = debug?.runtime_shadow?.candidate_plan?.actions || [];
+    const targeted = candidates.filter(action => ['update_object', 'reveal_object', 'hide_object', 'remove_object'].includes(action?.type));
+    const legal = targeted.length > 0 && targeted.every(action => ids.has(String(action?.object_id)));
+    results.push(legal
+      ? pass('architecture.runtime-candidate-targets', targeted.map(action => action.object_id).join(', '))
+      : fail('architecture.runtime-candidate-targets', `Runtime candidate targets are missing or illegal: ${JSON.stringify(targeted)}.`));
+  }
+
+  if (Array.isArray(expected.plannerActionTypes)) {
+    const actual = normalizedActionTypes(debug?.action_plan?.actions || []);
+    results.push(JSON.stringify(actual) === JSON.stringify(expected.plannerActionTypes)
+      ? pass('architecture.planner-actions', actual.join(', ') || 'none')
+      : fail('architecture.planner-actions', `Expected ${JSON.stringify(expected.plannerActionTypes)}; got ${JSON.stringify(actual)}.`));
+  }
+
   if (Number.isFinite(expected.activeRuleCountAtLeast)) {
     const count = executableRules.filter(rule => rule?.status === 'active').length;
     results.push(count >= expected.activeRuleCountAtLeast
@@ -372,6 +417,25 @@ function extraAssertions({ expected, payload, previousPayload, previousWorld, wo
     results.push(visible
       ? pass('architecture.superseded-rule-visible')
       : fail('architecture.superseded-rule-visible', 'No superseded Rule IR plus rule_superseded trace event was visible.'));
+  }
+
+  if (expected.ruleReplacementTargetCounts) {
+    const replacementEvent = [...architectureEvents].reverse().find(event => event?.event === 'rule_superseded');
+    const oldRule = executableRules.find(rule => rule?.rule_id === replacementEvent?.rule_id);
+    const newRule = executableRules.find(rule => rule?.rule_id === replacementEvent?.superseded_by);
+    const oldCount = Number(oldRule?.action?.eligible_targets?.count);
+    const newCount = Number(newRule?.action?.eligible_targets?.count);
+    const valid = oldRule?.rule_id
+      && newRule?.rule_id
+      && oldRule.rule_id !== newRule.rule_id
+      && oldRule.status === 'superseded'
+      && newRule.status === 'active'
+      && newRule.supersedes === oldRule.rule_id
+      && oldCount === Number(expected.ruleReplacementTargetCounts.old)
+      && newCount === Number(expected.ruleReplacementTargetCounts.new);
+    results.push(valid
+      ? pass('architecture.rule-replacement', `${oldRule.rule_id}:${oldCount} -> ${newRule.rule_id}:${newCount}`)
+      : fail('architecture.rule-replacement', `Expected immutable ${expected.ruleReplacementTargetCounts.old} -> ${expected.ruleReplacementTargetCounts.new} replacement; event=${JSON.stringify(replacementEvent)} old=${JSON.stringify(oldRule)} new=${JSON.stringify(newRule)}.`));
   }
 
   if (expected.ruleIrUnchanged) {
@@ -407,18 +471,27 @@ function extraAssertions({ expected, payload, previousPayload, previousWorld, wo
   }
 
   if (expected.freshListenerReset) {
-    const reset = debug?.controller?.reset_listener === true
-      && debug?.controller?.reset_rules === true
+    const controller = debug?.controller;
+    const gapState = debug?.gap_state;
+    const reset = controller
+      && gapState
+      && controller.reset_listener === true
+      && controller.reset_rules === true
+      && Object.prototype.hasOwnProperty.call(controller, 'pending_gap')
+      && controller.pending_gap === null
+      && Object.prototype.hasOwnProperty.call(gapState, 'pending')
+      && gapState.pending === null
+      && debug?.listener_fact_count === 0
       && debug?.listener_instruction_count === 0
-      && executableRules.length === 0
-      && debug?.gap_state?.pending == null;
+      && executableRules.length === 0;
     results.push(reset
       ? pass('lesson.fresh-listener-reset')
-      : fail('lesson.fresh-listener-reset', 'Listener, Rule IR, gap, and baseline state were not all reset.'));
+      : fail('lesson.fresh-listener-reset', 'Listener facts/instructions, executable Rule IR, controller gap, and stored gap state were not all cleared.'));
   }
 
   if (expected.freshListenerIsolation) {
-    const isolated = debug?.listener_instruction_count === 0
+    const isolated = debug?.listener_fact_count === 0
+      && debug?.listener_instruction_count === 0
       && executableRules.length === 0
       && Number(debug?.student_instruction_history_count || 0) > 0
       && actions.filter(action => !['wait', 'reset_to_baseline'].includes(action?.type)).length === 0;
@@ -460,9 +533,10 @@ function extraAssertions({ expected, payload, previousPayload, previousWorld, wo
   }
 
   if (typeof expected.gameCompleteIs === 'boolean') {
-    results.push(Boolean(debug.game_complete) === expected.gameCompleteIs
+    const actual = Boolean(debug.game_complete || debug?.controller?.game_complete);
+    results.push(actual === expected.gameCompleteIs
       ? pass('lesson.game-complete', String(expected.gameCompleteIs))
-      : fail('lesson.game-complete', `Expected ${expected.gameCompleteIs}; got ${Boolean(debug.game_complete)}.`));
+      : fail('lesson.game-complete', `Expected ${expected.gameCompleteIs}; got ${actual}.`));
   }
 
   if (typeof expected.lessonCompleteIs === 'boolean') {
@@ -539,6 +613,7 @@ for (let iteration = 1; iteration <= repeat; iteration += 1) {
         const result = await sendTurn({ query, conversationId, user });
         conversationId = result.data.conversation_id || conversationId;
         const payload = result.payload;
+        assertRuntimeIdentity(payload);
         const actions = flattenActions(payload.ui_action);
         const worldAfterPatch = applyWorldPatch(world, payload.world_patch);
         if (payload.capture_baseline && !baseline) baseline = JSON.parse(JSON.stringify(worldAfterPatch));

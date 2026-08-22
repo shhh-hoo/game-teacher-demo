@@ -2,7 +2,7 @@ const app = document.querySelector('#app');
 
 const PHASES = ['model', 'experience', 'teach', 'practice', 'independent', 'transfer'];
 const PHASE_LABELS = {
-  model: 'Try',
+  model: 'Watch',
   experience: 'Try',
   teach: 'Learn',
   practice: 'Practice',
@@ -27,7 +27,9 @@ function blankWorld() {
 }
 
 function normalizePhase(phase) {
-  return phase === 'guided' ? 'practice' : phase;
+  if (phase === 'guided') return 'practice';
+  if (phase === 'notice') return 'teach';
+  return phase;
 }
 
 const state = {

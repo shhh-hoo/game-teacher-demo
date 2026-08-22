@@ -501,7 +501,7 @@
     "description": "A taught rule compiles once; a specific correction creates a new immutable rule and archives the old rule as superseded.",
     "turns": [
       {
-        "query": "There are four cards face down. When I say go, flip any two face-down cards.",
+        "query": "There are four cards face down. When exactly four cards are face down, flip any two face-down cards.",
         "assert": {
           "activeRuleCountAtLeast": 1,
           "architectureEvents": ["rule_compiled"],
@@ -509,11 +509,12 @@
         }
       },
       {
-        "query": "Actually, change that rule: when I say go, flip one face-down card, not two.",
+        "query": "Actually, change that rule: when exactly four cards are face down, flip one face-down card, not two.",
         "assert": {
           "activeRuleCountAtLeast": 1,
           "supersededRuleVisible": true,
-          "architectureEvents": ["rule_superseded"]
+          "architectureEvents": ["rule_superseded"],
+          "ruleReplacementTargetCounts": {"old": 2, "new": 1}
         }
       }
     ]
@@ -532,11 +533,15 @@
         }
       },
       {
-        "query": "On your turn, reveal any one face-down card.",
+        "query": "Reveal any one face-down card now.",
         "assert": {
           "architectureEvents": ["runtime_result", "comparison_result"],
           "comparisonResultOneOf": ["exact", "semantic_equivalent"],
-          "actionSourceOneOf": ["planner_shadow"]
+          "actionSourceIs": "planner_shadow",
+          "actionTypes": ["reveal_object"],
+          "runtimeCandidateActionTypes": ["reveal_object"],
+          "runtimeCandidateTargetsExist": true,
+          "plannerActionTypes": ["reveal_object"]
         }
       }
     ]
@@ -552,10 +557,10 @@
         "query": "Create two identical face-down tiles called tile A and tile B."
       },
       {
-        "query": "When I say go, reveal the face-down tile. Go.",
+        "query": "Reveal the face-down tile now.",
         "assert": {
           "runtimeStatusIs": "unsupported",
-          "runtimeReasonIncludesOneOf": ["ambiguous", "constrained", "target"],
+          "runtimeReasonIncludesOneOf": ["ambiguous", "constrained"],
           "actionSourceOneOf": ["planner_shadow", "fallback"]
         }
       }
@@ -580,7 +585,7 @@
           "runtimeStatusIs": "executable",
           "comparisonResultOneOf": ["disagree"],
           "runtimeDecisionIs": "fallback",
-          "actionSourceOneOf": ["fallback"]
+          "actionSourceIs": "fallback"
         }
       }
     ]
@@ -590,20 +595,35 @@
     "versions": ["v10.3", "v11"],
     "suite": "architecture",
     "demoRole": "Prove that Runtime owns supported actions and fallback cannot become a second compiler.",
-    "description": "A supported rule uses Runtime; a later semantic request that cannot be represented may use bounded fallback without changing existing Rule IR.",
+    "description": "A state rule is compiled before it becomes applicable, then Runtime executes exactly one supported removal; a later unrepresentable request may use bounded fallback without changing Rule IR.",
     "turns": [
       {
-        "query": "There are three tokens. When I say move, remove any one available token.",
+        "query": "Create three tokens A, B, and C in the available state. When exactly one token is ready, remove that ready token.",
         "assert": {
           "activeRuleCountAtLeast": 1,
-          "actionSourceOneOf": ["runtime", "fallback"]
+          "actionTypes": []
+        }
+      },
+      {
+        "query": "Change token A to the ready state now.",
+        "assert": {
+          "actionTypes": ["update_object"]
+        }
+      },
+      {
+        "query": "Continue.",
+        "assert": {
+          "runtimeStatusIs": "executable",
+          "actionSourceIs": "runtime",
+          "actionTypes": ["remove_object"],
+          "runtimeCandidateActionTypes": ["remove_object"]
         }
       },
       {
         "query": "Do whatever feels luckiest now.",
         "assert": {
           "ruleIrUnchanged": true,
-          "actionSourceOneOf": ["fallback"],
+          "actionSourceIs": "fallback",
           "typedGapOneOf": ["missing_action", "missing_condition", "missing_transition", "unsupported_semantic_condition"]
         }
       }
@@ -620,10 +640,10 @@
         "query": "Create two available blue tokens named A and B."
       },
       {
-        "query": "When I say clear one, remove any one available blue token. Clear one now.",
+        "query": "Remove any one available blue token now.",
         "assert": {
           "runtimeStatusIs": "executable",
-          "actionSourceOneOf": ["runtime"],
+          "actionSourceIs": "runtime",
           "actionPlanSourceIs": "1540-runtime-first",
           "architectureEvents": ["runtime_first_result"],
           "controllerContract": true
@@ -639,15 +659,16 @@
     "description": "A genuine gap earns teaching, two guided successes trigger a full listener/rule reset, and old student evidence cannot authorize a fresh Jamie action.",
     "turns": [
       {
-        "query": "It's a path game with two tokens, one for me and one for you. The turn marker starts on Jamie and the move counter starts at zero.",
+        "query": "Make three available tokens named A, B, and C. The turn starts on Jamie and the move counter starts at zero. Remove token A now.",
         "assert": {
           "phaseIs": "experience",
           "supportAbsent": true,
-          "controllerContract": true
+          "controllerContract": true,
+          "actionTypes": ["remove_object"]
         }
       },
       {
-        "query": "Move your token one space now.",
+        "query": "Continue.",
         "assert": {
           "phaseIs": "teach",
           "supportTypeIs": "teach_moment",
@@ -659,21 +680,23 @@
         }
       },
       {
-        "query": "After you move, switch the turn to me.",
+        "query": "The next step is to remove token B now.",
         "assert": {
           "phaseIs": "practice",
-          "supportTypeIs": "micro_teach"
+          "supportTypeIs": "micro_teach",
+          "actionTypes": ["remove_object"]
         }
       },
       {
-        "query": "Now move your token one space and switch the turn to me.",
+        "query": "Set the turn to me now.",
         "assert": {
           "phaseIs": "practice",
-          "supportTypeIs": "micro_teach"
+          "supportTypeIs": "micro_teach",
+          "actionTypes": ["set_turn"]
         }
       },
       {
-        "query": "Move your token one space again and switch the turn to me.",
+        "query": "Set the turn back to Jamie now.",
         "assert": {
           "phaseIs": "independent",
           "supportAbsent": true,
@@ -693,7 +716,25 @@
         }
       },
       {
-        "query": "For this new game, move your token one space; switch to my turn; the game ends when your token reaches the last space.",
+        "query": "For this fresh game, remove token A now.",
+        "assert": {
+          "phaseIs": "independent",
+          "supportAbsent": true,
+          "actionTypes": ["remove_object"],
+          "lessonCompleteIs": false
+        }
+      },
+      {
+        "query": "Next remove token B now.",
+        "assert": {
+          "phaseIs": "independent",
+          "supportAbsent": true,
+          "actionTypes": ["remove_object"],
+          "lessonCompleteIs": false
+        }
+      },
+      {
+        "query": "Finally remove token C now; when C is removed, the game is complete.",
         "assert": {
           "phaseIs": "transfer",
           "supportAbsent": true,

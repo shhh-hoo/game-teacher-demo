@@ -12,13 +12,13 @@ The core loop is:
 
 ## Current runtime target
 
-The staged DSL scenarios use `versions` tags for `v10.1`, `v10.2`, `v10.3`, and `v11`. Select one version without splitting the scenario catalog:
+The staged DSL scenarios use `versions` tags for `v10.1`, `v10.2`, `v10.3`, and `v11`. `--version` is required now that some scenarios are version-specific:
 
 ```bash
 node tests/e2e/run-dify.mjs --version v10.3
 ```
 
-`DIFY_TEST_VERSION` remains a human trace label. `DIFY_EXPECT_DSL_VERSION` checks what the published Dify runtime actually emitted.
+`--version` filters the catalog and defaults the required runtime identity check; it does **not** switch the deployed Dify application or its API key. `DIFY_EXPECT_DSL_VERSION` may explicitly override the expected payload version, and `DIFY_TEST_VERSION` may override the human trace label. Without those overrides, both default to `--version`. A mismatched `debug.dsl_version` or requested build ID stops the scenario immediately, before behavioral assertions are treated as evidence.
 
 The current deployment baselines are the four formal filenames under `.artifacts/dify-deliverables/`. They contain the audited `*-fixed.yml` work; do not import an older generated copy or keep a parallel `-fixed` artifact in the repo.
 
@@ -126,6 +126,7 @@ export AI_EVAL_BASE_URL='https://your-openai-compatible-provider.example/v1'
 export AI_EVAL_MODEL='your-evaluator-model'
 
 node tests/e2e/run-dify.mjs \
+  --version v10.1 \
   --scenario golden-path-learning-loop \
   --judge
 ```
