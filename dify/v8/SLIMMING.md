@@ -1,3 +1,7 @@
+> **ARCHIVED v8 OPTIMIZATION PLAN — NOT CURRENT v10 ROADMAP**
+>
+> This document records optimization ideas from the v8 state-machine era. Some low-level invariants remain useful, but fresh-listener resets, Independent/Transfer progression, and v8 role-merging criteria are historical. Use [`../README.md`](../README.md) and the current E2E docs for v10 decisions.
+
 # v8 semantic-preserving slimming plan
 
 ## Goal
