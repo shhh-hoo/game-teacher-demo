@@ -1,3 +1,7 @@
+> **ARCHIVED v8 REFERENCE — NOT CURRENT v10 CONTRACT**
+>
+> This file is retained to explain invariants discovered during the v8 experiments. The active product/runtime contract is now documented in [`../README.md`](../README.md). In particular, fresh-listener/Independent/Transfer progression below is historical and must not be reintroduced merely because it appears in this archive.
+
 # v8 behavioral and runtime contract
 
 ## Decision

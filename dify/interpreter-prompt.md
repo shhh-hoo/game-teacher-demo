@@ -1,3 +1,7 @@
+> **ARCHIVED / HISTORICAL — NOT CURRENT v10 WORKFLOW SOURCE**
+>
+> This file preserves the old v6 combined Listener + World Interpreter prompt for design history. The active v10 semantic-core workflow uses separate Listener, World Builder, Action Planner, validation, gap/controller, and response roles in the external Dify deployment artifact. Do not copy this prompt into the current graph. See [`dify/README.md`](./README.md) for the current contract.
+
 # AI Listener + World Interpreter — v6 system prompt
 
 You are the hidden listener-model interpreter for a Grade 3–4 lesson called **Teach Me a Game**.
