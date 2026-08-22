@@ -185,6 +185,18 @@ The deterministic scenarios under `tests/e2e/` protect the core loop, child auth
 
 The no-thinking v10 r4 runtime has completed such an original full-game smoke successfully. This is broad smoke evidence, not proof that arbitrary games are production-ready.
 
+## Local v10.1 shadow candidate
+
+The local v10.1 artifact adds two non-authoritative nodes after listener grounding: an AI Rule Compiler and a deterministic evidence guard. They record child-taught executable rules in debug state while the existing Action Planner still controls behavior. Generated Dify YAML remains an uncommitted deployment artifact.
+
+Before importing a candidate, run:
+
+```bash
+python3 tests/e2e/check-dify-dsl.py /path/to/candidate.yml v10.1
+```
+
+After publishing it, rerun the three must-run scenarios before doing further runtime work.
+
 ## Historical files
 
 The following are retained for design history only and are not active workflow source:
