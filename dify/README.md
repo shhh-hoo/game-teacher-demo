@@ -1,118 +1,158 @@
-# Dify workflow — Progressive World + v8 experiment contracts
+# Dify workflow — v10 semantic-core contract
 
-> **Current experiment policy (2026-08-22):** generated Dify workflow exports are local/deployment artifacts and are not stored in this repository. The durable v8 behavioral/runtime contract is in [`dify/v8/README.md`](./v8/README.md), with optimization priorities in [`dify/v8/SLIMMING.md`](./v8/SLIMMING.md).
->
-> Optimize serial LLM work and context size without weakening the action-first loop, listener/world authority boundaries, runtime identity, or learner-facing acceptance.
+> **Current experiment policy (2026-08-22):** generated Dify workflow exports are local/deployment artifacts and are not stored in this repository. This document describes the durable behavioral/runtime contract that the published v10 workflow is expected to satisfy.
 
-## Historical progressive-world setup
-
-The readable source below documents the progressive-world architecture that the current v8 line evolved from. It is useful context, not a claim that a generated v8 DSL lives in Git.
+The current validated runtime family is:
 
 ```text
-Student speech / game click
-        ↓
-AI Listener + World Builder
-        ↓
-Dify guardrails + phase routing
-        ↓
-Visible Pedagogy Policy
-        ↓
-World Engine + Global Repair
-        ↓
-Save deterministic lesson state
-        ↓
-AI Jamie response
-        ↓
-Frontend JSON
+debug.dsl_version = v10
+debug.build_id = v10-no-thinking-r4-20260822
 ```
 
-Do not collapse the phase routing into the Code node. **Dify chooses pedagogy; the Code node validates world reality.**
+The build identifier may change as the deployment artifact is revised. The durable contract below should change only when product semantics change.
 
-## Conversation variables
+## Product loop
 
-- `phase` — `experience` → `teach` → `practice` → `independent` → `transfer` → `complete`
-- `world_json` — current declarative game world
-- `listener_model_json` — only rules/instructions the current Jamie has actually been taught
-- `baseline_world_json` — first playable setup, retained for the fresh-listener reset
-- `scene_snapshot_json` — exact world immediately before the latest physical action sequence
-- `last_action_trace_json` — recent world-construction / play trace for global repair
-- `repair_count` — repeated vague corrections
-- `teach_count` — main Teach Moment plus at most one extra micro-teach
-- `practice_success_count` — successful guided applications
-- `independent_success_count` — optional fresh-listener performance evidence
+The current product is not a fixed lesson-state machine. The learner-facing loop is:
 
-The current v8 contract strengthens one important point: `listener_model_json` is resettable Jamie memory and must not be reconstructed each turn by blindly copying all durable student evidence back into it.
+```text
+Child explains
+    ↓
+World progressively materializes
+    ↓
+Jamie acts on child-taught rules
+    ↓
+Real play either continues or exposes one genuine communication gap
+    ↓
+Child repairs the explanation
+    ↓
+Repair changes visible reality
+    ↓
+Jamie continues using the taught procedure
+    ↓
+World reaches a child-taught ending
+```
 
-## AI Listener + World Builder
+The core heuristic is listener-centered: **what does Jamie still need before it can make the next move?** That heuristic must not become a checklist or a reason to manufacture gaps when normal language is already actionable.
 
-Use `interpreter-prompt.md` in a Parameter Extractor. It should expose:
+## Authority boundary
 
-- `student_intent`
-- `correction_specificity`
-- `repair_target`
-- `off_topic`
-- `asr_uncertain`
-- `communication_blocking`
-- `communication_focus`
-- `gap_reason`
-- `world_patch_json`
-- `rule_updates_json`
-- `listener_summary`
-- `jamie_can_act`
-- `proposed_actions_json`
-- `world_ready`
-- `guided_success`
-- `independent_success`
-- `transfer_evidence`
+The child is the rule authority for the current game. Jamie is an ordinary player inside those rules.
 
-The important semantic rule is:
+- Familiar-game pretraining is never evidence that the child taught a rule.
+- The child owns legal moves, outcomes, turn structure, repetition, scores, strategy constraints, and ending conditions.
+- Jamie may make ordinary delegated player choices. `any one`, `any two`, `you choose`, and equivalent language authorize a choice among currently eligible equivalent options.
+- Hidden object identity must not be available to player-choice planning while the object is hidden.
+- Presentation inference may choose harmless visual details, but it may not create gameplay state or logic.
 
-> AI may infer incidental presentation details. It may not invent gameplay-relevant logic.
+## Current semantic-core pipeline
 
-A partial world is valid. The AI should not make the interface artificially complete by guessing a missing rule. Visible `status`, gameplay state, readiness, ownership, score/turn meaning, and action affordances are semantic outputs and require grounding; they are not automatically harmless presentation details.
+The published Dify graph may evolve internally, but the current v10 responsibilities are separated approximately as follows:
 
-## Visible pedagogy routing
+```text
+Child message / game event
+        ↓
+Listener Interpreter
+        ↓
+Listener memory / student evidence
+        ↓
+World Builder
+        ↓
+World Guard + actionable-world view
+        ↓
+Action Planner
+        ↓
+Action-plan Validator
+        ↓
+Gap Evaluator
+        ↓
+Controller
+        ↓
+Jamie response
+        ↓
+Response Guard
+        ↓
+Frontend JSON pack
+```
 
-Global guardrails run first:
+### Listener Interpreter
 
-1. ASR uncertainty → ask to repeat; do not create a communication-teaching failure from recognizer uncertainty.
-2. Off topic → brief redirect.
-3. Correction → global repair, regardless of lesson phase.
-   - specific world correction → patch the rendered world
-   - specific action correction → restore the pre-action scene and replay
-   - first vague correction → ask which part was wrong
-   - repeated vague correction → show the actual build/action trace
+Use normal semantic understanding rather than a library of game-specific phrase patterns. The interpreter should understand fragments, ordinary child language, self-correction, pronouns, sequence, conditions, repetition, and endings while preserving one hard boundary: it may only store rules the child actually communicated.
 
-A specific correction must supersede the contradictory active listener rule rather than merely appending another conflicting instruction.
+Student evidence is durable across the conversation. Listener memory is the grounded procedural knowledge Jamie is allowed to use now. Corrections should supersede contradictory active instructions rather than accumulating both versions as simultaneously true rules.
 
-Then route by lesson phase:
+### World Builder and World Guard
 
-- `experience`: keep building/acting until the first real blocking communication gap.
-- `teach`: let the child apply one listener-centered idea, then move back toward play.
-- `practice`: allow limited scaffolding; count success by learner turn/episode, not by the number of atomic animation actions.
-- `independent`: clear Jamie's learned rules while preserving the play environment and baseline; no teaching scaffold.
-- `transfer`: ask what the child should think about before explaining a different game to someone new.
+The World Builder proposes a declarative delta. It may infer presentation details such as symbols, labels, layout, and a small demonstration quantity when quantity was not itself taught as gameplay.
 
-## World Engine
+The guard must reject or sanitize ungrounded gameplay semantics, including inferred interactive affordances, state transitions, ownership, turn meaning, scores, readiness, or endings.
 
-Copy `lesson-engine.py` into the deterministic Code node *after* the selected pedagogy-policy aggregator when using this historical source layout.
+`world_patch` defines the world. It must not pre-apply the same physical effect that `ui_action` is about to execute.
 
-The engine may:
+### Action Planner
 
-- sanitize/merge declarative world patches;
-- merge only student-taught semantic rule updates;
-- validate object IDs and atomic actions;
-- capture the first playable baseline before play mutates it;
-- preserve the exact pre-action scene for replay;
-- build the repair trace;
-- execute permitted atomic actions;
-- reset the world for fresh-listener performance.
+The planner reasons over:
 
-It must not manufacture pedagogy or game rules.
+1. child-taught listener memory;
+2. the current child message;
+3. the authorized actionable-world view;
+4. current gap/recent action context.
 
-## Browser world protocol
+Treat taught instructions as a coherent reusable procedure. Previously taught rules remain usable on later turns; the child should not have to re-teach a rule on every iteration.
 
-The world is declarative. Supported surface types are `table` and `grid`. Supported object types are `card`, `token`, `piece`, `cell`, `marker`, and generic `object`.
+The planner currently runs in normal non-thinking JSON mode. This is intentional. The current DeepSeek/Dify reasoning-output path proved unreliable for structured planner output, while the no-thinking semantic-core planner has produced stable schema-valid actions and grounded full-game completion.
+
+A temporary inability to decide the next branch because the world has not yet revealed the relevant state is an **execution boundary**, not automatically a communication gap. If the child already taught what to do after that state becomes observable, preserve it as continuation evidence instead of opening a new gap.
+
+### Action-plan Validator
+
+Downstream code must consume the validated planner result, never raw model output.
+
+Hard checks include:
+
+- valid JSON and required planner shape;
+- allowed atomic action types;
+- action targets exist;
+- no frontend-response wrapper masquerading as a planner result unless it can be safely recovered;
+- structured-output failures become pipeline errors, not learner failures.
+
+Diagnostics such as `raw_type`, `raw_keys`, and `raw_preview` exist to distinguish provider/format failures from semantic planning failures.
+
+### Gap Evaluator and Controller
+
+A pending communication gap is a specific missing rule-relevant need. It is resolved only when the child's contribution actually makes the relevant transition actionable.
+
+Pipeline/parser failures are never evidence that the child explained badly. On system failure:
+
+- preserve the learner gap as-is;
+- do not increment learner repair attempts or scaffolding counters;
+- do not generate learner-blaming feedback.
+
+Repair may create an internal `reflection_candidate`, but the controller does not immediately turn repair into a lesson summary. Play continues.
+
+### Jamie response and Response Guard
+
+Jamie should sound like a capable same-age friend, not a tutor or parser.
+
+- Do not grade the child.
+- Do not recite a communication principle after every repair.
+- Do not force a question when a brief acknowledgement is enough.
+- Do not guess unstated rules through leading questions.
+- Never claim that a physical action happened unless the validated plan actually contains the corresponding executable action.
+
+## Grounded completion
+
+`game_complete=true` is about the child's game, not an arbitrary lesson progression counter.
+
+Completion requires all three:
+
+1. the child taught an ending condition;
+2. the authorized world after the planned actions satisfies it; and
+3. `completion_evidence` cites the child-taught ending rule.
+
+At grounded completion the controller emits `phase=complete`, clears any pending listener gap, and closes naturally. If a meaningful earlier repair earned a reflection candidate, one short specific reflection may be surfaced here; it is optional and must not become a general lecture such as `When you teach someone...`.
+
+## Current frontend protocol
 
 Supported atomic actions are:
 
@@ -124,6 +164,33 @@ Supported atomic actions are:
 - `set_counter`
 - `set_status`
 - `wait`
-- `reset_to_baseline`
+- `reset_to_baseline` where still supported by the browser/runtime
 
-The browser also sends object clicks back as `[[GAME_TEACHER_EVENT]]` requests so the rendered world can become genuinely playable during guided or independent play.
+The browser applies `world_patch`, then executes `ui_action`. The two channels must remain semantically separate.
+
+## Failure and recovery philosophy
+
+The runtime distinguishes learner/product behavior from provider/runtime faults.
+
+- Successful wrapper recovery belongs in `debug.recoveries`, not `pipeline_errors`.
+- Unrecoverable structured-output/provider failures belong in `pipeline_errors`.
+- A system error must never be translated into `you did not explain clearly enough`.
+- Learner-facing physical claims must stay faithful to the validated action plan.
+
+## Validation evidence
+
+The deterministic scenarios under `tests/e2e/` protect the core loop, child authority, player agency, grounded repair, and prior-knowledge suppression.
+
+`tests/e2e/run-ai-full-game.mjs` provides broader unscripted evidence: an AI child invents a small original game, teaches it turn by turn, and the run passes only when the world reaches a child-taught ending with `game_complete=true`, `phase=complete`, non-empty completion evidence, no pending gap, and no pipeline errors.
+
+The no-thinking v10 r4 runtime has completed such an original full-game smoke successfully. This is broad smoke evidence, not proof that arbitrary games are production-ready.
+
+## Historical files
+
+The following are retained for design history only and are not active workflow source:
+
+- [`interpreter-prompt.md`](./interpreter-prompt.md) — old v6 combined interpreter/world/action prompt.
+- [`lesson-engine.py`](./lesson-engine.py) — old v6 deterministic lesson-state engine.
+- [`v8/`](./v8/) — v8 behavioral/slimming experiments that informed later invariants.
+
+Do not copy these historical files into a new Dify graph as if they were the current v10 architecture.
