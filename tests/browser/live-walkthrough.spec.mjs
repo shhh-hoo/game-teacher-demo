@@ -11,8 +11,11 @@ async function apiTurn(page, action) {
   );
   await action();
   const response = await responsePromise;
-  expect(response.ok(), `API returned ${response.status()}`).toBeTruthy();
-  const payload = await response.json();
+  const raw = await response.text();
+  if (!response.ok()) {
+    throw new Error(`API returned ${response.status()}: ${raw.slice(0, 4000)}`);
+  }
+  const payload = JSON.parse(raw);
   await expect(page.locator('.thinking')).toHaveCount(0, { timeout: 120_000 });
   return payload;
 }
@@ -41,7 +44,7 @@ test('real lesson keeps language, visible actions, and ownership aligned', async
   await page.goto('/');
 
   let payload = await apiTurn(page, () => page.getByRole('button', { name: 'Start lesson' }).click());
-  expect(payload.debug?.build_id || '').toContain('r13-');
+  expect(payload.debug?.build_id || '').toContain('r14-');
 
   // Follow: complete the authored listener-perspective task.
   await clickWorld(page, 'follow_triangle');
@@ -74,7 +77,7 @@ test('real lesson keeps language, visible actions, and ownership aligned', async
 
   // A structural grid must appear empty: no decorative identities and no positional answers printed into cells.
   payload = await send(page, 'We need a 3 by 3 grid. The goal is to get three X marks or three O marks in the same line.');
-  expect(payload.debug?.build_id || '').toContain('r13-');
+  expect(payload.debug?.build_id || '').toContain('r14-');
   const cells = page.locator('[data-world-object^="cell_"]');
   await expect(cells).toHaveCount(9, { timeout: 30_000 });
 
@@ -91,7 +94,7 @@ test('real lesson keeps language, visible actions, and ownership aligned', async
   expect(rakuActions.length, 'Raku narrated/accepted a turn without an executable action').toBeGreaterThan(0);
   const rakuMarkAction = rakuActions.find(action => action.patch?.symbol === 'X');
   expect(rakuMarkAction, 'no X action was produced for Raku’s delegated turn').toBeTruthy();
-  expect(rakuMarkAction.patch?.owner).not.toBe('learner');
+  expect(rakuMarkAction.patch?.owner).toBe('raku');
 
   await expect.poll(async () => cells.evaluateAll(nodes => nodes.map(node => node.querySelector('.object-symbol')?.textContent?.trim() || '')), {
     timeout: 10_000,
