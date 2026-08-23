@@ -1,5 +1,9 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from '@playwright/test';
 
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(here, '../..');
 const port = Number(process.env.BROWSER_PORT || 3000);
 const externalBase = process.env.BROWSER_BASE_URL || '';
 const baseURL = externalBase || `http://127.0.0.1:${port}`;
@@ -25,6 +29,7 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   webServer: externalBase ? undefined : {
+    cwd: repoRoot,
     command: `bash -lc 'set -a; [ -f .env.local ] && source .env.local; set +a; npx vercel dev --yes --listen ${port}'`,
     url: baseURL,
     reuseExistingServer: true,
