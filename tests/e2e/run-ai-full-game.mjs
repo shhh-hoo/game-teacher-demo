@@ -75,6 +75,7 @@ async function chatCompletion({ system, user, temperature = 0 }) {
     },
     body: JSON.stringify({
       model: aiModel,
+      thinking: { type: 'disabled' },
       temperature,
       messages: [
         { role: 'system', content: system },
