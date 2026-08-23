@@ -25,7 +25,7 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   webServer: externalBase ? undefined : {
-    command: `bash -lc 'set -a; [ -f .env.local ] && source .env.local; set +a; npx vercel dev --listen ${port}'`,
+    command: `bash -lc 'set -a; [ -f .env.local ] && source .env.local; set +a; npx vercel dev --yes --listen ${port}'`,
     url: baseURL,
     reuseExistingServer: true,
     timeout: 120_000,
