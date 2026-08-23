@@ -194,6 +194,7 @@ export async function judgeTrace(trace, { fetchImpl = fetch, env = process.env }
     },
     body: JSON.stringify({
       model: config.model,
+      thinking: { type: 'disabled' },
       temperature: 0,
       messages: [
         { role: 'system', content: rubric },
