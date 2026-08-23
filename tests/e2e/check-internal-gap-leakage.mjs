@@ -12,7 +12,8 @@ const CANDIDATE_PATTERNS = [
   /\bstay face up\b/i,
   /\b(?:get|score|earn) (?:a |one )?(?:point|points)\b/i,
   /\b(?:another|extra) turn\b/i,
-  /\b(?:win|winner)\b/i,
+  /\b(?:most|more|fewest|first|last|higher|lower|highest|lowest)\b[^.!?]{0,40}\bwins?\b/i,
+  /\b(?:wins?|winner)\b[^.!?]{0,30}\b(?:gets?|takes?|keeps?|scores?)\b/i,
 ];
 
 function gapText(gap) {
