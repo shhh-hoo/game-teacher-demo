@@ -44,7 +44,7 @@ test('real lesson keeps language, visible actions, and ownership aligned', async
   await page.goto('/');
 
   let payload = await apiTurn(page, () => page.getByRole('button', { name: 'Start lesson' }).click());
-  expect(payload.debug?.build_id || '').toContain('r15-');
+  expect(payload.debug?.build_id || '').toContain('r16-');
 
   // Follow: complete the authored listener-perspective task.
   await clickWorld(page, 'follow_triangle');
@@ -77,7 +77,7 @@ test('real lesson keeps language, visible actions, and ownership aligned', async
 
   // A structural grid must appear empty: no decorative identities and no positional answers printed into cells.
   payload = await send(page, 'We need a 3 by 3 grid. The goal is to get three X marks or three O marks in the same line.');
-  expect(payload.debug?.build_id || '').toContain('r15-');
+  expect(payload.debug?.build_id || '').toContain('r16-');
   const cells = page.locator('[data-world-object^="cell_"]');
   await expect(cells).toHaveCount(9, { timeout: 30_000 });
 
@@ -93,7 +93,7 @@ test('real lesson keeps language, visible actions, and ownership aligned', async
   const rakuActions = payload.ui_action?.payload?.actions || [];
   expect(rakuActions.length, 'Raku narrated/accepted a turn without an executable action').toBeGreaterThan(0);
   const rakuMarkAction = rakuActions.find(action => action.patch?.symbol === 'X');
-  expect(rakuMarkAction, 'no X action was produced for Raku’s delegated turn').toBeTruthy();
+  expect(rakuMarkAction, `no X action was produced for Raku’s delegated turn; actions=${JSON.stringify(rakuActions)}`).toBeTruthy();
   expect(rakuMarkAction.patch?.owner).toBe('raku');
 
   await expect.poll(async () => cells.evaluateAll(nodes => nodes.map(node => node.querySelector('.object-symbol')?.textContent?.trim() || '')), {
@@ -112,7 +112,7 @@ test('real lesson keeps language, visible actions, and ownership aligned', async
   payload = await send(page, `I put O in the ${learnerPlace} square.`);
   const learnerActions = payload.ui_action?.payload?.actions || [];
   const learnerMarkAction = learnerActions.find(action => action.object_id === learnerCellId && action.patch?.symbol === 'O');
-  expect(learnerMarkAction, 'learner O action was not grounded to the requested cell').toBeTruthy();
+  expect(learnerMarkAction, `learner O action was not grounded to the requested cell; actions=${JSON.stringify(learnerActions)}`).toBeTruthy();
   expect(learnerMarkAction.patch?.owner).toBe('learner');
   await expect.poll(() => visibleCellSymbol(page, learnerCellId), { timeout: 10_000 }).toBe('O');
   expect(payload.reply || '').not.toMatch(/\bI\s+(?:put|placed|marked).*\bO\b|\bmy\s+O\b/i);
