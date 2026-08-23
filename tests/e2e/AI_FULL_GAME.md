@@ -33,21 +33,21 @@ The run passes only when:
 ## Runtime identity
 
 ```bash
-export DIFY_TEST_VERSION='v12-r22'
+export DIFY_TEST_VERSION='v12-r23'
 export DIFY_EXPECT_DSL_VERSION='v12'
 ```
 
 Expected build:
 
 ```text
-v12-listener-reconstruction-game-r22-20260823
+v12-listener-reconstruction-game-r23-learner-authority-20260823
 ```
 
 ## Run directly against Dify
 
 ```bash
 export DIFY_API_KEY='app-...'
-export DIFY_TEST_VERSION='v12-r22'
+export DIFY_TEST_VERSION='v12-r23'
 export DIFY_EXPECT_DSL_VERSION='v12'
 
 export AI_FULL_GAME_API_KEY='...'
@@ -61,7 +61,7 @@ node tests/e2e/run-ai-full-game.mjs --verbose
 
 ```bash
 export GAME_TEACHER_PROXY_URL='https://game-teacher-demo.vercel.app/api/chat'
-export DIFY_TEST_VERSION='v12-r22'
+export DIFY_TEST_VERSION='v12-r23'
 export DIFY_EXPECT_DSL_VERSION='v12'
 
 export AI_FULL_GAME_API_KEY='...'
