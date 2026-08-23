@@ -1,53 +1,41 @@
 # Teach Me a Game acceptance harness
 
-The v11 product question is:
+The active v11 lesson is continuous play: Raku teaches first, the child teaches Raku with a guide, real play exposes genuine gaps, repair changes executable reality, the same game continues while the guide fades, a child-taught ending leads to transfer, and then the lesson completes.
 
-> Can a Grade 3–4 child experience a listener-aware game introduction, then teach Raku a game, repair a real communication gap, keep playing the same game as scaffolding fades, reach a child-taught ending, and transfer the idea without Raku importing an answer key?
-
-The learner-facing loop is:
-
-**Raku models → child teaches with guide → genuine gap → repair → same game continues → guide fades → grounded ending → transfer → complete**
-
-There is no learner-facing fresh-listener reset in the current v11 contract.
-
-## Runtime target
+## Current runtime target
 
 ```text
 debug.dsl_version = v11
-debug.build_id = v11-runtime-first-continuous-play-r2-20260823
+debug.build_id = v11-runtime-first-continuous-play-r4-20260823
+debug.action_plan._validation.decision_version = 1540-r4-direct-query
 ```
 
-## Primary v11 gate
+`main` keeps the locked v10 runtime as the behavioural fallback. Intermediate v10.x migration artifacts and the abandoned fresh-listener lesson are historical only.
 
-After importing and publishing the continuous-play v11 DSL:
+## Primary gate
+
+After importing and publishing the r4 DSL:
 
 ```bash
 export DIFY_API_KEY='app-...'
-export DIFY_TEST_VERSION='v11-continuous-play'
+export DIFY_TEST_VERSION='v11-continuous-r4'
 export DIFY_EXPECT_DSL_VERSION='v11'
-export DIFY_EXPECT_BUILD_ID='v11-runtime-first-continuous-play-r2-20260823'
+export DIFY_EXPECT_BUILD_ID='v11-runtime-first-continuous-play-r4-20260823'
 
 node tests/e2e/run-v11-lesson-contract.mjs --verbose
 ```
 
-The dedicated lesson contract verifies:
+The runner verifies the exact 1540 decision version so a stale selector cannot masquerade as a new packer build.
 
-- initial teaching returns the full `game_guide`;
-- the first genuine blocking gap earns `teach_moment` rather than a fake tutoring checklist;
-- a successful repair changes executable reality and moves into `practice`;
-- the guide becomes compact after repair;
-- continued successful play fades the persistent guide, but **does not** reset listener memory, Rule IR, or world state;
-- `reset_listener`, `reset_rules`, `reset_world`, and `fresh_listener` remain false throughout the learner flow;
-- the final child-grounded action still executes on the ending turn;
-- `game_complete` with non-empty `completion_evidence` enters `transfer` directly;
-- a trivial transfer answer such as `what?` does not complete the lesson;
-- a short substantive transfer response can produce `phase=complete` and `lesson_complete=true`.
+## Critical gap semantics
 
-Scaffold fade is a UX heuristic only. Successful-action count is never used as mastery or game-completion evidence.
+A setup/description turn may progress the visible world without giving Raku an executable gameplay action. That is ordinary progressive teaching, not a communication breakdown.
 
-## Semantic regressions
+`no_applicable_supported_rule` opens a blocking learner gap only when the current raw query clearly requests execution/continuation (for example `Remove A now`, `Continue`, `Your turn`) or represents a physical world event.
 
-Once the full lesson gate is green, run the existing semantic checks against v11:
+The lesson runner saves the full payload before behavioral assertions, so any failure remains diagnosable.
+
+## Active semantic regressions
 
 ```bash
 node tests/e2e/run-dify.mjs --version v11 --scenario golden-path-learning-loop
@@ -55,33 +43,6 @@ node tests/e2e/run-dify.mjs --version v11 --scenario faithful-listener-not-answe
 node tests/e2e/run-dify.mjs --version v11 --scenario smart-listener-not-pedantic
 ```
 
-- `golden-path-learning-loop` protects progressive world creation, delegated player choice, a real post-action gap, child repair, and visible reality change.
-- `faithful-listener-not-answer-key` protects child rule authority over familiar-game priors.
-- `smart-listener-not-pedantic` protects normal Grade 3–4 disfluency from becoming fake communication failure.
-- `repair-locate-not-guess` remains optional design-depth evidence.
-- `breadth-*` remain architecture probes, not reasons to add game-specific code.
+`repair-locate-not-guess`, breadth probes, Rule IR identity, bounded fallback, ambiguous-target, and runtime-first normal-path tests remain optional/architecture evidence.
 
-The older `v11-full-lesson-fresh-listener` scenario in `scenarios.json` belongs to the abandoned staged prototype and must not be used as current v11 acceptance evidence. `run-v11-lesson-contract.mjs` is authoritative for the learner flow.
-
-## Hard boundaries
-
-Hard checks protect:
-
-- strict runtime/build identity;
-- valid frontend protocol shape;
-- no internal provider/parser failure presented as learner failure;
-- no untaught gameplay logic leaking into the world or listener;
-- no phantom physical action claims;
-- Runtime Primary ownership of supported actions;
-- bounded fallback rather than a second hidden compiler;
-- child corrections superseding contradictory rules;
-- `game_complete` grounded in child-taught ending evidence;
-- `game_complete` remaining distinct from `lesson_complete`.
-
-Exact wording and general conversational smoothness remain soft unless they violate one of those boundaries.
-
-## AI full-game smoke
-
-`run-ai-full-game.mjs` is still useful as broad architecture evidence, but its current v10-shaped stop condition expects the first `game_complete` to coincide with lesson completion. Do not report it as a v11 lesson pass until its stop condition is updated for the current transfer phase.
-
-Generated traces stay under `.artifacts/dify-e2e/` and should not be committed.
+The active `scenarios.json` is v11-only. Fresh-listener and staged-migration-only scenarios are not kept in the executable catalog.
