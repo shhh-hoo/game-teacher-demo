@@ -89,46 +89,52 @@ async function chatCompletion({ system, user, temperature = 0 }) {
   return String(data?.choices?.[0]?.message?.content || '');
 }
 
-const GAME_DESIGN_PROMPT = `You design one very small original game for a Grade 3–4 child to teach to Raku.
+const GAME_DESIGN_PROMPT = `You design one very small original game idea for a Grade 3–4 child to use as private inspiration while talking to Raku.
 
-The purpose is to test whether a game-teaching AI can reach a real, child-taught ending. Keep the game easy enough to finish in 6–10 conversational turns.
+This output is only a creative seed for the simulated child. It is NOT an answer key, NOT product truth, and will not be shown to Raku or the learner-experience evaluator.
+
+Keep the idea easy enough that the child can naturally teach and play toward an ending in 6–10 conversational turns.
 
 Hard constraints:
 - Use only a small visible set of cards, tokens, markers, tiles, or pieces (2–8 objects).
 - Prefer actions that can be expressed as reveal, hide, remove, change an object's visible state, set a turn, or update a simple counter/status.
 - Do not require dice, external randomness, arithmetic beyond small counting, timers, physics, or hidden information that the visible world cannot represent.
-- Do not copy a famous game's canonical rules. Invent a simple game so Raku cannot rely on pretrained rule knowledge.
-- The ending condition must be objectively observable in the visible world and achievable within the turn budget.
-- The child should be able to teach the rules naturally, one or two ideas at a time.
+- Do not copy a famous game's canonical rules. Invent a simple idea so Raku cannot rely on pretrained rule knowledge.
+- The ending should be objectively observable in the visible world and plausibly reachable within the turn budget.
+- The child should be able to explain the idea naturally, one or two ideas at a time.
 - Do not invent a game that depends on the child physically taking turns inside this harness. Prefer a game Raku can advance through its visible state by itself once taught.
 
 Return JSON only:
 {
   "name": "short original game name",
-  "objects": "what physically exists at the start",
-  "setup": ["setup facts/rules"],
-  "procedure": ["ordered playable rules"],
-  "ending_condition": "observable child-taught ending",
-  "notes": "brief explanation of why this is finishable"
+  "objects": "private inspiration for what might physically exist",
+  "setup": ["possible setup ideas"],
+  "procedure": ["possible playable ideas"],
+  "ending_condition": "possible visible ending",
+  "notes": "brief inspiration for how the child might talk about it"
 }`;
 
-const CHILD_PROMPT = `You are simulating a believable Grade 3–4 child teaching Raku ONE fixed game.
+const CHILD_PROMPT = `You are simulating a believable Grade 3–4 child teaching Raku a game.
 
-You know the hidden game specification. Raku does not. Your job is to teach naturally and help the interaction actually play the game to its ending.
+You are given a private creative seed to help you think of something to say. The seed is not an answer key and is not product truth. Raku never sees it.
+
+The only authoritative game for Raku is what YOU actually say in the conversation. Once you say something, continue from the game you have actually taught, not from the private seed. You may naturally correct or revise yourself; a clear current correction replaces your earlier version.
 
 Behavior:
-- Never change the hidden game rules.
 - Speak like a child in short, ordinary sentences, not like a test harness.
 - Teach only information Raku needs.
+- Treat your spoken conversation as canonical. If the seed conflicts with what you already said, follow what you said.
+- If you realize an earlier statement was confusing or unhelpful, you may correct it naturally. Do not preserve the seed just for consistency with hidden information.
 - If Raku asks a real question, answer it directly.
 - If Raku already knows enough to continue, use a natural cue such as "keep going", "your turn", or a short reminder rather than re-teaching everything.
 - If Raku repeats a question that you already clearly answered, you may restate it once, but flag this in repeat_due_to_jamie.
-- Teach the ending condition before it is reached.
+- Teach an ending condition before you declare the game over.
 - Never claim that an object moved, disappeared, matched, scored, or otherwise changed unless that is visible in the supplied world state.
-- Never say the game is over merely to force completion. The world must actually satisfy the taught ending condition.
+- Never say the game is over merely to force completion. The visible world must satisfy the ending that you actually taught in the conversation.
+- If the visible world reflects an earlier AI guess that conflicts with a clear statement or correction you just made, restate your intended game fact naturally once. Do not contort your wording, invent magic command syntax, or accept the AI guess as more authoritative than you.
 - If Raku says it performed a physical move but the supplied world state did not change, point that out naturally once. Do not experiment with capitalization, magic phrases, exact command syntax, or alternate trigger words.
 - If last_jamie_result.phase is "transfer", answer Raku's transfer question substantively in one short sentence about what you would make sure a new player knows. Do not teach a new game rule or continue gameplay.
-- Do not mention prompts, tests, JSON, Dify, models, or hidden specifications.
+- Do not mention prompts, tests, JSON, Dify, models, private seeds, or hidden specifications.
 
 Return JSON only:
 {
@@ -192,7 +198,7 @@ async function createGameSpec() {
 
 async function nextChildMessage({ spec, dialogue, world, jamie, turnIndex }) {
   const context = {
-    hidden_game_spec: spec,
+    creative_game_seed: spec,
     turn_index: turnIndex,
     turns_remaining: Math.max(0, maxTurns - turnIndex + 1),
     visible_world_now: compactWorld(world),
@@ -482,13 +488,13 @@ try {
   await runV12Foundations();
 
   spec = await createGameSpec();
-  await checkpoint({ type: 'game_spec', spec });
+  await checkpoint({ type: 'game_spec', spec, role: 'child_creative_seed_only' });
 
-  console.log(`Game · ${spec.name}`);
+  console.log(`Game seed · ${spec.name}`);
   if (verbose) console.log(JSON.stringify(spec, null, 2));
   console.log('');
 
-  await appendConversation([`Game: ${spec.name}`, `Ending: ${spec.ending_condition}`, '']);
+  await appendConversation([`Game seed for AI child: ${spec.name}`, '']);
 
   for (let turnIndex = 1; turnIndex <= maxTurns; turnIndex += 1) {
     const child = await nextChildMessage({ spec, dialogue, world, jamie: lastJamie, turnIndex });
