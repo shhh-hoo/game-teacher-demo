@@ -92,7 +92,6 @@ export function compactTraceForJudge(trace) {
     kind: trace?.kind || 'scenario',
     scenario: trace?.scenario || (aiFullGame ? 'ai-full-game' : null),
     description: trace?.description || null,
-    game_spec: aiFullGame ? trace?.gameSpec || null : null,
     completion: aiFullGame ? trace?.completion || null : null,
     hard_failures: aiFullGame ? trace?.hardFailures || [] : [],
     turns: (trace?.turns || []).map(turn => {
