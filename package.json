@@ -4,7 +4,10 @@
   "scripts": {
     "test:browser": "playwright test --config=tests/browser/playwright.config.mjs tests/browser/ui-contract.spec.mjs",
     "test:browser:live": "DIFY_BROWSER_LIVE=1 playwright test --config=tests/browser/playwright.config.mjs tests/browser/live-walkthrough.spec.mjs",
-    "test:browser:headed": "HEADED=1 DIFY_BROWSER_LIVE=1 playwright test --config=tests/browser/playwright.config.mjs tests/browser/live-walkthrough.spec.mjs"
+    "test:browser:headed": "HEADED=1 DIFY_BROWSER_LIVE=1 playwright test --config=tests/browser/playwright.config.mjs tests/browser/live-walkthrough.spec.mjs",
+    "test:ai-eval": "node tests/e2e/run-ai-eval.mjs",
+    "test:ai-eval:3": "node tests/e2e/run-ai-eval.mjs --runs 3",
+    "test:demo": "npm run test:browser && npm run test:ai-eval"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0"
