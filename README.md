@@ -1,67 +1,101 @@
-# Game Teacher Demo — V12
+# Teach Me a Game - AI Lesson Card Prototype
 
-A short AI-native Lesson Card prototype for US Grade 3–4 learners.
+A short AI-native Lesson Card prototype for US Grade 3-4 learners.
 
-The lesson trains one communication skill: **organize and revise an executable explanation around what the listener currently understands and needs next.** The learner first experiences the task from the listener side, then reverses roles and guides Raku, then transfers the same skill into teaching a complete game.
+The lesson trains one communication skill:
 
-The learner-facing progression is:
+> **Organize and revise an executable explanation around what the listener currently understands and needs next.**
+
+The product is built around a simple premise: **the child's utterances are the game.** Raku has no hidden canonical rulebook. It acts only from what the learner has actually taught, and later learner corrections override earlier AI inference.
+
+## Lesson flow
 
 ```text
-Follow Raku's directions
-    ↓
-See what information a listener actually needs
-    ↓
-Switch roles and guide Raku to a hidden target
-    ↓
-Observe Raku's real interpretation and repair mismatches
-    ↓
-Choose a familiar game
-    ↓
-Teach Raku while the game becomes playable
-    ↓
-Keep explaining / repairing as new states appear
-    ↓
-Reach a learner-taught ending
-    ↓
-One short transfer question
+Follow
+Learner experiences an under-specified instruction from the listener side
+        ↓
+Guide
+Learner sees a hidden target and guides Raku with ordinary language
+        ↓
+Game
+Learner teaches a familiar game while the world becomes playable
+        ↓
+Notice / Locate / Repair
+Raku exposes real communication breakdowns through action or a local gap
+        ↓
+Transfer → Complete
+One short reflection and evidence-based feedback
 ```
 
-## V12 lesson stages
+### 1. Follow - listener perspective
 
-### 1. Follow — listener perspective
+Raku owns a hidden target and gives the learner only the information needed for the next placement. The first direction is deliberately compatible with multiple reasonable actions. If the learner chooses a reasonable but unintended interpretation, Raku adds the missing detail instead of simply marking the learner wrong.
 
-Raku can see a simple target arrangement that the learner cannot see. The learner manipulates shapes while Raku gives only the next information needed. The first instruction is deliberately compatible with more than one reasonable action; when that matters, Raku becomes more specific. The task ends by revealing the target and comparing the result.
+### 2. Guide - role reversal
 
-### 2. Guide — role reversal
+The learner can see a new target that Raku cannot. The learner gives directions in ordinary language; Raku interprets those words and makes one visible action. The learner can then correct Raku. This makes the difference between intended meaning and listener interpretation observable.
 
-The learner sees a new target that Raku cannot see. The learner gives directions in ordinary language. Raku acts only from those words and its current board state. The AI listener never receives the hidden target. A deterministic controller executes the interpreted instruction and separately checks whether the visible board matches the target.
+### 3. Game - integrated transfer
 
-### 3. Game — integrated transfer
+The learner chooses a familiar simple game and teaches it in any natural order. A lightweight Game Teaching Guide - **Goal / Start / Turn / Special / Ending** - supports attention without becoming a checklist. Raku progressively builds a playable world, acts as soon as the current explanation supports an action, and asks only when the next move genuinely requires more information.
 
-The learner chooses a familiar simple game. The selected game name is context only and never supplies rules. The existing runtime-first semantic core then handles learner-grounded listener memory, Rule IR, world construction, validated actions, real communication gaps, repair, continued play, and grounded completion.
+## Core interaction principles
 
-The Game Guide starts visible with five light prompts — **Goal / Start / Turn / Special / Ending** — then fades as play succeeds. The learner does not need to explain every rule before play starts; Raku acts as soon as the current information supports an action and asks only when the next state truly needs more information.
+- **Learner authority:** current explicit learner correction > current learner statement > prior learner-taught evidence > AI inference/defaults.
+- **Faithful listener, not answer key:** the game label never supplies omitted rules.
+- **Player agency:** if the learner gives Raku a legitimate choice, Raku chooses rather than manufacturing a clarification question.
+- **Local repair:** when information is genuinely missing, Raku asks for the smallest missing piece rather than requesting a full re-explanation.
+- **Visible grounding:** physical-action language is tied to validated visible state changes.
+- **Grounded completion:** the lesson only completes after a learner-taught ending is satisfied in the visible world.
 
-## Runtime identity
+## AI / deterministic boundary
 
-The V12 deployment candidate should emit:
+AI is used for semantic work that must remain open-ended:
+
+- interpreting child language and corrections;
+- maintaining listener-grounded meaning;
+- building the learner-described world;
+- compiling taught procedures into executable rules;
+- resolving bounded semantic actions;
+- generating repair and feedback language.
+
+Deterministic logic owns action validation, UI state transitions, progression, and protocol integrity.
+
+## Final runtime
 
 ```text
 debug.dsl_version = v12
-debug.build_id = v12-listener-reconstruction-game-r7-20260823
+debug.build_id = v12-listener-reconstruction-game-r24-final-20260824
 ```
 
-The Dify workflow export remains a deployment artifact and is intentionally not committed to this repository.
+Model allocation is intentionally cost-bounded:
 
-## Core authority boundary
+- `AI · Raku Listener Interpreter` -> `deepseek-v4-pro`
+- `AI · Executable Rule Compiler` -> `deepseek-v4-pro`
+- remaining seven LLM nodes -> `deepseek-v4-flash`
+- Thinking disabled everywhere
 
-During the final game, learner-taught rules are the only source of gameplay semantics. The selected game label may help resolve ordinary nouns or references, but it is never evidence for an omitted rule, state, legal move, consequence, goal, or ending. Presentation details may be inferred; legal moves, outcomes, turn logic, repetition, scores, and ending conditions remain learner-authored.
+The exported Dify YAML is kept as a submission/deployment artifact rather than committed to the repository.
 
-Regression scenarios are acceptance evidence, not implementation instructions. Scenario-specific phrases or familiar-game branches must not be copied into LLM prompts or narrow fallbacks merely to make a test pass; the runtime should encode general semantic contracts and be validated against unchanged scenarios.
+## Prototype scope
+
+This is a take-home prototype, not a production universal game engine. The prototype validates whether an AI-native lesson can make the learner/listener knowledge boundary visible enough to support this loop:
+
+**explain -> interpret -> act -> notice -> repair -> continue**
+
+The visible runtime intentionally uses a bounded action vocabulary while learner language remains open-ended.
+
+## Repository map
+
+- `docs/PRD.md` - simplified Lesson Card PRD aligned to the take-home brief
+- `dify/README.md` - runtime and authority-boundary design
+- `tests/e2e/` - fixed behavioral acceptance probes and diagnostic tooling used during development
+- `tests/browser/` - learner-facing browser walkthrough coverage
+- `AGENTS.md` - repository/runtime invariants
 
 ## Run locally
 
-Create `.env.local` from `.env.example`, point it at the published V12 Dify app, then run:
+Create `.env.local` from `.env.example`, point it at the published Dify app, then:
 
 ```bash
 set -a
@@ -70,26 +104,4 @@ set +a
 npx vercel dev
 ```
 
-## Validation
-
-Focused deterministic runs:
-
-```bash
-export DIFY_TEST_VERSION='v12-r7'
-export DIFY_EXPECT_DSL_VERSION='v12'
-
-node tests/e2e/run-dify.mjs --scenario follow-listener-perspective --verbose
-node tests/e2e/run-dify.mjs --scenario guide-role-reversal --verbose
-node tests/e2e/run-dify.mjs --scenario golden-path-learning-loop --verbose
-node tests/e2e/run-dify.mjs --scenario faithful-listener-not-answer-key --verbose
-node tests/e2e/run-dify.mjs --scenario smart-listener-not-pedantic --verbose
-```
-
-Then run `repair-locate-not-guess`, the `breadth-*` probes, and finally `run-ai-full-game.mjs --verbose`.
-
-## Source of truth
-
-- `dify/README.md` — V12 runtime responsibilities and authority boundaries.
-- `tests/e2e/README.md` — deterministic V12 acceptance sequence.
-- `tests/e2e/AI_FULL_GAME.md` — unscripted full-game smoke after the two foundation tasks.
-- `AGENTS.md` — repository discipline and non-negotiable runtime invariants.
+The unscripted AI full-game runner remains in the repo as a diagnostic/fuzzing tool; it is intentionally not treated as a submission or freeze gate because it is high-cost and explores behavior beyond the core Lesson Card acceptance path.
