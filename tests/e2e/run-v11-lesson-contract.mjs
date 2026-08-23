@@ -5,7 +5,8 @@ import process from 'node:process';
 import { applyActions, applyWorldPatch, blankWorld, flattenActions } from './assertions.mjs';
 
 const expectedDslVersion = process.env.DIFY_EXPECT_DSL_VERSION || 'v11';
-const expectedBuildId = process.env.DIFY_EXPECT_BUILD_ID || 'v11-runtime-first-continuous-play-r2-20260823';
+const expectedBuildId = process.env.DIFY_EXPECT_BUILD_ID || 'v11-runtime-first-continuous-play-r4-20260823';
+const expectedDecisionVersion = '1540-r4-direct-query';
 const versionLabel = process.env.DIFY_TEST_VERSION || 'v11-continuous-play';
 const apiKey = String(process.env.DIFY_API_KEY || '').trim();
 const baseUrl = String(process.env.DIFY_API_BASE_URL || 'https://api.dify.ai/v1').trim().replace(/\/$/, '');
@@ -22,6 +23,7 @@ function parseObject(text) {
   throw new Error(`Dify answer was not JSON: ${raw.slice(0, 800)}`);
 }
 function c(payload) { return payload?.debug?.controller || {}; }
+function validation(payload) { return payload?.debug?.action_plan?._validation || {}; }
 function actions(payload) { return flattenActions(payload?.ui_action).filter(action => !['wait', 'reset_to_baseline'].includes(action.type)); }
 function assert(ok, message) { if (!ok) throw new Error(message); }
 function assertNoReset(payload, turn) {
@@ -39,15 +41,15 @@ async function send(message, conversationId, userId) {
   const data = JSON.parse(raw); return { elapsedMs: Date.now() - started, conversationId: proxyUrl ? (data.conversationId || conversationId) : (data.conversation_id || conversationId), payload: proxyUrl ? data : parseObject(data.answer) };
 }
 
-// The first real gap is allowed to appear in the same turn as the action that exposes it.
-// Do not force an artificial extra "Continue" turn just to keep experience and teach separate.
 const script = [
   ['Make five available tokens named A, B, C, D, and E.', p => {
+    assert(validation(p).runtime_request_expected === false, `turn 1: setup must be classified as no runtime request; validation=${JSON.stringify(validation(p))}`);
     assert(p.phase === 'experience', `turn 1: setup should remain experience; got ${JSON.stringify(p.phase)}`);
     assert(p.support?.type === 'game_guide' && p.support?.mode === 'full', 'turn 1: full guide required during initial teaching');
     assert(actions(p).length === 0, `turn 1: setup should not perform gameplay actions; got ${JSON.stringify(actions(p))}`);
   }],
   ['Remove token A now.', p => {
+    assert(validation(p).runtime_request_expected === true, `turn 2: explicit action must be classified as runtime request; validation=${JSON.stringify(validation(p))}`);
     assert(p.phase === 'teach', `turn 2: the action should expose the first real gap and enter teach in the same turn; got ${JSON.stringify(p.phase)}`);
     assert(p.support?.type === 'teach_moment', `turn 2: real post-action gap must earn teach_moment; got ${JSON.stringify(p.support)}`);
     assert(actions(p).some(a => a.type === 'remove_object'), 'turn 2: A must actually be removed before/while the gap is surfaced');
@@ -101,17 +103,15 @@ try {
     assert(payload?.debug?.build_id === expectedBuildId, `turn ${turn}: build mismatch; expected ${expectedBuildId}, got ${JSON.stringify(payload?.debug?.build_id || null)}`);
     assert((payload?.debug?.pipeline_errors || []).length === 0, `turn ${turn}: pipeline error ${JSON.stringify(payload?.debug?.pipeline_errors || [])}`);
     assert(payload?.debug?.action_plan_source === '1540-runtime-first', `turn ${turn}: expected Runtime-first path; got ${JSON.stringify(payload?.debug?.action_plan_source || null)}`);
+    assert(validation(payload).decision_version === expectedDecisionVersion, `turn ${turn}: 1540 decision version mismatch; expected ${expectedDecisionVersion}, got ${JSON.stringify(validation(payload).decision_version || null)}`);
     assertNoReset(payload, turn);
 
     const afterPatch = applyWorldPatch(world, payload.world_patch || {}); if (payload.capture_baseline) baseline = structuredClone(afterPatch); world = applyActions(afterPatch, flattenActions(payload.ui_action), baseline);
-
-    // Save the complete turn before behavioral assertions so a failure is always diagnosable.
     trace.push({ turn, student: message, raku: payload.reply || '', elapsed_ms: result.elapsedMs, phase: payload.phase, support: payload.support || null, actions: flattenActions(payload.ui_action), controller: c(payload), payload, world_before: before, world_after: structuredClone(world) });
-
     check(payload);
     console.log(`${turn}. ${message}`); console.log(`   ${payload.phase} · ${payload.support?.type || 'no guide'} · ${actions(payload).map(a => a.type).join(', ') || 'no gameplay action'}`); if (verbose) console.log(`   ${payload.reply || '(no reply)'}\n   controller=${JSON.stringify(c(payload))}`);
   }
-  const dir = path.resolve(process.cwd(), '.artifacts', 'dify-e2e'); await fs.mkdir(dir, { recursive: true }); const out = path.join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}__${versionLabel}__v11-continuous-contract.json`); await fs.writeFile(out, JSON.stringify({ passed: true, expectedDslVersion, expectedBuildId, trace }, null, 2)); console.log('\nPASS · v11 continuous-play lesson reached complete'); console.log(`Trace · ${out}`);
+  const dir = path.resolve(process.cwd(), '.artifacts', 'dify-e2e'); await fs.mkdir(dir, { recursive: true }); const out = path.join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}__${versionLabel}__v11-continuous-contract.json`); await fs.writeFile(out, JSON.stringify({ passed: true, expectedDslVersion, expectedBuildId, expectedDecisionVersion, trace }, null, 2)); console.log('\nPASS · v11 continuous-play lesson reached complete'); console.log(`Trace · ${out}`);
 } catch (error) {
-  const dir = path.resolve(process.cwd(), '.artifacts', 'dify-e2e'); await fs.mkdir(dir, { recursive: true }); const out = path.join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}__${versionLabel}__v11-continuous-contract__FAILED.json`); await fs.writeFile(out, JSON.stringify({ passed: false, expectedDslVersion, expectedBuildId, error: String(error?.stack || error), trace }, null, 2)); console.error(`\nFAIL · ${String(error?.message || error)}`); console.error(`Trace · ${out}`); process.exitCode = 1;
+  const dir = path.resolve(process.cwd(), '.artifacts', 'dify-e2e'); await fs.mkdir(dir, { recursive: true }); const out = path.join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}__${versionLabel}__v11-continuous-contract__FAILED.json`); await fs.writeFile(out, JSON.stringify({ passed: false, expectedDslVersion, expectedBuildId, expectedDecisionVersion, error: String(error?.stack || error), trace }, null, 2)); console.error(`\nFAIL · ${String(error?.message || error)}`); console.error(`Trace · ${out}`); process.exitCode = 1;
 }
