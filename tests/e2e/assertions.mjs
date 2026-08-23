@@ -157,6 +157,10 @@ function assertProtocol(payload, actions, worldAfterPatch) {
     }
   }
 
+  if (String(payload?.reply || '').includes('[[GAME_TEACHER_EVENT]]')) {
+    results.push(fail('protocol.internal-event-leakage', 'Learner-facing reply exposed [[GAME_TEACHER_EVENT]].'));
+  }
+
   const pipelineErrors = payload?.debug?.pipeline_errors;
   if (Array.isArray(pipelineErrors) && pipelineErrors.length) {
     results.push(fail('protocol.pipeline-errors', `Internal pipeline reported: ${pipelineErrors.join(', ')}`));

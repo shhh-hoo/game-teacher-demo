@@ -1,49 +1,68 @@
-# AI full-game smoke
+# AI full-game smoke — V12
 
-`run-ai-full-game.mjs` checks whether an unscripted child-teaches-game interaction can reach a grounded game ending.
+`run-ai-full-game.mjs` is a **high-cost diagnostic / fuzzing tool**, not a required freeze gate for the take-home.
 
-Unlike `scenarios.json`, this is intentionally not a fixed transcript. An OpenAI-compatible model first invents one small original game that fits the current renderer/action vocabulary, then acts as the child turn by turn. It sees Jamie's learner-facing reply plus the current visible world, but Jamie never sees the hidden game specification.
+Before the AI child starts teaching its game, the runner completes the same V12 foundations as the browser:
 
-The smoke is broad product evidence, not a replacement for deterministic regression scenarios.
+1. Follow Raku to reproduce a hidden target, including one under-specified direction and repair.
+2. Reverse roles and guide Raku to a new target, including a real ambiguous placement and correction.
+3. Select `Another simple game` without injecting any rules.
 
-## Pass contract
+Only then does the AI child start teaching one small original game.
 
-A run passes only when all of the following are true within the turn budget:
+## Learner-authority contract
 
-- `debug.game_complete === true` (or controller equivalent);
-- `phase === "complete"`;
-- `completion_evidence` is non-empty;
-- `pending_gap === null`;
-- no `pipeline_errors` occurred anywhere in the run.
+The generated game specification is **only a private creative seed for the simulated AI child**. It is not product truth, not an answer key, and not runtime input for Raku.
 
-The AI child is explicitly told not to declare victory merely to force completion. It must teach an observable ending condition before the world reaches it, and the world must actually satisfy that condition.
+Once the child says something in the conversation, that utterance is the authoritative game evidence available to Raku. A later explicit child correction overrides an earlier child statement. AI-inferred layout, quantities, identities, and presentation remain provisional and must not become facts that the child has to satisfy.
 
-The runner also treats a learner-facing **phantom physical action** as a hard failure: if Jamie claims that it flipped, moved, removed, collected, or otherwise changed a game object while `ui_action` contains no executable physical action, the run should not continue as though play succeeded.
+The seed may remain in raw trace metadata for debugging the AI-child generator, but `judge.mjs` deliberately removes it before learner-experience evaluation. The evaluator must judge only the child transcript, Raku replies, validated actions, visible world, repair behavior, and grounded completion.
 
-## Current runtime label
-
-The current validated candidate is the no-thinking v10 r4 runtime:
-
-```text
-debug.dsl_version = v10
-debug.build_id = v10-no-thinking-r4-20260822
-```
-
-Use:
+## Final runtime identity
 
 ```bash
-export DIFY_TEST_VERSION='v10-r4'
-export DIFY_EXPECT_DSL_VERSION='v10'
+export DIFY_TEST_VERSION='v12-r24-final'
+export DIFY_EXPECT_DSL_VERSION='v12'
 ```
 
-`DIFY_TEST_VERSION` is only the local artifact label. Strict runtime identity comes from `debug.dsl_version` / `build_id` in the returned payload.
+Expected build:
 
-## Run against Dify directly
+```text
+v12-listener-reconstruction-game-r24-final-20260824
+```
+
+## Final model allocation
+
+The final cost-frozen Dify workflow uses Pro only where semantic reliability matters most:
+
+- `AI · Raku Listener Interpreter` → `deepseek-v4-pro`
+- `AI · Executable Rule Compiler` → `deepseek-v4-pro`
+- all other seven LLM nodes → `deepseek-v4-flash`
+- Thinking remains disabled everywhere.
+
+This is a cost decision, not a new behavioral revision.
+
+## Freeze policy
+
+Do **not** run `npm run test:ai-eval` again as part of routine freeze validation. A 14-turn random game can invoke the semantic pipeline many times with growing context and is intentionally treated as an expensive stress test.
+
+Use the fixed learner-facing gates instead:
+
+```bash
+node tests/e2e/run-dify.mjs
+npm run test:browser:live
+```
+
+Use AI full-game only when deliberately investigating a specific broad-runtime question and the additional token cost is justified.
+
+## Optional diagnostic run
+
+If it is intentionally needed:
 
 ```bash
 export DIFY_API_KEY='app-...'
-export DIFY_TEST_VERSION='v10-r4'
-export DIFY_EXPECT_DSL_VERSION='v10'
+export DIFY_TEST_VERSION='v12-r24-final'
+export DIFY_EXPECT_DSL_VERSION='v12'
 
 export AI_FULL_GAME_API_KEY='...'
 export AI_FULL_GAME_BASE_URL='https://your-openai-compatible-provider.example/v1'
@@ -52,73 +71,4 @@ export AI_FULL_GAME_MODEL='your-model'
 node tests/e2e/run-ai-full-game.mjs --verbose
 ```
 
-`AI_FULL_GAME_*` may be omitted when `AI_EVAL_API_KEY`, `AI_EVAL_BASE_URL`, and `AI_EVAL_MODEL` are already set; the runner reuses them.
-
-## Run against the deployed frontend proxy
-
-This exercises the same `/api/chat` proxy used by the browser and avoids putting the Dify app key in the local shell:
-
-```bash
-export GAME_TEACHER_PROXY_URL='https://game-teacher-demo.vercel.app/api/chat'
-export DIFY_TEST_VERSION='v10-r4'
-export DIFY_EXPECT_DSL_VERSION='v10'
-
-export AI_FULL_GAME_API_KEY='...'
-export AI_FULL_GAME_BASE_URL='https://your-openai-compatible-provider.example/v1'
-export AI_FULL_GAME_MODEL='your-model'
-
-node tests/e2e/run-ai-full-game.mjs --verbose
-```
-
-The default cap is 14 child turns. Override it with `--max-turns 18` or `FULL_GAME_MAX_TURNS=18` only when a deliberately longer game needs more room.
-
-## Fail-fast and diagnostic mode
-
-By default the runner stops as soon as the hard full-game contract is already impossible, for example after:
-
-- a `pipeline_error`;
-- a phantom physical-action claim;
-- a strict runtime identity mismatch.
-
-This prevents an AI child from wasting later turns trying different capitalization or magic wording after the runtime has already failed.
-
-Use `--keep-going` only when deliberately collecting additional broken behavior for diagnosis:
-
-```bash
-node tests/e2e/run-ai-full-game.mjs --verbose --keep-going
-```
-
-## Live output
-
-The runner creates its artifact paths at startup and persists evidence throughout the run:
-
-- `*__ai-full-game.json` — rolling full snapshot, atomically rewritten after each checkpoint;
-- `*__ai-full-game__live.jsonl` — append-only event stream with generated game spec, AI-child turns, Dify payload/debug/world state, errors, fail-fast decisions, interrupts, and final result;
-- `*__ai-full-game__conversation.txt` — concise Student/Jamie transcript appended after each completed turn.
-
-This means a Dify 400/504, provider interruption, `Ctrl-C`, or other crash does not discard all earlier evidence.
-
-For live inspection:
-
-```bash
-tail -f .artifacts/dify-e2e/*__ai-full-game__live.jsonl
-```
-
-See [`LIVE_TRACE.md`](./LIVE_TRACE.md) for details.
-
-## Interpreting a result
-
-A single random failure is not automatically evidence that the DSL should change. First classify it:
-
-- **AI-child/game-design issue** — the generated game exceeds the renderer/action vocabulary or the simulated child behaves unrealistically;
-- **infra/provider issue** — Dify/provider/network failed independently of the learner semantics;
-- **harness issue** — the runner made an invalid determination;
-- **product/runtime issue** — the child taught an actionable rule but Jamie could not execute it, imported an unstated rule, failed to persist a repair, opened a fake gap, or failed to recognize a grounded ending.
-
-Only the last category should normally drive semantic runtime work.
-
-## Current evidence
-
-The no-thinking v10 r4 runtime has completed an AI-generated original game end to end with real visible state transitions, `game_complete=true`, `phase=complete`, non-empty child-taught completion evidence, `pending_gap=null`, and no pipeline errors.
-
-That result shows that the semantic-core architecture can complete at least one arbitrary original game without a game-specific prompt. It does **not** establish production-ready coverage for arbitrary games; breadth scenarios and frontend/manual QA remain separate concerns.
+The default final-game budget remains 14 AI-child turns. Foundation turns are recorded separately and do not consume that budget. Use `--keep-going` only for deliberate diagnostics after a hard failure.

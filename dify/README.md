@@ -1,160 +1,136 @@
-# Dify workflow — v10 semantic-core contract
+# Dify workflow - V12 lesson contract
 
-> **Current experiment policy (2026-08-22):** generated Dify workflow exports are local/deployment artifacts and are not stored in this repository. This document describes the durable behavioral/runtime contract that the published v10 workflow is expected to satisfy.
-
-The current validated runtime family is:
+The final V12 lesson has two short foundation tasks followed by the learner-authored game runtime:
 
 ```text
-debug.dsl_version = v10
-debug.build_id = v10-no-thinking-r4-20260822
+Follow
+  learner acts from Raku's instructions
+        ↓
+Guide
+  Raku acts from learner instructions
+        ↓
+Game
+  learner teaches a complete game
+        ↓
+Transfer → Complete
 ```
 
-The build identifier may change as the deployment artifact is revised. The durable contract below should change only when product semantics change.
-
-## Product loop
-
-The current product is not a fixed lesson-state machine. The learner-facing loop is:
+Expected runtime marker:
 
 ```text
-Child explains
-    ↓
-World progressively materializes
-    ↓
-Jamie acts on child-taught rules
-    ↓
-Real play either continues or exposes one genuine communication gap
-    ↓
-Child repairs the explanation
-    ↓
-Repair changes visible reality
-    ↓
-Jamie continues using the taught procedure
-    ↓
-World reaches a child-taught ending
+debug.dsl_version = v12
+debug.build_id = v12-listener-reconstruction-game-r24-final-20260824
 ```
 
-The core heuristic is listener-centered: **what does Jamie still need before it can make the next move?** That heuristic must not become a checklist or a reason to manufacture gaps when normal language is already actionable.
+Final model allocation:
 
-## Authority boundary
+- `AI · Raku Listener Interpreter` -> `deepseek-v4-pro`
+- `AI · Executable Rule Compiler` -> `deepseek-v4-pro`
+- all other LLM nodes -> `deepseek-v4-flash`
+- Thinking disabled everywhere
 
-The child is the rule authority for the current game. Jamie is an ordinary player inside those rules.
+The exported Dify YAML is a deployment/submission artifact and is not committed to the repository.
 
-- Familiar-game pretraining is never evidence that the child taught a rule.
-- The child owns legal moves, outcomes, turn structure, repetition, scores, strategy constraints, and ending conditions.
-- Jamie may make ordinary delegated player choices. `any one`, `any two`, `you choose`, and equivalent language authorize a choice among currently eligible equivalent options.
-- Hidden object identity must not be available to player-choice planning while the object is hidden.
-- Presentation inference may choose harmless visual details, but it may not create gameplay state or logic.
+## Stage 1 - Follow
 
-## Current semantic-core pipeline
+This stage is authored and deterministic. Raku owns a hidden target arrangement. The learner sees movable shapes and possible positions.
 
-The published Dify graph may evolve internally, but the current v10 responsibilities are separated approximately as follows:
+Raku gives only the next instruction needed. The first direction is intentionally compatible with more than one reasonable action. If the learner chooses a different reasonable position from the hidden target, Raku acknowledges that the action was reasonable from the words and adds only the missing detail.
+
+The stage ends by revealing the target. No LLM is required because Raku owns both the target and the instructional sequence.
+
+## Stage 2 - Guide
+
+The learner sees a new target arrangement; Raku does not.
+
+### AI · Raku Reconstruction Listener
+
+The LLM receives the learner's current utterance plus Raku's current board state and recent placement history. It does **not** receive the hidden target.
+
+The interpreter returns grounded placement semantics such as shape, explicit slot, row-only information, or a spatial relation.
+
+### Deterministic Reconstruction Controller
+
+The controller converts those semantics into one visible placement. When language supports multiple positions but does not block action, the controller makes one reasonable choice rather than turning the moment into a tutoring question.
+
+The hidden target is used only to determine whether the reconstruction task is complete. A mismatch is visible to the learner; a specific correction moves the shape immediately.
+
+## Game selection
+
+After the Guide target is reproduced, the learner chooses a familiar game. The workflow stores only the game label, resets to a blank learner-authored world, and shows the Game Guide.
+
+The game label is context only. It never supplies rules.
+
+## Stage 3 - learner-authored game runtime
 
 ```text
-Child message / game event
+Learner message / game event
         ↓
-Listener Interpreter
+AI · Listener Interpreter
         ↓
-Listener memory / student evidence
+Grounded listener memory + student evidence
         ↓
-World Builder
+AI · World Builder
         ↓
-World Guard + actionable-world view
+Deterministic World Grounding Guard
         ↓
-Action Planner
+AI · Executable Rule Compiler / Rule IR
         ↓
-Action-plan Validator
+Deterministic Runtime Primary
+        ↓
+AI · Bounded Semantic Resolver when needed
         ↓
 Gap Evaluator
         ↓
-Controller
+Full-Lesson Controller
         ↓
-Jamie response
+Raku response + response guard
         ↓
-Response Guard
-        ↓
-Frontend JSON pack
+Frontend JSON
 ```
 
-### Listener Interpreter
+### Product truth / authority boundary
 
-Use normal semantic understanding rather than a library of game-specific phrase patterns. The interpreter should understand fragments, ordinary child language, self-correction, pronouns, sequence, conditions, repetition, and endings while preserving one hard boundary: it may only store rules the child actually communicated.
+**The child's utterances are the game.**
 
-Student evidence is durable across the conversation. Listener memory is the grounded procedural knowledge Jamie is allowed to use now. Corrections should supersede contradictory active instructions rather than accumulating both versions as simultaneously true rules.
+Truth order:
 
-### World Builder and World Guard
+1. current explicit learner correction;
+2. current explicit learner statement;
+3. prior learner-taught evidence;
+4. AI interpretation, presentation inference, and defaults.
 
-The World Builder proposes a declarative delta. It may infer presentation details such as symbols, labels, layout, and a small demonstration quantity when quantity was not itself taught as gameplay.
+AI-inferred world state is provisional. A mismatch between a clear learner statement and an older AI guess is a model-reconciliation problem, not a learner communication failure.
 
-The guard must reject or sanitize ungrounded gameplay semantics, including inferred interactive affordances, state transitions, ownership, turn meaning, scores, readiness, or endings.
+### Listener memory and corrections
 
-`world_patch` defines the world. It must not pre-apply the same physical effect that `ui_action` is about to execute.
+The listener model stores only learner-grounded meaning. Corrections supersede conflicting earlier evidence. Raku must not import canonical rules from a familiar game name.
 
-### Action Planner
+### Runtime and player agency
 
-The planner reasons over:
+Raku acts as soon as current taught rules and world state support an action. Multiple legal choices are not automatically communication gaps: if the learner has delegated a choice to Raku, Raku chooses.
 
-1. child-taught listener memory;
-2. the current child message;
-3. the authorized actionable-world view;
-4. current gap/recent action context.
+A real gap opens only when the next transition genuinely requires information the learner has not supplied.
 
-Treat taught instructions as a coherent reusable procedure. Previously taught rules remain usable on later turns; the child should not have to re-teach a rule on every iteration.
+### Game Guide and scaffold fade
 
-The planner currently runs in normal non-thinking JSON mode. This is intentional. The current DeepSeek/Dify reasoning-output path proved unreliable for structured planner output, while the no-thinking semantic-core planner has produced stable schema-valid actions and grounded full-game completion.
+The initial Game Guide exposes five light prompts:
 
-A temporary inability to decide the next branch because the world has not yet revealed the relevant state is an **execution boundary**, not automatically a communication gap. If the child already taught what to do after that state becomes observable, preserve it as continuation evidence instead of opening a new gap.
+`Goal / Start / Turn / Special / Ending`
 
-### Action-plan Validator
+They are attention support, not a required checklist. The learner may explain in any natural order and play may begin before all five have been covered. After successful play/repair the guide compacts and fades.
 
-Downstream code must consume the validated planner result, never raw model output.
+### World reconciliation
 
-Hard checks include:
+Presentation inference may choose visual labels, symbols, or layout, but these choices are provisional. Explicit learner setup, position, state, vacancy, or correction can revise the rendered world. Deterministic validation must not protect an older AI guess against newer learner evidence.
 
-- valid JSON and required planner shape;
-- allowed atomic action types;
-- action targets exist;
-- no frontend-response wrapper masquerading as a planner result unless it can be safely recovered;
-- structured-output failures become pipeline errors, not learner failures.
+### Grounded completion
 
-Diagnostics such as `raw_type`, `raw_keys`, and `raw_preview` exist to distinguish provider/format failures from semantic planning failures.
+`game_complete=true` requires a learner-taught ending condition, a visible state that satisfies it, and non-empty learner-grounded evidence. Completion then advances to one short transfer question and `complete`.
 
-### Gap Evaluator and Controller
+## Frontend protocol
 
-A pending communication gap is a specific missing rule-relevant need. It is resolved only when the child's contribution actually makes the relevant transition actionable.
-
-Pipeline/parser failures are never evidence that the child explained badly. On system failure:
-
-- preserve the learner gap as-is;
-- do not increment learner repair attempts or scaffolding counters;
-- do not generate learner-blaming feedback.
-
-Repair may create an internal `reflection_candidate`, but the controller does not immediately turn repair into a lesson summary. Play continues.
-
-### Jamie response and Response Guard
-
-Jamie should sound like a capable same-age friend, not a tutor or parser.
-
-- Do not grade the child.
-- Do not recite a communication principle after every repair.
-- Do not force a question when a brief acknowledgement is enough.
-- Do not guess unstated rules through leading questions.
-- Never claim that a physical action happened unless the validated plan actually contains the corresponding executable action.
-
-## Grounded completion
-
-`game_complete=true` is about the child's game, not an arbitrary lesson progression counter.
-
-Completion requires all three:
-
-1. the child taught an ending condition;
-2. the authorized world after the planned actions satisfies it; and
-3. `completion_evidence` cites the child-taught ending rule.
-
-At grounded completion the controller emits `phase=complete`, clears any pending listener gap, and closes naturally. If a meaningful earlier repair earned a reflection candidate, one short specific reflection may be surfaced here; it is optional and must not become a general lecture such as `When you teach someone...`.
-
-## Current frontend protocol
-
-Supported atomic actions are:
+Supported atomic actions include:
 
 - `update_object`
 - `reveal_object`
@@ -164,33 +140,12 @@ Supported atomic actions are:
 - `set_counter`
 - `set_status`
 - `wait`
-- `reset_to_baseline` where still supported by the browser/runtime
+- `reset_to_baseline` where applicable
 
-The browser applies `world_patch`, then executes `ui_action`. The two channels must remain semantically separate.
+The browser applies `world_patch` first, then `ui_action`.
 
-## Failure and recovery philosophy
+V12 support payloads include `listener_task`, `reconstruction_result`, `reconstruction_task`, `game_picker`, `game_guide`, `repair_coaching`, and `locate_step`.
 
-The runtime distinguishes learner/product behavior from provider/runtime faults.
+## Validation policy
 
-- Successful wrapper recovery belongs in `debug.recoveries`, not `pipeline_errors`.
-- Unrecoverable structured-output/provider failures belong in `pipeline_errors`.
-- A system error must never be translated into `you did not explain clearly enough`.
-- Learner-facing physical claims must stay faithful to the validated action plan.
-
-## Validation evidence
-
-The deterministic scenarios under `tests/e2e/` protect the core loop, child authority, player agency, grounded repair, and prior-knowledge suppression.
-
-`tests/e2e/run-ai-full-game.mjs` provides broader unscripted evidence: an AI child invents a small original game, teaches it turn by turn, and the run passes only when the world reaches a child-taught ending with `game_complete=true`, `phase=complete`, non-empty completion evidence, no pending gap, and no pipeline errors.
-
-The no-thinking v10 r4 runtime has completed such an original full-game smoke successfully. This is broad smoke evidence, not proof that arbitrary games are production-ready.
-
-## Historical files
-
-The following are retained for design history only and are not active workflow source:
-
-- [`interpreter-prompt.md`](./interpreter-prompt.md) — old v6 combined interpreter/world/action prompt.
-- [`lesson-engine.py`](./lesson-engine.py) — old v6 deterministic lesson-state engine.
-- [`v8/`](./v8/) — v8 behavioral/slimming experiments that informed later invariants.
-
-Do not copy these historical files into a new Dify graph as if they were the current v10 architecture.
+Fixed learner-facing E2E/browser probes were used throughout development. The unscripted AI full-game runner remains available as high-cost diagnostic fuzzing, but is intentionally not a submission/freeze gate: it repeatedly invokes the full semantic pipeline with growing context and tests beyond the bounded core Lesson Card path.

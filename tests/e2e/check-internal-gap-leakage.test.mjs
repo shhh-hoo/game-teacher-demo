@@ -13,6 +13,18 @@ const safe = {
   },
 };
 
+const safeMissingOutcome = {
+  debug: {
+    action_plan: {
+      post_action_gap: {
+        context: 'Both players have made a visible choice.',
+        missing_for_next_action: 'the win condition after both players choose',
+        reason: 'The child has not taught how the winner is determined.',
+      },
+    },
+  },
+};
+
 const leaking = {
   debug: {
     action_plan: {
@@ -26,5 +38,6 @@ const leaking = {
 };
 
 assert.equal(findInternalGapLeakage(safe).length, 0);
+assert.equal(findInternalGapLeakage(safeMissingOutcome).length, 0);
 assert.ok(findInternalGapLeakage(leaking).length > 0);
 console.log('internal-gap leakage checker tests: PASS');

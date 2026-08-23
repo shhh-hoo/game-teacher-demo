@@ -58,12 +58,53 @@ function buildDifyQuery({ message, event, speech }) {
   return cleanMessage;
 }
 
+function runtimeLogSummary(entry) {
+  return {
+    ts: entry.ts,
+    ok: entry.ok,
+    elapsedMs: entry.elapsedMs,
+    conversationId: entry.conversationId || '',
+    messageId: entry.messageId || '',
+    phase: entry.payload?.phase || null,
+    actionType: entry.payload?.ui_action?.type || null,
+    actionCount: entry.payload?.ui_action?.payload?.actions?.length || 0,
+    buildId: entry.payload?.debug?.build_id || null,
+    error: entry.error || null,
+  };
+}
+
+async function writeWalkthroughLog(entry) {
+  const record = { ts: new Date().toISOString(), ...entry };
+  console.log(`[game-teacher] ${JSON.stringify(runtimeLogSummary(record))}`);
+
+  const vercelEnv = process.env.VERCEL_ENV || '';
+  const localDev = !['production', 'preview'].includes(vercelEnv);
+  if (!localDev) return;
+
+  try {
+    const [{ mkdir, appendFile }, path] = await Promise.all([
+      import('node:fs/promises'),
+      import('node:path'),
+    ]);
+    const dir = path.join(process.cwd(), '.artifacts');
+    await mkdir(dir, { recursive: true });
+    await appendFile(
+      path.join(dir, 'walkthrough.ndjson'),
+      `${JSON.stringify(record)}\n`,
+      'utf8',
+    );
+  } catch (error) {
+    console.warn('[game-teacher] could not persist local walkthrough log', error);
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const startedAt = Date.now();
   const apiKey = process.env.DIFY_API_KEY;
   const baseUrl = (process.env.DIFY_API_BASE_URL || 'https://api.dify.ai/v1').replace(/\/$/, '');
 
@@ -103,6 +144,15 @@ export default async function handler(req, res) {
     const raw = await response.text();
 
     if (!response.ok) {
+      await writeWalkthroughLog({
+        ok: false,
+        elapsedMs: Date.now() - startedAt,
+        query,
+        conversationId,
+        userId,
+        error: `Dify request failed: ${response.status}`,
+        raw: raw.slice(0, 4000),
+      });
       return res.status(response.status).json({
         error: 'Dify request failed',
         detail: raw,
@@ -113,6 +163,15 @@ export default async function handler(req, res) {
     try {
       data = JSON.parse(raw);
     } catch {
+      await writeWalkthroughLog({
+        ok: false,
+        elapsedMs: Date.now() - startedAt,
+        query,
+        conversationId,
+        userId,
+        error: 'Dify API response was not JSON',
+        raw: raw.slice(0, 4000),
+      });
       return res.status(502).json({
         error: 'Dify API response was not JSON',
         detail: raw.slice(0, 1200),
@@ -123,6 +182,17 @@ export default async function handler(req, res) {
     try {
       lessonPayload = parseDifyAnswer(data.answer);
     } catch (error) {
+      await writeWalkthroughLog({
+        ok: false,
+        elapsedMs: Date.now() - startedAt,
+        query,
+        conversationId: data.conversation_id || conversationId,
+        messageId: data.message_id,
+        userId,
+        error: 'Dify answer was not valid frontend JSON',
+        rawAnswer: error.rawAnswer ?? String(data.answer),
+        usage: data.metadata?.usage || null,
+      });
       return res.status(502).json({
         error: 'Dify answer was not valid frontend JSON',
         detail: `${error.message}. Raw Dify answer: ${error.rawAnswer ?? String(data.answer)}`,
@@ -131,12 +201,33 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(200).json({
+    const responsePayload = {
       ...lessonPayload,
       conversationId: data.conversation_id,
       messageId: data.message_id,
+    };
+
+    await writeWalkthroughLog({
+      ok: true,
+      elapsedMs: Date.now() - startedAt,
+      query,
+      userId,
+      conversationId: data.conversation_id,
+      messageId: data.message_id,
+      payload: lessonPayload,
+      usage: data.metadata?.usage || null,
     });
+
+    return res.status(200).json(responsePayload);
   } catch (error) {
+    await writeWalkthroughLog({
+      ok: false,
+      elapsedMs: Date.now() - startedAt,
+      query,
+      conversationId,
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return res.status(500).json({
       error: 'Unexpected proxy error',
       detail: error instanceof Error ? error.message : String(error),
