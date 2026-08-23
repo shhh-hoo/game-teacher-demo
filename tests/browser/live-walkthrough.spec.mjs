@@ -44,7 +44,7 @@ test('real lesson keeps language, visible actions, and ownership aligned', async
   await page.goto('/');
 
   let payload = await apiTurn(page, () => page.getByRole('button', { name: 'Start lesson' }).click());
-  expect(payload.debug?.build_id || '').toContain('r21-');
+  expect(payload.debug?.build_id || '').toContain('r22-');
 
   // Follow: complete the authored listener-perspective task.
   await clickWorld(page, 'follow_triangle');
@@ -77,7 +77,7 @@ test('real lesson keeps language, visible actions, and ownership aligned', async
 
   // A structural grid must appear empty: no decorative identities and no positional answers printed into cells.
   payload = await send(page, 'We need a 3 by 3 grid. The goal is to get three X marks or three O marks in the same line.');
-  expect(payload.debug?.build_id || '').toContain('r21-');
+  expect(payload.debug?.build_id || '').toContain('r22-');
   const cells = page.locator('[data-world-object^="cell_"]');
   await expect(cells).toHaveCount(9, { timeout: 30_000 });
 
