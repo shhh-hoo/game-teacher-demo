@@ -4,6 +4,8 @@ const STAGES = ['follow', 'guide', 'game', 'transfer'];
 const STAGE_LABELS = { follow: 'Follow', guide: 'Guide', game: 'Game', transfer: 'Reflect', complete: 'Done' };
 const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
+let chatScrollTop = 0;
+let chatStickToBottom = true;
 
 function stageForPhase(phase) {
   if (phase === 'follow') return 'follow';
@@ -28,7 +30,25 @@ const state = {
 };
 sessionStorage.setItem('gameTeacherUserId', state.userId);
 
+function captureChatScroll() {
+  const log = document.querySelector('#chatLog');
+  if (!log) return;
+  chatScrollTop = log.scrollTop;
+  const remaining = log.scrollHeight - log.scrollTop - log.clientHeight;
+  chatStickToBottom = remaining < 36;
+}
+
+function restoreChatScroll() {
+  const log = document.querySelector('#chatLog');
+  if (!log) return;
+  requestAnimationFrame(() => {
+    if (chatStickToBottom) log.scrollTop = log.scrollHeight;
+    else log.scrollTop = Math.min(chatScrollTop, Math.max(0, log.scrollHeight - log.clientHeight));
+  });
+}
+
 function render() {
+  captureChatScroll();
   const lesson = state.screen === 'lesson';
   app.innerHTML = `<div class="app-shell v12-shell">
     ${lesson ? '' : `<header class="topbar"><div class="brand"><div class="brand-mark">GAKKU · AI LESSON CARD</div><h1>Teach Me a Game</h1></div>${state.apiError ? '<div class="status-pill error">Connection issue</div>' : ''}</header>`}
@@ -36,6 +56,7 @@ function render() {
     ${state.screen === 'home' ? renderHome() : renderLesson()}
   </div>`;
   bindEvents();
+  restoreChatScroll();
 }
 
 function renderProgress() {
@@ -107,13 +128,22 @@ function objectInteractive(object) {
   return false;
 }
 
+function shouldShowCaption(object) {
+  const stage = stageForPhase(state.phase);
+  const kind = normalizeKind(object.kind);
+  if ((stage==='follow' || stage==='guide') && kind==='zone') return false;
+  if (stage==='game' && kind==='cell') return false;
+  return Boolean(object.caption);
+}
+
 function renderWorldObject(object) {
   const interactive = objectInteractive(object);
   const kind = normalizeKind(object.kind);
   const stateName = String(object.state||'available');
   const faceDown = stateName==='face_down';
   const symbol = faceDown?'':String(object.symbol||object.label||'');
-  return `<button class="world-object kind-${kind} state-${escapeAttr(stateName)} ${interactive?'interactive':''}" data-world-object="${escapeAttr(object.id)}" style="${buildObjectPositionStyle(object)}" aria-label="${escapeAttr(object.label||object.id)}" ${interactive?'':'disabled'}>${faceDown?'<span class="object-back"></span>':`<span class="object-symbol">${escapeHtml(symbol)}</span>`}${object.caption?`<small>${escapeHtml(object.caption)}</small>`:''}</button>`;
+  const caption = shouldShowCaption(object) ? `<small>${escapeHtml(object.caption)}</small>` : '';
+  return `<button class="world-object kind-${kind} state-${escapeAttr(stateName)} ${interactive?'interactive':''}" data-world-object="${escapeAttr(object.id)}" style="${buildObjectPositionStyle(object)}" aria-label="${escapeAttr(object.label||object.id)}" ${interactive?'':'disabled'}>${faceDown?'<span class="object-back"></span>':`<span class="object-symbol">${escapeHtml(symbol)}</span>`}${caption}</button>`;
 }
 
 function renderSupport() {
@@ -163,7 +193,11 @@ function bindEvents() {
   document.querySelectorAll('[data-world-object]').forEach(button=>button.addEventListener('click',()=>submitWorldEvent({type:'object_click',object_id:button.dataset.worldObject})));
   document.querySelectorAll('[data-game-choice]').forEach(button=>button.addEventListener('click',()=>submitWorldEvent({type:'game_choice_selected',choice:button.dataset.gameChoice})));
   document.querySelectorAll('[data-repair-index]').forEach(button=>button.addEventListener('click',()=>{const index=Number(button.dataset.repairIndex);const step=state.support?.steps?.[index];if(step)submitWorldEvent({type:'repair_step_selected',index,step});}));
-  requestAnimationFrame(()=>{const log=document.querySelector('#chatLog');if(log)log.scrollTop=log.scrollHeight;});
+  const log = document.querySelector('#chatLog');
+  log?.addEventListener('scroll',()=>{
+    chatScrollTop = log.scrollTop;
+    chatStickToBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 36;
+  }, {passive:true});
 }
 
 function pushMessage(role,text) {
@@ -172,12 +206,15 @@ function pushMessage(role,text) {
   const last = state.messages[state.messages.length-1];
   if (last?.role===role && last?.text===clean) return;
   state.messages.push({role,text:clean});
+  chatStickToBottom = true;
 }
 
 async function startLesson() {
   stopRecognition();
   Object.assign(state,{screen:'lesson',phase:'follow',loading:false,apiError:'',inputDraft:'',voiceMeta:null,world:blankWorld(),support:null,conversationId:'',messages:[]});
   sessionStorage.removeItem('gameTeacherConversationId');
+  chatScrollTop = 0;
+  chatStickToBottom = true;
   render();
   await requestLessonTurn({event:{type:'lesson_start'}});
 }
@@ -186,6 +223,8 @@ function restartLesson() {
   stopRecognition();
   Object.assign(state,{screen:'home',phase:'follow',loading:false,apiError:'',inputDraft:'',voiceMeta:null,world:blankWorld(),support:null,conversationId:'',messages:[]});
   sessionStorage.removeItem('gameTeacherConversationId');
+  chatScrollTop = 0;
+  chatStickToBottom = true;
   render();
 }
 
@@ -222,7 +261,11 @@ async function requestLessonTurn({message='',event=null,speech=null}) {
   }
   const nextPhase = result.phase||state.phase;
   const nextStage = stageForPhase(nextPhase);
-  if (nextStage!==previousStage) state.messages=[];
+  if (nextStage!==previousStage) {
+    state.messages=[];
+    chatScrollTop = 0;
+    chatStickToBottom = true;
+  }
   state.phase=nextPhase;
   if (result.world_patch) applyWorldPatch(result.world_patch);
   if (result.reply) pushMessage('ai',result.reply);
