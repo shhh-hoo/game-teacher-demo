@@ -25,6 +25,29 @@ function flattenActionTypes(uiAction) {
   return [String(uiAction.type || '')].filter(Boolean);
 }
 
+function compactActions(uiAction) {
+  if (!uiAction || uiAction.type === 'none' || uiAction.type === 'lesson_complete') return [];
+  const actions = uiAction.type === 'action_sequence'
+    ? (Array.isArray(uiAction.payload?.actions) ? uiAction.payload.actions : [])
+    : [uiAction];
+  return actions.map(action => ({
+    type: String(action?.type || ''),
+    object_id: action?.object_id ?? null,
+    to: action?.to ?? null,
+    counter_id: action?.counter_id ?? null,
+    value: action?.value ?? null,
+    patch: action?.patch && typeof action.patch === 'object'
+      ? {
+          symbol: action.patch.symbol ?? null,
+          state: action.patch.state ?? null,
+          owner: action.patch.owner ?? null,
+          row: action.patch.row ?? null,
+          column: action.patch.column ?? null,
+        }
+      : null,
+  }));
+}
+
 function gapSummary(payload) {
   const gap = payload?.debug?.controller?.pending_gap
     || payload?.debug?.action_plan?.post_action_gap
@@ -37,22 +60,65 @@ function gapSummary(payload) {
   };
 }
 
-export function compactTraceForJudge(trace) {
+function compactWorld(world) {
+  if (!world || typeof world !== 'object') return null;
   return {
-    scenario: trace?.scenario || null,
-    description: trace?.description || null,
-    turns: (trace?.turns || []).map(turn => ({
-      index: turn?.index ?? null,
-      student: turn?.query || '',
-      jamie: turn?.payload?.reply || '',
-      actions: flattenActionTypes(turn?.payload?.ui_action),
-      internal_gap: gapSummary(turn?.payload),
-      phase: turn?.payload?.phase || null,
-      hard_assertions_failed: (turn?.assertions || [])
-        .filter(item => item && item.ok === false)
-        .map(item => item.name),
-      soft_quality_signals: turn?.qualitySignals || [],
+    name: world.name || null,
+    surface: world.surface || null,
+    ready: Boolean(world.ready),
+    turn: world.turn ?? null,
+    status: world.status || '',
+    counters: (world.counters || []).map(counter => ({
+      id: counter.id,
+      label: counter.label,
+      value: counter.value,
     })),
+    objects: (world.objects || []).map(object => ({
+      id: object.id,
+      kind: object.kind,
+      label: object.label,
+      symbol: object.state === 'face_down' ? null : object.symbol,
+      state: object.state,
+      owner: object.owner ?? null,
+      row: object.row ?? null,
+      column: object.column ?? null,
+    })),
+  };
+}
+
+export function compactTraceForJudge(trace) {
+  const aiFullGame = trace?.kind === 'ai-full-game';
+  return {
+    kind: trace?.kind || 'scenario',
+    scenario: trace?.scenario || (aiFullGame ? 'ai-full-game' : null),
+    description: trace?.description || null,
+    game_spec: aiFullGame ? trace?.gameSpec || null : null,
+    completion: aiFullGame ? trace?.completion || null : null,
+    hard_failures: aiFullGame ? trace?.hardFailures || [] : [],
+    turns: (trace?.turns || []).map(turn => {
+      const payload = turn?.payload || {};
+      const student = turn?.query ?? turn?.student ?? '';
+      const jamie = payload?.reply ?? turn?.jamie ?? '';
+      const hardAssertionFailures = (turn?.assertions || [])
+        .filter(item => item && item.ok === false)
+        .map(item => item.name);
+      if (turn?.phantom_action) hardAssertionFailures.push('phantom_action');
+      if (Array.isArray(payload?.debug?.pipeline_errors) && payload.debug.pipeline_errors.length) {
+        hardAssertionFailures.push('pipeline_errors');
+      }
+      return {
+        index: turn?.index ?? null,
+        student,
+        jamie,
+        actions: compactActions(payload?.ui_action),
+        action_types: flattenActionTypes(payload?.ui_action),
+        internal_gap: gapSummary(payload),
+        phase: payload?.phase || null,
+        hard_assertions_failed: hardAssertionFailures,
+        soft_quality_signals: turn?.qualitySignals || [],
+        visible_world_after: compactWorld(turn?.world_after || turn?.worldAfterActions || null),
+      };
+    }),
   };
 }
 
