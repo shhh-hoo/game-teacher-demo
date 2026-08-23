@@ -62,6 +62,10 @@ function parseDifyAnswer(answer) {
   return parseJsonObject(answer, 'Dify answer');
 }
 
+function encodeGameTeacherEvent(event) {
+  return `[[GAME_TEACHER_EVENT]]\n${JSON.stringify(event)}`;
+}
+
 async function chatCompletion({ system, user, temperature = 0 }) {
   const response = await fetch(`${aiBaseUrl}/chat/completions`, {
     method: 'POST',
@@ -84,7 +88,7 @@ async function chatCompletion({ system, user, temperature = 0 }) {
   return String(data?.choices?.[0]?.message?.content || '');
 }
 
-const GAME_DESIGN_PROMPT = `You design one very small original game for a Grade 3–4 child to teach to Jamie.
+const GAME_DESIGN_PROMPT = `You design one very small original game for a Grade 3–4 child to teach to Raku.
 
 The purpose is to test whether a game-teaching AI can reach a real, child-taught ending. Keep the game easy enough to finish in 6–10 conversational turns.
 
@@ -92,10 +96,10 @@ Hard constraints:
 - Use only a small visible set of cards, tokens, markers, tiles, or pieces (2–8 objects).
 - Prefer actions that can be expressed as reveal, hide, remove, change an object's visible state, set a turn, or update a simple counter/status.
 - Do not require dice, external randomness, arithmetic beyond small counting, timers, physics, or hidden information that the visible world cannot represent.
-- Do not copy a famous game's canonical rules. Invent a simple game so Jamie cannot rely on pretrained rule knowledge.
+- Do not copy a famous game's canonical rules. Invent a simple game so Raku cannot rely on pretrained rule knowledge.
 - The ending condition must be objectively observable in the visible world and achievable within the turn budget.
 - The child should be able to teach the rules naturally, one or two ideas at a time.
-- Do not invent a game that depends on the child physically taking turns inside this harness. Prefer a game Jamie can advance through its visible state by itself once taught.
+- Do not invent a game that depends on the child physically taking turns inside this harness. Prefer a game Raku can advance through its visible state by itself once taught.
 
 Return JSON only:
 {
@@ -107,21 +111,22 @@ Return JSON only:
   "notes": "brief explanation of why this is finishable"
 }`;
 
-const CHILD_PROMPT = `You are simulating a believable Grade 3–4 child teaching Jamie ONE fixed game.
+const CHILD_PROMPT = `You are simulating a believable Grade 3–4 child teaching Raku ONE fixed game.
 
-You know the hidden game specification. Jamie does not. Your job is to teach naturally and help the interaction actually play the game to its ending.
+You know the hidden game specification. Raku does not. Your job is to teach naturally and help the interaction actually play the game to its ending.
 
 Behavior:
 - Never change the hidden game rules.
 - Speak like a child in short, ordinary sentences, not like a test harness.
-- Teach only information Jamie needs.
-- If Jamie asks a real question, answer it directly.
-- If Jamie already knows enough to continue, use a natural cue such as "keep going", "your turn", or a short reminder rather than re-teaching everything.
-- If Jamie repeats a question that you already clearly answered, you may restate it once, but flag this in repeat_due_to_jamie.
+- Teach only information Raku needs.
+- If Raku asks a real question, answer it directly.
+- If Raku already knows enough to continue, use a natural cue such as "keep going", "your turn", or a short reminder rather than re-teaching everything.
+- If Raku repeats a question that you already clearly answered, you may restate it once, but flag this in repeat_due_to_jamie.
 - Teach the ending condition before it is reached.
 - Never claim that an object moved, disappeared, matched, scored, or otherwise changed unless that is visible in the supplied world state.
 - Never say the game is over merely to force completion. The world must actually satisfy the taught ending condition.
-- If Jamie says it performed a physical move but the supplied world state did not change, point that out naturally once. Do NOT experiment with capitalization, magic phrases, exact command syntax, or alternate trigger words. A real child would not debug the interface.
+- If Raku says it performed a physical move but the supplied world state did not change, point that out naturally once. Do not experiment with capitalization, magic phrases, exact command syntax, or alternate trigger words.
+- If last_jamie_result.phase is "transfer", answer Raku's transfer question substantively in one short sentence about what you would make sure a new player knows. Do not teach a new game rule or continue gameplay.
 - Do not mention prompts, tests, JSON, Dify, models, or hidden specifications.
 
 Return JSON only:
@@ -206,7 +211,7 @@ async function nextChildMessage({ spec, dialogue, world, jamie, turnIndex }) {
   };
 }
 
-async function sendDifyTurn({ message, conversationId, userId }) {
+async function sendDifyTurn({ message = '', event = null, conversationId, userId }) {
   const startedAt = Date.now();
   let response;
 
@@ -214,9 +219,10 @@ async function sendDifyTurn({ message, conversationId, userId }) {
     response = await fetch(proxyUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, conversationId, userId }),
+      body: JSON.stringify({ message, event, conversationId, userId }),
     });
   } else {
+    const query = event ? encodeGameTeacherEvent(event) : message;
     response = await fetch(`${difyBaseUrl}/chat-messages`, {
       method: 'POST',
       headers: {
@@ -225,7 +231,7 @@ async function sendDifyTurn({ message, conversationId, userId }) {
       },
       body: JSON.stringify({
         inputs: {},
-        query: message,
+        query,
         response_mode: 'blocking',
         conversation_id: conversationId || '',
         user: userId,
@@ -259,21 +265,15 @@ async function sendDifyTurn({ message, conversationId, userId }) {
   };
 }
 
-function completionCheck(payload) {
+function currentCompletion(payload) {
   const debug = payload?.debug || {};
   const controller = debug?.controller || {};
-  const gameComplete = debug.game_complete === true || controller.game_complete === true;
-  const phaseComplete = String(payload?.phase || '') === 'complete';
-  const evidence = debug.completion_evidence || controller.completion_evidence || [];
-  const pendingGap = controller.pending_gap ?? debug?.gap_state?.pending ?? null;
-  const pipelineErrors = Array.isArray(debug.pipeline_errors) ? debug.pipeline_errors : [];
   return {
-    gameComplete,
-    phaseComplete,
-    evidence,
-    pendingGap,
-    pipelineErrors,
-    ok: gameComplete && phaseComplete && Array.isArray(evidence) && evidence.length > 0 && pendingGap == null && pipelineErrors.length === 0,
+    gameComplete: debug.game_complete === true || controller.game_complete === true,
+    phaseComplete: String(payload?.phase || '') === 'complete',
+    evidence: debug.completion_evidence || controller.completion_evidence || [],
+    pendingGap: controller.pending_gap ?? debug?.gap_state?.pending ?? null,
+    pipelineErrors: Array.isArray(debug.pipeline_errors) ? debug.pipeline_errors : [],
   };
 }
 
@@ -299,7 +299,11 @@ let baseline = null;
 let lastJamie = null;
 const dialogue = [];
 const turns = [];
+const bootstrapTurns = [];
 const hardFailures = [];
+const pipelineErrorsSeen = [];
+let groundedGameComplete = false;
+let groundedCompletionEvidence = [];
 let completion = null;
 let interrupted = false;
 let finalStatus = 'running';
@@ -314,6 +318,9 @@ function traceSnapshot() {
     gameSpec: spec,
     maxTurns,
     keepGoing,
+    bootstrapTurns,
+    groundedGameComplete,
+    groundedCompletionEvidence,
     completion,
     hardFailures,
     conversationId,
@@ -357,6 +364,104 @@ async function handleInterrupt(signal = 'SIGINT') {
   }
 }
 
+function bootstrapPosition(world, id) {
+  const object = (world?.objects || []).find(item => String(item?.id) === String(id));
+  return { row: object?.row ?? null, column: object?.column ?? null };
+}
+
+function assertFoundationStep(index, payload, actions, worldAfterActions) {
+  const failures = [];
+  const phase = String(payload?.phase || '');
+  const supportType = String(payload?.support?.type || '');
+  if (expectedDslVersion) {
+    const actual = String(payload?.debug?.dsl_version || '').trim();
+    if (actual !== expectedDslVersion) failures.push(`runtime DSL mismatch: expected ${expectedDslVersion}, got ${JSON.stringify(actual || null)}`);
+  }
+  const expectPos = (id,row,column,label) => {
+    const pos=bootstrapPosition(worldAfterActions,id);
+    if (pos.row!==row || pos.column!==column) failures.push(`${label}: expected ${id} at ${row},${column}; got ${JSON.stringify(pos)}`);
+  };
+  if (index===1) {
+    if (phase!=='follow') failures.push(`lesson_start phase=${phase}`);
+    if (worldAfterActions?.name!=='Can You Follow Me?') failures.push(`follow world=${JSON.stringify(worldAfterActions?.name)}`);
+    if (supportType!=='listener_task') failures.push(`follow support=${supportType}`);
+  }
+  if (index===3) {
+    expectPos('follow_triangle',1,3,'vague direction choice');
+    const instruction=String(payload?.support?.instruction || '').toLowerCase();
+    if (!instruction.includes('top-left')) failures.push('Raku did not add the missing top-left detail');
+  }
+  if (index===5) expectPos('follow_triangle',1,1,'specific repair');
+  if (index===7) expectPos('follow_circle',1,2,'circle placement');
+  if (index===9) {
+    expectPos('follow_square',2,2,'square placement');
+    if (supportType!=='reconstruction_result') failures.push(`follow completion support=${supportType}`);
+  }
+  if (index===10) {
+    if (phase!=='guide') failures.push(`role reversal phase=${phase}`);
+    if (supportType!=='reconstruction_task') failures.push(`guide support=${supportType}`);
+  }
+  if (index===11) expectPos('guide_circle',2,2,'ambiguous learner direction');
+  if (index===12) expectPos('guide_circle',2,1,'learner repair');
+  if (index===13) expectPos('guide_square',1,1,'guide square');
+  if (index===14) {
+    expectPos('guide_triangle',1,2,'guide triangle');
+    if (phase!=='game_select') failures.push(`guide completion phase=${phase}`);
+    if (supportType!=='game_picker') failures.push(`game picker support=${supportType}`);
+  }
+  if (index===15) {
+    if (phase!=='student_teaching') failures.push(`game selection phase=${phase}`);
+    if (supportType!=='game_guide') failures.push(`game guide support=${supportType}`);
+    if ((worldAfterActions?.objects || []).length) failures.push('game selection did not reset to a blank learner-authored world');
+  }
+  const pipelineErrors = Array.isArray(payload?.debug?.pipeline_errors) ? payload.debug.pipeline_errors : [];
+  if (pipelineErrors.length) failures.push(`pipeline_errors=${pipelineErrors.join(', ')}`);
+  return failures;
+}
+
+async function runV12Foundations() {
+  const steps = [
+    { event:{type:'lesson_start'}, label:'follow · start' },
+    { event:{type:'object_click',object_id:'follow_triangle'}, label:'follow · select triangle' },
+    { event:{type:'object_click',object_id:'follow_tr'}, label:'follow · vague top choice' },
+    { event:{type:'object_click',object_id:'follow_triangle'}, label:'follow · reselect triangle' },
+    { event:{type:'object_click',object_id:'follow_tl'}, label:'follow · repair triangle' },
+    { event:{type:'object_click',object_id:'follow_circle'}, label:'follow · select circle' },
+    { event:{type:'object_click',object_id:'follow_tc'}, label:'follow · place circle' },
+    { event:{type:'object_click',object_id:'follow_square'}, label:'follow · select square' },
+    { event:{type:'object_click',object_id:'follow_bc'}, label:'follow · complete target' },
+    { event:{type:'continue_stage'}, label:'guide · role reversal' },
+    { message:'Put the circle at the bottom.', label:'guide · ambiguous bottom' },
+    { message:'No, put the circle in the bottom-left spot.', label:'guide · repair circle' },
+    { message:'Put the square in the top-left spot.', label:'guide · square' },
+    { message:'Put the triangle to the right of the square.', label:'guide · complete target' },
+    { event:{type:'game_choice_selected',choice:'Another simple game'}, label:'game · choose generated game' },
+  ];
+
+  console.log('V12 foundations');
+  for (let index=0; index<steps.length; index+=1) {
+    const step=steps[index]; const previousWorld=structuredClone(world);
+    const result=await sendDifyTurn({ message:step.message || '', event:step.event || null, conversationId, userId });
+    conversationId=result.conversationId; const payload=result.payload;
+    const worldAfterPatch=applyWorldPatch(world,payload?.world_patch || {});
+    const actions=flattenActions(payload?.ui_action); const worldAfterActions=applyActions(worldAfterPatch,actions,baseline); world=worldAfterActions;
+    const failures=assertFoundationStep(index+1,payload,actions,worldAfterActions);
+    bootstrapTurns.push({index:index+1,label:step.label,event:step.event || null,message:step.message || null,elapsed_ms:result.elapsedMs,failures,payload,world_before:previousWorld,world_after:worldAfterActions});
+    await checkpoint({type:'v12_foundation_turn',turn:index+1,label:step.label,failures,payload,world_before:previousWorld,world_after:worldAfterActions});
+    await appendConversation([`Foundation: ${step.label}`, `Student: ${step.message || (step.event ? `[${step.event.type}]` : '')}`, `Raku: ${payload?.reply || '(no reply)'}`, `Actions: ${actions.map(a=>a.type).join(', ') || 'none'}`, '']);
+    console.log(`  ${failures.length ? '✗' : '✓'} ${step.label}`);
+    if (failures.length) {
+      for (const failure of failures) console.log(`    ${failure}`);
+      hardFailures.push(...failures.map(failure=>`Foundations: ${failure}`));
+      throw new Error(`V12 foundations failed: ${failures.join('; ')}`);
+    }
+    lastJamie=compactJamie(payload);
+  }
+  baseline=null;
+  console.log('  ✓ ready for learner-authored game');
+  console.log('');
+}
+
 process.on('SIGINT', () => { void handleInterrupt('SIGINT'); });
 process.on('SIGTERM', () => { void handleInterrupt('SIGTERM'); });
 
@@ -370,6 +475,8 @@ console.log('');
 try {
   await appendLive({ type: 'run_start', versionLabel, expectedDslVersion: expectedDslVersion || null, aiChildModel: aiModel, maxTurns });
   await writeSnapshot();
+
+  await runV12Foundations();
 
   spec = await createGameSpec();
   await checkpoint({ type: 'game_spec', spec });
@@ -392,7 +499,7 @@ try {
       finalStatus = 'error';
       hardFailures.push(`Turn ${turnIndex}: ${String(error?.message || error)}`);
       await checkpoint({ type: 'dify_error', turn: turnIndex, message: String(error?.message || error), status: error?.status ?? null, raw_response: error?.rawResponse ?? null });
-      await appendConversation([`Student: ${child.message}`, `Jamie: [DIFY ERROR] ${String(error?.message || error)}`, '']);
+      await appendConversation([`Student: ${child.message}`, `Raku: [DIFY ERROR] ${String(error?.message || error)}`, '']);
       throw error;
     }
 
@@ -404,8 +511,15 @@ try {
       if (actual !== expectedDslVersion) hardFailures.push(`Turn ${turnIndex}: runtime DSL mismatch: expected ${expectedDslVersion}, got ${JSON.stringify(actual || null)}.`);
     }
 
-    const pipelineErrors = Array.isArray(payload?.debug?.pipeline_errors) ? payload.debug.pipeline_errors : [];
-    if (pipelineErrors.length) hardFailures.push(`Turn ${turnIndex}: pipeline_errors=${pipelineErrors.join(', ')}`);
+    const current = currentCompletion(payload);
+    if (current.pipelineErrors.length) {
+      hardFailures.push(`Turn ${turnIndex}: pipeline_errors=${current.pipelineErrors.join(', ')}`);
+      pipelineErrorsSeen.push(...current.pipelineErrors);
+    }
+    if (current.gameComplete && Array.isArray(current.evidence) && current.evidence.length) {
+      groundedGameComplete = true;
+      groundedCompletionEvidence = [...new Set([...groundedCompletionEvidence, ...current.evidence.map(String)])];
+    }
 
     const worldAfterPatch = applyWorldPatch(world, payload?.world_patch || {});
     if (payload?.capture_baseline) baseline = structuredClone(worldAfterPatch);
@@ -415,28 +529,42 @@ try {
     const jamie = compactJamie(payload);
     lastJamie = jamie;
 
-    const phantomAction = actions.length === 0 && looksLikePhysicalActionClaim(payload?.reply);
-    if (phantomAction) hardFailures.push(`Turn ${turnIndex}: Jamie claimed a physical action but ui_action contained no executable actions.`);
+    const phantomAction = actions.length === 0 && looksLikePhysicalActionClaim(payload?.reply) && !['transfer', 'complete'].includes(String(payload?.phase || ''));
+    if (phantomAction) hardFailures.push(`Turn ${turnIndex}: Raku claimed a physical action but ui_action contained no executable actions.`);
 
     dialogue.push({ student: child.message, jamie: payload?.reply || '' });
     turns.push({ index: turnIndex, student: child.message, child_reason: child.reason, repeat_due_to_jamie: child.repeatDueToJamie, jamie: payload?.reply || '', elapsed_ms: result.elapsedMs, phantom_action: phantomAction, payload, world_before: previousWorld, world_after: world });
 
-    await checkpoint({ type: 'dify_turn', turn: turnIndex, elapsed_ms: result.elapsedMs, payload, world_before: previousWorld, world_after: world, phantom_action: phantomAction });
-    await appendConversation([`Student: ${child.message}`, `Jamie: ${payload?.reply || '(no reply)'}`, `Actions: ${actions.map(a => a.type).join(', ') || 'none'}`, `Pipeline errors: ${pipelineErrors.join(', ') || 'none'}`, '']);
+    completion = {
+      gameComplete: groundedGameComplete,
+      phaseComplete: current.phaseComplete,
+      evidence: groundedCompletionEvidence,
+      pendingGap: current.pendingGap,
+      pipelineErrors: [...pipelineErrorsSeen],
+      ok: groundedGameComplete
+        && current.phaseComplete
+        && groundedCompletionEvidence.length > 0
+        && current.pendingGap == null
+        && pipelineErrorsSeen.length === 0,
+    };
+
+    await checkpoint({ type: 'dify_turn', turn: turnIndex, elapsed_ms: result.elapsedMs, payload, world_before: previousWorld, world_after: world, phantom_action: phantomAction, grounded_game_complete: groundedGameComplete, grounded_completion_evidence: groundedCompletionEvidence });
+    await appendConversation([`Student: ${child.message}`, `Raku: ${payload?.reply || '(no reply)'}`, `Phase: ${payload?.phase || 'unknown'}`, `Actions: ${actions.map(a => a.type).join(', ') || 'none'}`, `Pipeline errors: ${current.pipelineErrors.join(', ') || 'none'}`, '']);
 
     console.log(`${turnIndex}. Student: ${child.message}`);
-    console.log(`   Jamie: ${payload?.reply || '(no reply)'}`);
+    console.log(`   Raku: ${payload?.reply || '(no reply)'}`);
+    console.log(`   Phase: ${payload?.phase || 'unknown'}`);
     if (verbose) {
       console.log(`   Actions: ${actions.map(a => a.type).join(', ') || 'none'}`);
       console.log(`   Pending gap: ${JSON.stringify(payload?.debug?.controller?.pending_gap || null)}`);
-      console.log(`   Pipeline errors: ${pipelineErrors.join(', ') || 'none'}`);
+      console.log(`   Grounded game complete: ${groundedGameComplete}`);
+      console.log(`   Pipeline errors: ${current.pipelineErrors.join(', ') || 'none'}`);
       if (payload?.debug?.action_plan?._validation) console.log(`   Planner validation: ${JSON.stringify(payload.debug.action_plan._validation)}`);
     }
 
-    completion = completionCheck(payload);
-    if (completion.gameComplete || completion.phaseComplete) break;
+    if (completion.phaseComplete) break;
 
-    if (!keepGoing && pipelineErrors.length) {
+    if (!keepGoing && current.pipelineErrors.length) {
       finalStatus = 'failed';
       await checkpoint({ type: 'fail_fast', turn: turnIndex, reason: 'pipeline_error' });
       break;
@@ -448,11 +576,20 @@ try {
     }
   }
 
-  if (!completion) completion = { ok: false, gameComplete: false, phaseComplete: false, evidence: [], pendingGap: null, pipelineErrors: [] };
+  if (!completion) {
+    completion = {
+      ok: false,
+      gameComplete: groundedGameComplete,
+      phaseComplete: false,
+      evidence: groundedCompletionEvidence,
+      pendingGap: null,
+      pipelineErrors: [...pipelineErrorsSeen],
+    };
+  }
   if (!completion.ok) {
-    if (!completion.gameComplete) hardFailures.push('Never reached debug.game_complete=true.');
-    if (!completion.phaseComplete) hardFailures.push('Never reached phase=complete.');
-    if (!Array.isArray(completion.evidence) || !completion.evidence.length) hardFailures.push('Completion evidence is empty.');
+    if (!completion.gameComplete) hardFailures.push('Never reached grounded child-taught game completion.');
+    if (!completion.phaseComplete) hardFailures.push('Never reached phase=complete after transfer.');
+    if (!Array.isArray(completion.evidence) || !completion.evidence.length) hardFailures.push('Grounded completion evidence is empty.');
     if (completion.pendingGap != null) hardFailures.push('A pending listener gap remains at completion.');
   }
   if (turns.length >= maxTurns && !completion.ok) hardFailures.push(`Exceeded max turn budget (${maxTurns}).`);
@@ -462,8 +599,8 @@ try {
   await checkpoint({ type: 'run_end', passed, completion, hardFailures });
 
   console.log('');
-  console.log(passed ? 'PASS · grounded full-game completion reached' : 'FAIL · full-game completion not reached');
-  console.log(`Turns · ${turns.length}/${maxTurns}`);
+  console.log(passed ? 'PASS · grounded game completion + transfer completion reached' : 'FAIL · full lesson completion not reached');
+  console.log(`Turns · ${turns.length}/${maxTurns} (+ 15 foundation turns)`);
   console.log(`Completion evidence · ${JSON.stringify(completion.evidence || [])}`);
   if (hardFailures.length) for (const failure of hardFailures) console.log(`- ${failure}`);
   console.log(`Snapshot · ${jsonPath}`);

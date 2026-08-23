@@ -1,857 +1,106 @@
 const app = document.querySelector('#app');
 
-const PHASES = ['experience', 'notice', 'teach', 'practice', 'independent', 'transfer'];
-const PHASE_LABELS = {
-  experience: 'Try',
-  notice: 'Notice',
-  teach: 'Learn',
-  practice: 'Practice',
-  independent: 'Show',
-  transfer: 'Transfer',
-  complete: 'Done',
-};
-
+const STAGES = ['follow', 'guide', 'game', 'transfer'];
+const STAGE_LABELS = { follow: 'Follow', guide: 'Guide', game: 'Game', transfer: 'Reflect', complete: 'Done' };
 const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 
-function blankWorld() {
-  return {
-    name: 'Your game',
-    surface: { type: 'table', rows: 0, columns: 0 },
-    objects: [],
-    counters: [],
-    turn: null,
-    status: 'Jamie is waiting for you to describe the game.',
-    ready: false,
-  };
+function stageForPhase(phase) {
+  if (phase === 'follow') return 'follow';
+  if (phase === 'guide') return 'guide';
+  if (['game_select', 'student_teaching', 'repair_coaching', 'supported_play'].includes(phase)) return 'game';
+  if (phase === 'transfer') return 'transfer';
+  if (phase === 'complete') return 'complete';
+  return 'follow';
 }
 
-function normalizePhase(phase) {
-  return phase === 'guided' ? 'practice' : phase;
+function blankWorld() {
+  return { name: 'Your task', surface: { type: 'table', rows: 0, columns: 0 }, objects: [], counters: [], turn: null, status: '', ready: false };
 }
 
 const state = {
   screen: 'home',
   conversationId: sessionStorage.getItem('gameTeacherConversationId') || '',
   userId: sessionStorage.getItem('gameTeacherUserId') || crypto.randomUUID(),
-  phase: 'experience',
-  mode: 'required',
-  loading: false,
-  apiError: '',
-  inputDraft: '',
-  listening: false,
-  voiceSupported: Boolean(SpeechRecognitionCtor),
-  voiceMeta: null,
-  world: blankWorld(),
-  worldBaseline: null,
-  support: null,
-  messages: [],
+  phase: 'follow', loading: false, apiError: '', inputDraft: '', listening: false,
+  voiceSupported: Boolean(SpeechRecognitionCtor), voiceMeta: null,
+  world: blankWorld(), support: null, messages: [],
 };
-
 sessionStorage.setItem('gameTeacherUserId', state.userId);
 
 function render() {
-  app.innerHTML = `
-    <div class="app-shell">
-      <header class="topbar">
-        <div class="brand">
-          <h1>Teach Me a Game</h1>
-          <p>Your explanation builds the game Jamie understands.</p>
-        </div>
-        ${state.apiError ? '<div class="status-pill error">Connection issue</div>' : ''}
-      </header>
-
-      ${state.screen === 'lesson' ? renderProgress() : ''}
-      ${state.screen === 'home' ? renderHome() : renderLesson()}
-    </div>
-  `;
-
+  app.innerHTML = `<div class="app-shell v12-shell">
+    <header class="topbar"><div class="brand"><div class="brand-mark">GAKKU · AI LESSON CARD</div><h1>Teach Me a Game</h1><p>First feel what a listener needs. Then guide Raku. Finally, teach a whole game.</p></div>${state.apiError ? '<div class="status-pill error">Connection issue</div>' : ''}</header>
+    ${state.screen === 'lesson' ? renderProgress() : ''}
+    ${state.screen === 'home' ? renderHome() : renderLesson()}
+  </div>`;
   bindEvents();
 }
 
 function renderProgress() {
-  const currentPhase = normalizePhase(state.phase);
-  const currentIndex = currentPhase === 'complete'
-    ? PHASES.length
-    : Math.max(0, PHASES.indexOf(currentPhase));
-
-  return `
-    <div class="progress" aria-label="Lesson progress">
-      ${PHASES.map((phase, index) => `
-        <div class="progress-step ${index === currentIndex ? 'active' : ''} ${index < currentIndex ? 'done' : ''}">
-          ${index + 1} · ${PHASE_LABELS[phase]}
-        </div>
-      `).join('')}
-    </div>
-  `;
+  const stage = stageForPhase(state.phase);
+  const active = stage === 'complete' ? STAGES.length : Math.max(0, STAGES.indexOf(stage));
+  return `<div class="progress v12-progress" aria-label="Lesson progress">${STAGES.map((item,index)=>`<div class="progress-step ${index===active?'active':''} ${index<active?'done':''}"><span>${index+1}</span>${STAGE_LABELS[item]}</div>`).join('')}</div>`;
 }
 
 function renderHome() {
-  return `
-    <section class="card home v6-home">
-      <div class="eyebrow">A game you already know</div>
-      <h2>Can you teach Jamie well enough to make the game playable?</h2>
-      <p>Describe the game naturally. Jamie will build only the game world your explanation supports, then try to play it.</p>
-      <button class="primary start-button" id="startButton">Start teaching</button>
-    </section>
-  `;
+  return `<section class="card v12-home"><div class="home-copy"><div class="eyebrow">Listen → guide → teach</div><h2>Can someone act from what you said?</h2><p>Follow Raku’s directions, switch roles and guide Raku, then teach a game all the way to its ending.</p><button class="primary start-button" id="startButton">Start lesson</button></div><div class="home-flow"><article><span>01</span><b>Be the listener</b><p>Feel what information you actually need to act.</p></article><article><span>02</span><b>Switch roles</b><p>Watch Raku act only from the words you give.</p></article><article><span>03</span><b>Teach a whole game</b><p>Keep Raku moving until the real ending.</p></article></div></section>`;
+}
+
+function phaseCopy() {
+  const stage = stageForPhase(state.phase);
+  if (stage === 'follow') return { eyebrow:'You are the listener', note:'Raku can see the hidden target. You can only use the information Raku gives you.', friend:'guiding you one step at a time', placeholder:'This stage uses the board.' };
+  if (stage === 'guide') return { eyebrow:'Raku is the listener', note:'You can see the target. Raku cannot. Watch what Raku does with your words.', friend:'following only your directions', placeholder:'Tell Raku what to move and where…' };
+  if (stage === 'game') return { eyebrow:'Teach Raku a whole game', note:'Raku starts with none of your game rules. Explain only what Raku needs as the game unfolds.', friend:'learning and playing your game', placeholder:'Teach Raku what happens next…' };
+  if (stage === 'transfer') return { eyebrow:'One last thought', note:'Use what actually happened in your game.', friend:'wrapping up with you', placeholder:'Answer Raku’s question…' };
+  return { eyebrow:'Complete', note:'You helped a listener act, repaired misunderstandings, and taught a whole game.', friend:'lesson complete', placeholder:'Lesson complete' };
 }
 
 function renderLesson() {
-  const voiceLabel = state.listening ? 'Listening…' : '🎙️ Speak';
-  const visiblePhase = normalizePhase(state.phase);
-  return `
-    <section class="card lesson">
-      <aside class="chat-pane">
-        <div class="friend-header">
-          <div class="avatar">🙂</div>
-          <div>
-            <b>Jamie</b>
-            <small>${visiblePhase === 'independent' ? 'A fresh listener · knows none of your rules yet' : 'Your friend · learning from your explanation'}</small>
-          </div>
-        </div>
-
-        <div class="chat-log" id="chatLog">
-          ${state.messages.map(message => `
-            <div class="message ${message.role === 'student' ? 'student' : message.role === 'action' ? 'action' : 'ai'}">${escapeHtml(message.text)}</div>
-          `).join('')}
-        </div>
-
-        <div class="composer">
-          <textarea
-            id="studentInput"
-            placeholder="Explain it to Jamie…"
-            ${state.loading || visiblePhase === 'complete' ? 'disabled' : ''}
-          >${escapeHtml(state.inputDraft)}</textarea>
-
-          <button
-            class="secondary"
-            id="micButton"
-            title="${state.voiceSupported ? 'Speak instead of typing' : 'Speech recognition is not supported in this browser'}"
-            ${!state.voiceSupported || state.loading || visiblePhase === 'complete' ? 'disabled' : ''}
-          >${voiceLabel}</button>
-
-          <button
-            class="primary"
-            id="sendButton"
-            ${state.loading || visiblePhase === 'complete' ? 'disabled' : ''}
-          >${state.loading ? '…' : 'Send'}</button>
-        </div>
-      </aside>
-
-      <div class="game-pane">
-        <div class="game-head">
-          <div>
-            <div class="eyebrow">What Jamie understands</div>
-            <h3>${escapeHtml(state.world.name || 'Your game')}</h3>
-            <p>Visual details may be filled in. Game logic only comes from what you explain.</p>
-          </div>
-          <div class="phase-pill">${PHASE_LABELS[visiblePhase] || visiblePhase}</div>
-        </div>
-
-        <div class="world-shell">
-          ${renderWorldStatus()}
-          ${renderWorldSurface()}
-          ${renderSupport()}
-        </div>
-
-        ${renderWorldFooter()}
-
-        ${state.apiError ? `
-          <div class="helper-text error-copy" aria-live="polite">
-            <div><strong>API error</strong><br /><span>${escapeHtml(state.apiError)}</span></div>
-          </div>
-        ` : ''}
-      </div>
-    </section>
-  `;
+  const stage = stageForPhase(state.phase); const copy = phaseCopy();
+  const inputVisible = stage !== 'follow' && stage !== 'complete' && state.phase !== 'game_select';
+  return `<section class="card lesson phase-${escapeAttr(stage)}"><aside class="chat-pane"><div class="friend-header"><div class="avatar raku-avatar">R</div><div><b>Raku</b><small>${escapeHtml(copy.friend)}</small></div></div><div class="chat-log" id="chatLog" aria-live="polite">${state.messages.map(m=>`<div class="message ${m.role==='student'?'student':m.role==='action'?'action':'ai'}">${escapeHtml(m.text)}</div>`).join('')}${state.loading?'<div class="message ai thinking">Raku is thinking…</div>':''}</div>${inputVisible?renderComposer(copy.placeholder):`<div class="stage-instruction">${stage==='follow'?'Use the board to follow Raku.':state.phase==='game_select'?'Choose a game on the right.':''}</div>`}</aside><main class="game-pane"><div class="game-head"><div><div class="eyebrow">${escapeHtml(copy.eyebrow)}</div><h3>${escapeHtml(state.world.name||'Your task')}</h3><p>${escapeHtml(copy.note)}</p></div><div class="phase-pill">${escapeHtml(STAGE_LABELS[stage]||stage)}</div></div><div class="world-shell">${renderWorldStatus()}${renderTaskLayout()}${renderSupport()}</div>${renderWorldFooter()}${state.apiError?`<div class="helper-text error-copy"><strong>API error</strong><span>${escapeHtml(state.apiError)}</span></div>`:''}</main></section>`;
 }
 
-function renderWorldStatus() {
-  const readyLabel = state.world.ready ? 'Playable so far' : 'Still being built';
-  return `
-    <div class="world-status">
-      <span class="world-ready ${state.world.ready ? 'ready' : ''}">${readyLabel}</span>
-      <span>${escapeHtml(state.world.status || '')}</span>
-    </div>
-  `;
+function renderComposer(placeholder) {
+  return `<div class="composer v12-composer"><textarea id="studentInput" aria-label="Your message" placeholder="${escapeAttr(placeholder)}" ${state.loading?'disabled':''}>${escapeHtml(state.inputDraft)}</textarea><div class="composer-actions"><button class="voice-button" id="micButton" ${!state.voiceSupported||state.loading?'disabled':''}>${state.listening?'Listening…':'Speak'}</button><button class="secondary send-button" id="sendButton" ${state.loading?'disabled':''}>Send text</button></div></div>`;
 }
-
-function renderWorldSurface() {
-  const objects = state.world.objects || [];
-  if (!objects.length) {
-    return `
-      <div class="empty-world">
-        <div class="empty-world-mark">＋</div>
-        <b>Nothing has been built yet.</b>
-        <span>Start describing what your friend needs in order to play.</span>
-      </div>
-    `;
-  }
-
-  const surface = state.world.surface || { type: 'table' };
-  const isGrid = surface.type === 'grid';
-  const columns = clampNumber(surface.columns, 1, 8, isGrid ? 3 : 4);
-  const rows = clampNumber(surface.rows, 0, 8, 0);
-  const style = isGrid
-    ? `--world-columns:${columns};${rows ? `--world-rows:${rows};` : ''}`
-    : '';
-
-  return `
-    <div class="world-surface ${isGrid ? 'grid-surface' : 'table-surface'}" style="${style}">
-      ${objects.map(renderWorldObject).join('')}
-    </div>
-  `;
-}
-
-function renderWorldObject(object) {
-  const id = String(object.id || '');
-  const kind = normalizeKind(object.kind);
-  const objectState = String(object.state || 'available');
-  const faceDown = objectState === 'face_down';
-  const interactive = Boolean(object.interactive) && ['practice', 'independent'].includes(normalizePhase(state.phase)) && !state.loading;
-  const symbol = faceDown ? '' : String(object.symbol || object.label || '');
-  const title = String(object.label || object.symbol || object.id || 'Game object');
-  const positionStyle = buildObjectPositionStyle(object);
-
-  return `
-    <button
-      class="world-object kind-${kind} state-${escapeAttr(objectState)} ${interactive ? 'interactive' : ''}"
-      data-world-object="${escapeAttr(id)}"
-      style="${positionStyle}"
-      aria-label="${escapeAttr(title)}"
-      ${interactive ? '' : 'disabled'}
-    >
-      ${faceDown ? '<span class="object-back"></span>' : `<span class="object-symbol">${escapeHtml(symbol)}</span>`}
-      ${object.caption ? `<small>${escapeHtml(object.caption)}</small>` : ''}
-    </button>
-  `;
-}
-
-function renderSupport() {
-  if (!state.support) return '';
-
-  if (state.support.type === 'teach_moment' || state.support.type === 'micro_teach') {
-    const focus = String(state.support.focus || 'listener thinking');
-    return `
-      <section class="teach-panel">
-        <div class="teach-kicker">${state.support.type === 'teach_moment' ? 'A quick idea' : 'One thing to try'}</div>
-        <h4>${escapeHtml(state.support.headline || focus)}</h4>
-        <p>${escapeHtml(state.support.principle || '')}</p>
-        ${state.support.listener_gap ? `<div class="listener-gap"><b>Jamie still needs:</b> ${escapeHtml(state.support.listener_gap)}</div>` : ''}
-        ${state.support.question ? `<div class="teach-question">${escapeHtml(state.support.question)}</div>` : ''}
-      </section>
-    `;
-  }
-
-  if (state.support.type === 'locate_step') {
-    const steps = Array.isArray(state.support.steps) ? state.support.steps : [];
-    return `
-      <section class="repair-panel">
-        <h4>${escapeHtml(state.support.prompt || 'Which part should change?')}</h4>
-        <p>Choose the step that did not match what you meant.</p>
-        <div class="repair-steps">
-          ${steps.map((step, index) => `
-            <button class="repair-step" data-repair-index="${index}">${escapeHtml(step)}</button>
-          `).join('')}
-        </div>
-      </section>
-    `;
-  }
-
-  return '';
-}
-
-function renderWorldFooter() {
-  const counters = Array.isArray(state.world.counters) ? state.world.counters : [];
-  return `
-    <div class="world-footer">
-      <div class="world-meta">
-        ${state.world.turn ? `<span><b>Turn:</b> ${escapeHtml(state.world.turn)}</span>` : '<span>Build first, then play.</span>'}
-        ${counters.map(counter => `<span><b>${escapeHtml(counter.label || counter.id)}:</b> ${escapeHtml(counter.value ?? 0)}</span>`).join('')}
-      </div>
-      <button class="secondary" id="restartButton">Start over</button>
-    </div>
-  `;
-}
-
-function bindEvents() {
-  document.querySelector('#startButton')?.addEventListener('click', startLesson);
-  document.querySelector('#sendButton')?.addEventListener('click', () => submitMessage());
-  document.querySelector('#micButton')?.addEventListener('click', toggleVoiceInput);
-  document.querySelector('#studentInput')?.addEventListener('input', event => {
-    state.inputDraft = event.currentTarget.value;
-  });
-  document.querySelector('#studentInput')?.addEventListener('keydown', event => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      submitMessage();
-    }
-  });
-  document.querySelector('#restartButton')?.addEventListener('click', restartLesson);
-
-  document.querySelectorAll('[data-world-object]').forEach(button => {
-    button.addEventListener('click', () => submitWorldEvent({
-      type: 'object_click',
-      object_id: button.dataset.worldObject,
-    }));
-  });
-
-  document.querySelectorAll('[data-repair-index]').forEach(button => {
-    button.addEventListener('click', () => {
-      const index = Number(button.dataset.repairIndex);
-      const step = state.support?.steps?.[index];
-      if (!step) return;
-      submitWorldEvent({ type: 'repair_step_selected', index, step });
-    });
-  });
-
-  requestAnimationFrame(() => {
-    const log = document.querySelector('#chatLog');
-    if (log) log.scrollTop = log.scrollHeight;
-  });
-}
-
-function startLesson() {
-  stopRecognition();
-  state.screen = 'lesson';
-  state.phase = 'experience';
-  state.mode = 'required';
-  state.apiError = '';
-  state.inputDraft = '';
-  state.voiceMeta = null;
-  state.world = blankWorld();
-  state.worldBaseline = null;
-  state.support = null;
-  state.conversationId = '';
-  state.messages = [
-    { role: 'ai', text: "Teach me a game you know. I've never played it before." },
-  ];
-  sessionStorage.removeItem('gameTeacherConversationId');
-  render();
-  document.querySelector('#studentInput')?.focus();
-}
-
-function restartLesson() {
-  stopRecognition();
-  state.screen = 'home';
-  state.phase = 'experience';
-  state.mode = 'required';
-  state.apiError = '';
-  state.inputDraft = '';
-  state.voiceMeta = null;
-  state.world = blankWorld();
-  state.worldBaseline = null;
-  state.support = null;
-  state.conversationId = '';
-  state.messages = [];
-  sessionStorage.removeItem('gameTeacherConversationId');
-  render();
-}
-
-async function submitMessage(overrideMessage = '') {
-  if (state.loading || normalizePhase(state.phase) === 'complete') return;
-
-  const input = document.querySelector('#studentInput');
-  const message = (overrideMessage || input?.value || state.inputDraft).trim();
-  if (!message) return;
-
-  stopRecognition();
-  state.messages.push({ role: 'student', text: message });
-  const speech = state.voiceMeta;
-  state.inputDraft = '';
-  state.voiceMeta = null;
-
-  await requestLessonTurn({ message, speech });
-}
-
-async function submitWorldEvent(event) {
-  if (state.loading || normalizePhase(state.phase) === 'complete') return;
-  state.messages.push({ role: 'action', text: describeWorldEvent(event) });
-  await requestLessonTurn({ event });
-}
-
-async function requestLessonTurn({ message = '', event = null, speech = null }) {
-  state.loading = true;
-  state.apiError = '';
-  state.support = null;
-  render();
-
-  let result;
-  try {
-    result = await sendToDify({ message, event, speech });
-    state.mode = 'dify';
-  } catch (error) {
-    state.loading = false;
-    state.mode = 'error';
-    state.apiError = formatDifyError(error);
-    console.error('Dify request failed.', error);
-    render();
-    return;
-  }
-
-  state.loading = false;
-
-  if (result.conversationId) {
-    state.conversationId = result.conversationId;
-    sessionStorage.setItem('gameTeacherConversationId', result.conversationId);
-  }
-
-  const previousPhase = normalizePhase(state.phase);
-  state.phase = normalizePhase(result.phase || state.phase);
-
-  if (result.world_patch) applyWorldPatch(result.world_patch);
-  if (result.capture_baseline) state.worldBaseline = cloneWorld(state.world);
-
-  if (result.reply) state.messages.push({ role: 'ai', text: result.reply });
-  state.support = result.support || null;
-
-  await applyUiAction(result.ui_action || { type: 'none', payload: {} });
-
-  if (previousPhase !== 'independent' && state.phase === 'independent' && !state.worldBaseline) {
-    state.worldBaseline = cloneWorld(state.world);
-  }
-
-  render();
-}
-
-async function sendToDify({ message = '', event = null, speech = null }) {
-  let response;
-
-  try {
-    response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message,
-        event,
-        speech,
-        conversationId: state.conversationId,
-        userId: state.userId,
-      }),
-    });
-  } catch (cause) {
-    const error = new Error('The /api/chat endpoint could not be reached.');
-    error.code = 'NETWORK';
-    error.cause = cause;
-    throw error;
-  }
-
-  if (!response.ok) {
-    const raw = await response.text();
-    let detail = raw;
-
-    try {
-      const parsed = JSON.parse(raw);
-      detail = parsed.detail || parsed.error || raw;
-    } catch {
-      // Keep the raw response body.
-    }
-
-    const error = new Error(String(detail || `HTTP ${response.status}`));
-    error.status = response.status;
-    throw error;
-  }
-
-  const payload = await response.json();
-  if (!payload || typeof payload !== 'object') {
-    const error = new Error('The Dify proxy returned an invalid response.');
-    error.code = 'INVALID_RESPONSE';
-    throw error;
-  }
-
-  return payload;
-}
-
-function formatDifyError(error) {
-  const message = error instanceof Error ? error.message : String(error || '');
-
-  if (error?.status === 503 || /DIFY_API_KEY/i.test(message)) {
-    return 'Dify is not configured. Load DIFY_API_KEY into the environment running `vercel dev`.';
-  }
-
-  if (error?.status === 501 || /Unsupported method.*POST/i.test(message)) {
-    return 'This page is being served by a static server. Run it through `npx vercel dev` so POST /api/chat reaches the Vercel function.';
-  }
-
-  if (error?.status === 404 || /\/api\/chat.*not.*reach/i.test(message)) {
-    return 'The Dify API proxy is not available. Run this project with `npx vercel dev`, or deploy it to Vercel.';
-  }
-
-  if (error?.code === 'NETWORK') {
-    return 'The Dify API proxy could not be reached. Check that the local Vercel server is running.';
-  }
-
-  return `Could not reach Dify: ${message}`;
-}
-
-function applyWorldPatch(patch) {
-  if (!patch || typeof patch !== 'object') return;
-
-  if (patch.replace && typeof patch.replace === 'object') {
-    state.world = normalizeWorld(patch.replace);
-    return;
-  }
-
-  if (typeof patch.name === 'string') state.world.name = patch.name;
-  if (typeof patch.status === 'string') state.world.status = patch.status;
-  if (typeof patch.ready === 'boolean') state.world.ready = patch.ready;
-  if (patch.turn === null || typeof patch.turn === 'string') state.world.turn = patch.turn;
-
-  if (patch.surface && typeof patch.surface === 'object') {
-    state.world.surface = {
-      ...state.world.surface,
-      ...sanitizeSurfacePatch(patch.surface),
-    };
-  }
-
-  if (Array.isArray(patch.remove_object_ids)) {
-    const removed = new Set(patch.remove_object_ids.map(String));
-    state.world.objects = state.world.objects.filter(object => !removed.has(String(object.id)));
-  }
-
-  if (Array.isArray(patch.add_objects)) {
-    for (const raw of patch.add_objects) upsertWorldObject(raw, false);
-  }
-
-  if (Array.isArray(patch.update_objects)) {
-    for (const raw of patch.update_objects) upsertWorldObject(raw, true);
-  }
-
-  if (Array.isArray(patch.counters)) {
-    state.world.counters = patch.counters.map(normalizeCounter).filter(Boolean).slice(0, 8);
-  }
-}
-
-function upsertWorldObject(raw, mergeExisting) {
-  if (!raw || typeof raw !== 'object' || !raw.id) return;
-  const id = String(raw.id).slice(0, 64);
-  const index = state.world.objects.findIndex(item => String(item.id) === id);
-
-  if (mergeExisting) {
-    if (index === -1) return;
-    state.world.objects[index] = {
-      ...state.world.objects[index],
-      ...normalizeWorldObjectPatch(raw),
-      id,
-    };
-    return;
-  }
-
-  const object = normalizeWorldObject(raw);
-  if (!object) return;
-  if (index === -1) {
-    if (state.world.objects.length < 36) state.world.objects.push(object);
-    return;
-  }
-  state.world.objects[index] = object;
-}
-
-async function applyUiAction(action) {
-  const type = action?.type || 'none';
-  const payload = action?.payload || {};
-
-  if (type === 'action_sequence') {
-    for (const step of payload.actions || []) await applyAtomicAction(step);
-    return;
-  }
-
-  if (type === 'reset_to_baseline') {
-    if (state.worldBaseline) {
-      state.world = cloneWorld(state.worldBaseline);
-      render();
-      await wait(350);
-    }
-    return;
-  }
-
-  if (type === 'lesson_complete') {
-    state.phase = 'complete';
-  }
-}
-
-async function applyAtomicAction(action) {
-  if (!action || typeof action !== 'object') return;
-
-  switch (action.type) {
-    case 'update_object': {
-      const id = String(action.object_id || '');
-      const index = state.world.objects.findIndex(item => String(item.id) === id);
-      if (index !== -1) {
-        state.world.objects[index] = {
-          ...state.world.objects[index],
-          ...normalizeWorldObjectPatch(action.patch || {}),
-        };
-      }
-      render();
-      await wait(action.delay_ms || 500);
-      break;
-    }
-
-    case 'reveal_object':
-      await updateObjectState(action.object_id, 'face_up', action.delay_ms || 550);
-      break;
-
-    case 'hide_object':
-      await updateObjectState(action.object_id, 'face_down', action.delay_ms || 450);
-      break;
-
-    case 'remove_object':
-      await updateObjectState(action.object_id, 'removed', action.delay_ms || 400);
-      break;
-
-    case 'set_turn':
-      state.world.turn = action.to || null;
-      render();
-      await wait(action.delay_ms || 300);
-      break;
-
-    case 'set_counter': {
-      const id = String(action.counter_id || '');
-      const counter = state.world.counters.find(item => String(item.id) === id);
-      if (counter) counter.value = action.value;
-      else if (id && state.world.counters.length < 8) {
-        state.world.counters.push({ id, label: action.label || id, value: action.value ?? 0 });
-      }
-      render();
-      await wait(action.delay_ms || 250);
-      break;
-    }
-
-    case 'set_status':
-      state.world.status = String(action.text || '');
-      render();
-      await wait(action.delay_ms || 250);
-      break;
-
-    case 'reset_to_baseline':
-      if (state.worldBaseline) state.world = cloneWorld(state.worldBaseline);
-      render();
-      await wait(action.delay_ms || 350);
-      break;
-
-    case 'wait':
-      await wait(clampNumber(action.ms, 0, 2000, 300));
-      break;
-
-    default:
-      break;
-  }
-}
-
-async function updateObjectState(id, objectState, delay) {
-  const object = state.world.objects.find(item => String(item.id) === String(id));
-  if (object) object.state = objectState;
-  render();
-  await wait(delay);
-}
-
-function toggleVoiceInput() {
-  if (!state.voiceSupported || state.loading || normalizePhase(state.phase) === 'complete') return;
-
-  if (state.listening) {
-    stopRecognition();
-    render();
-    return;
-  }
-
-  recognition = new SpeechRecognitionCtor();
-  recognition.lang = 'en-US';
-  recognition.continuous = false;
-  recognition.interimResults = true;
-  recognition.maxAlternatives = 3;
-
-  recognition.onstart = () => {
-    state.listening = true;
-    state.apiError = '';
-    render();
-  };
-
-  recognition.onresult = event => {
-    let transcript = '';
-    let confidence = 0;
-    let alternatives = [];
-
-    for (let i = event.resultIndex; i < event.results.length; i += 1) {
-      const result = event.results[i];
-      transcript += result[0]?.transcript || '';
-      confidence = Math.max(confidence, Number(result[0]?.confidence || 0));
-      alternatives = Array.from(result)
-        .slice(0, 3)
-        .map(item => item.transcript)
-        .filter(Boolean);
-    }
-
-    state.inputDraft = transcript.trim();
-    state.voiceMeta = {
-      confidence,
-      alternatives,
-      is_final: Boolean(event.results[event.results.length - 1]?.isFinal),
-    };
-    render();
-    document.querySelector('#studentInput')?.focus();
-  };
-
-  recognition.onerror = event => {
-    state.listening = false;
-    if (event.error !== 'aborted' && event.error !== 'no-speech') {
-      state.apiError = `Speech input error: ${event.error}`;
-    }
-    render();
-  };
-
-  recognition.onend = () => {
-    state.listening = false;
-    recognition = null;
-    render();
-    document.querySelector('#studentInput')?.focus();
-  };
-
-  recognition.start();
-}
-
-function stopRecognition() {
-  if (recognition) {
-    recognition.onend = null;
-    try {
-      recognition.abort();
-    } catch {
-      // Ignore browsers that already ended the session.
-    }
-    recognition = null;
-  }
-  state.listening = false;
-}
-
-function normalizeWorld(raw) {
-  const world = blankWorld();
-  if (!raw || typeof raw !== 'object') return world;
-  if (typeof raw.name === 'string') world.name = raw.name;
-  if (typeof raw.status === 'string') world.status = raw.status;
-  if (typeof raw.ready === 'boolean') world.ready = raw.ready;
-  if (raw.turn === null || typeof raw.turn === 'string') world.turn = raw.turn;
-  world.surface = sanitizeSurface(raw.surface || {});
-  world.objects = Array.isArray(raw.objects)
-    ? raw.objects.map(normalizeWorldObject).filter(Boolean).slice(0, 36)
-    : [];
-  world.counters = Array.isArray(raw.counters)
-    ? raw.counters.map(normalizeCounter).filter(Boolean).slice(0, 8)
-    : [];
-  return world;
-}
-
-function sanitizeSurface(raw) {
-  const type = ['table', 'grid'].includes(raw?.type) ? raw.type : 'table';
-  return {
-    type,
-    rows: clampNumber(raw?.rows, 0, 8, 0),
-    columns: clampNumber(raw?.columns, 0, 8, type === 'grid' ? 3 : 0),
-  };
-}
-
-function sanitizeSurfacePatch(raw) {
-  if (!raw || typeof raw !== 'object') return {};
-  const patch = {};
-  if ('type' in raw && ['table', 'grid'].includes(raw.type)) patch.type = raw.type;
-  if ('rows' in raw && raw.rows !== null && raw.rows !== '') {
-    patch.rows = clampNumber(raw.rows, 0, 8, 0);
-  }
-  if ('columns' in raw && raw.columns !== null && raw.columns !== '') {
-    patch.columns = clampNumber(raw.columns, 0, 8, 0);
-  }
-  return patch;
-}
-
-function normalizeWorldObject(raw) {
-  if (!raw || typeof raw !== 'object' || !raw.id) return null;
-  return {
-    id: String(raw.id).slice(0, 64),
-    kind: normalizeKind(raw.kind),
-    label: String(raw.label || '').slice(0, 80),
-    symbol: String(raw.symbol || '').slice(0, 12),
-    caption: String(raw.caption || '').slice(0, 80),
-    state: String(raw.state || 'available').slice(0, 32),
-    row: clampNullableNumber(raw.row, 1, 8),
-    column: clampNullableNumber(raw.column, 1, 8),
-    owner: raw.owner == null ? null : String(raw.owner).slice(0, 40),
-    interactive: Boolean(raw.interactive),
-  };
-}
-
-function normalizeWorldObjectPatch(raw) {
-  if (!raw || typeof raw !== 'object') return {};
-  const patch = {};
-  if ('kind' in raw) patch.kind = normalizeKind(raw.kind);
-  if ('label' in raw) patch.label = String(raw.label || '').slice(0, 80);
-  if ('symbol' in raw) patch.symbol = String(raw.symbol || '').slice(0, 12);
-  if ('caption' in raw) patch.caption = String(raw.caption || '').slice(0, 80);
-  if ('state' in raw) patch.state = String(raw.state || 'available').slice(0, 32);
-  if ('row' in raw) patch.row = clampNullableNumber(raw.row, 1, 8);
-  if ('column' in raw) patch.column = clampNullableNumber(raw.column, 1, 8);
-  if ('owner' in raw) patch.owner = raw.owner == null ? null : String(raw.owner).slice(0, 40);
-  if ('interactive' in raw) patch.interactive = Boolean(raw.interactive);
-  return patch;
-}
-
-function normalizeCounter(raw) {
-  if (!raw || typeof raw !== 'object' || !raw.id) return null;
-  return {
-    id: String(raw.id).slice(0, 64),
-    label: String(raw.label || raw.id).slice(0, 40),
-    value: ['string', 'number'].includes(typeof raw.value) ? raw.value : 0,
-  };
-}
-
-function normalizeKind(kind) {
-  return ['card', 'token', 'piece', 'cell', 'marker', 'object'].includes(kind) ? kind : 'object';
-}
-
-function buildObjectPositionStyle(object) {
-  const declarations = [];
-  if (object.column) declarations.push(`grid-column:${clampNumber(object.column, 1, 8, 1)}`);
-  if (object.row) declarations.push(`grid-row:${clampNumber(object.row, 1, 8, 1)}`);
-  return declarations.join(';');
-}
-
-function describeWorldEvent(event) {
-  if (event?.type === 'object_click') {
-    const object = state.world.objects.find(item => String(item.id) === String(event.object_id));
-    return `You interacted with ${object?.label || object?.symbol || 'a game piece'}.`;
-  }
-  if (event?.type === 'repair_step_selected') return `You pointed to: ${event.step}`;
-  return 'You interacted with the game.';
-}
-
-function cloneWorld(world) {
-  return JSON.parse(JSON.stringify(world));
-}
-
-function clampNumber(value, min, max, fallback) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return fallback;
-  return Math.min(max, Math.max(min, Math.round(number)));
-}
-
-function clampNullableNumber(value, min, max) {
-  if (value === null || value === undefined || value === '') return null;
-  return clampNumber(value, min, max, null);
-}
-
-function wait(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-}
-
-function escapeAttr(value) {
-  return escapeHtml(value).replaceAll('`', '&#096;');
-}
-
+function renderWorldStatus(){return `<div class="world-status"><span class="world-ready ${state.world.ready?'ready':''}">${state.world.ready?'Ready':'Building'}</span><span>${escapeHtml(state.world.status||'')}</span></div>`;}
+function renderTaskLayout(){const target=state.support?.target_preview;if(Array.isArray(target)&&stageForPhase(state.phase)==='guide')return `<div class="dual-board"><section><div class="board-label">Your target</div>${renderTargetPreview(target,true)}</section><section><div class="board-label">What Raku has made</div>${renderWorldSurface()}</section></div>`;return renderWorldSurface();}
+function renderWorldSurface(){const objects=state.world.objects||[];if(!objects.length)return `<div class="empty-world"><div class="empty-world-mark">＋</div><b>${state.phase==='game_select'?'Pick a game to begin.':'Nothing here yet.'}</b><span>${state.phase==='game_select'?'Choosing a game does not teach Raku any rules.':'The world will appear from the current task or your explanation.'}</span></div>`;const surface=state.world.surface||{type:'table'};const isGrid=surface.type==='grid';const columns=clampNumber(surface.columns,1,8,isGrid?3:4);const rows=clampNumber(surface.rows,0,8,0);const style=isGrid?`--world-columns:${columns};${rows?`--world-rows:${rows};`:''}`:'';return `<div class="world-surface ${isGrid?'grid-surface reconstruction-board':'table-surface'}" style="${style}">${objects.map(renderWorldObject).join('')}</div>`;}
+function objectInteractive(object){if(state.loading||state.phase==='complete')return false;const stage=stageForPhase(state.phase);if(stage==='follow')return Boolean(object.interactive);if(stage==='game')return Boolean(object.interactive)&&state.phase!=='game_select';return false;}
+function renderWorldObject(object){const interactive=objectInteractive(object);const kind=normalizeKind(object.kind);const stateName=String(object.state||'available');const faceDown=stateName==='face_down';const symbol=faceDown?'':String(object.symbol||object.label||'');return `<button class="world-object kind-${kind} state-${escapeAttr(stateName)} ${interactive?'interactive':''}" data-world-object="${escapeAttr(object.id)}" style="${buildObjectPositionStyle(object)}" aria-label="${escapeAttr(object.label||object.id)}" ${interactive?'':'disabled'}>${faceDown?'<span class="object-back"></span>':`<span class="object-symbol">${escapeHtml(symbol)}</span>`}${object.caption?`<small>${escapeHtml(object.caption)}</small>`:''}</button>`;}
+
+function renderSupport(){const s=state.support;if(!s)return '';if(s.type==='listener_task')return `<section class="support-panel listener-panel"><div class="support-kicker">Raku says</div><h4>${escapeHtml(s.instruction||'')}</h4>${s.tip?`<p>${escapeHtml(s.tip)}</p>`:''}${s.selected?`<div class="selection-chip">Selected: ${escapeHtml(s.selected)}</div>`:''}</section>`;if(s.type==='reconstruction_result')return `<section class="support-panel result-panel"><div class="support-kicker">Reveal</div><h4>${escapeHtml(s.headline||'')}</h4>${renderTargetPreview(s.target_preview||[])}<p>${escapeHtml(s.message||'')}</p><button class="primary" id="continueStageButton">${escapeHtml(s.action_label||'Continue')}</button></section>`;if(s.type==='reconstruction_task')return `<section class="support-panel tip-panel"><div class="support-kicker">Listener tip</div><p>${escapeHtml(s.tip||'')}</p></section>`;if(s.type==='game_picker')return `<section class="support-panel picker-panel"><div class="support-kicker">Choose your game</div><h4>${escapeHtml(s.headline||'')}</h4><p>${escapeHtml(s.prompt||'')}</p><div class="game-choices">${(s.choices||[]).map(choice=>`<button class="game-choice" data-game-choice="${escapeAttr(choice)}">${escapeHtml(choice)}</button>`).join('')}</div></section>`;if(s.type==='game_guide')return renderGameGuide(s);if(s.type==='repair_coaching')return `<section class="support-panel repair-panel"><div class="support-kicker">Current listener need</div><h4>${escapeHtml(s.headline||'')}</h4>${s.listener_gap?`<div class="listener-gap">${escapeHtml(s.listener_gap)}</div>`:''}</section>`;if(s.type==='locate_step')return `<section class="support-panel repair-panel"><h4>${escapeHtml(s.prompt||'Which step should change?')}</h4><div class="repair-steps">${(s.steps||[]).map((step,index)=>`<button class="repair-step" data-repair-index="${index}">${escapeHtml(step)}</button>`).join('')}</div></section>`;return '';}
+function renderGameGuide(s){const compact=s.mode==='compact';return `<section class="support-panel game-guide ${compact?'compact':''}"><div class="support-kicker">Game guide</div><h4>${escapeHtml(s.headline||'')}</h4><div class="guide-items">${(s.items||[]).map(item=>`<div class="guide-item"><b>${escapeHtml(item.label||'')}</b>${compact?'':`<span>${escapeHtml(item.prompt||'')}</span>`}</div>`).join('')}</div></section>`;}
+function renderTargetPreview(target,large=false){const cells=[];for(let row=1;row<=2;row+=1)for(let col=1;col<=3;col+=1){const item=(target||[]).find(x=>Number(x.row)===row&&Number(x.column)===col);const symbol=item?.shape==='triangle'?'▲':item?.shape==='circle'?'●':item?.shape==='square'?'■':'';cells.push(`<div class="target-cell">${symbol?`<span>${symbol}</span>`:''}</div>`);}return `<div class="target-preview ${large?'large':''}">${cells.join('')}</div>`;}
+function renderWorldFooter(){const counters=state.world.counters||[];return `<div class="world-footer"><div class="world-meta">${state.world.turn?`<span><b>Turn:</b> ${escapeHtml(state.world.turn)}</span>`:'<span>What Raku can do depends on the information available now.</span>'}${counters.map(c=>`<span><b>${escapeHtml(c.label||c.id)}:</b> ${escapeHtml(c.value??0)}</span>`).join('')}</div><button class="secondary" id="restartButton">Start over</button></div>`;}
+
+function bindEvents(){document.querySelector('#startButton')?.addEventListener('click',startLesson);document.querySelector('#sendButton')?.addEventListener('click',submitMessage);document.querySelector('#micButton')?.addEventListener('click',toggleVoiceInput);document.querySelector('#studentInput')?.addEventListener('input',e=>{state.inputDraft=e.currentTarget.value;});document.querySelector('#studentInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submitMessage();}});document.querySelector('#restartButton')?.addEventListener('click',restartLesson);document.querySelector('#continueStageButton')?.addEventListener('click',()=>submitWorldEvent({type:'continue_stage'},'You switched roles.'));document.querySelectorAll('[data-world-object]').forEach(button=>button.addEventListener('click',()=>submitWorldEvent({type:'object_click',object_id:button.dataset.worldObject})));document.querySelectorAll('[data-game-choice]').forEach(button=>button.addEventListener('click',()=>submitWorldEvent({type:'game_choice_selected',choice:button.dataset.gameChoice},`You chose ${button.dataset.gameChoice}.`)));document.querySelectorAll('[data-repair-index]').forEach(button=>button.addEventListener('click',()=>{const index=Number(button.dataset.repairIndex);const step=state.support?.steps?.[index];if(step)submitWorldEvent({type:'repair_step_selected',index,step},`You pointed to: ${step}`);}));requestAnimationFrame(()=>{const log=document.querySelector('#chatLog');if(log)log.scrollTop=log.scrollHeight;});}
+async function startLesson(){stopRecognition();Object.assign(state,{screen:'lesson',phase:'follow',loading:false,apiError:'',inputDraft:'',voiceMeta:null,world:blankWorld(),support:null,conversationId:'',messages:[]});sessionStorage.removeItem('gameTeacherConversationId');render();await requestLessonTurn({event:{type:'lesson_start'}});}
+function restartLesson(){stopRecognition();Object.assign(state,{screen:'home',phase:'follow',loading:false,apiError:'',inputDraft:'',voiceMeta:null,world:blankWorld(),support:null,conversationId:'',messages:[]});sessionStorage.removeItem('gameTeacherConversationId');render();}
+async function submitMessage(){if(state.loading||state.phase==='complete')return;const input=document.querySelector('#studentInput');const message=(input?.value||state.inputDraft).trim();if(!message)return;stopRecognition();state.messages.push({role:'student',text:message});const speech=state.voiceMeta;state.inputDraft='';state.voiceMeta=null;await requestLessonTurn({message,speech});}
+async function submitWorldEvent(event,label=''){if(state.loading||state.phase==='complete')return;const text=label||describeWorldEvent(event);if(text)state.messages.push({role:'action',text});await requestLessonTurn({event});}
+async function requestLessonTurn({message='',event=null,speech=null}){state.loading=true;state.apiError='';render();let result;try{result=await sendToDify({message,event,speech});}catch(error){state.loading=false;state.apiError=formatDifyError(error);render();return;}state.loading=false;if(result.conversationId){state.conversationId=result.conversationId;sessionStorage.setItem('gameTeacherConversationId',result.conversationId);}state.phase=result.phase||state.phase;if(result.world_patch)applyWorldPatch(result.world_patch);if(result.reply)state.messages.push({role:'ai',text:result.reply});state.support=result.support||null;await applyUiAction(result.ui_action||{type:'none',payload:{}});render();}
+async function sendToDify({message='',event=null,speech=null}){const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,event,speech,conversationId:state.conversationId,userId:state.userId})});if(!response.ok){const raw=await response.text();let detail=raw;try{const parsed=JSON.parse(raw);detail=parsed.detail||parsed.error||raw;}catch{}const error=new Error(String(detail||`HTTP ${response.status}`));error.status=response.status;throw error;}const payload=await response.json();if(!payload||typeof payload!=='object')throw new Error('The lesson API returned an invalid response.');return payload;}
+function formatDifyError(error){const message=error instanceof Error?error.message:String(error||'');if(error?.status===503||/DIFY_API_KEY/i.test(message))return 'Dify is not configured for this environment.';return `Could not reach Dify: ${message}`;}
+function applyWorldPatch(patch){if(!patch||typeof patch!=='object')return;if(patch.replace&&typeof patch.replace==='object'){state.world=normalizeWorld(patch.replace);return;}if('name'in patch)state.world.name=String(patch.name||'');if('status'in patch)state.world.status=String(patch.status||'');if('ready'in patch)state.world.ready=Boolean(patch.ready);if('turn'in patch)state.world.turn=patch.turn;if(patch.surface)state.world.surface={...state.world.surface,...sanitizeSurface(patch.surface,true)};if(Array.isArray(patch.remove_object_ids)){const removed=new Set(patch.remove_object_ids.map(String));state.world.objects=state.world.objects.filter(o=>!removed.has(String(o.id)));}for(const raw of patch.add_objects||[])upsertWorldObject(raw,false);for(const raw of patch.update_objects||[])upsertWorldObject(raw,true);if(Array.isArray(patch.counters))state.world.counters=patch.counters.map(normalizeCounter).filter(Boolean).slice(0,8);}
+function upsertWorldObject(raw,merge){if(!raw?.id)return;const obj=normalizeWorldObject(raw);const index=state.world.objects.findIndex(x=>String(x.id)===String(obj.id));if(index===-1){if(state.world.objects.length<40)state.world.objects.push(obj);}else state.world.objects[index]=merge?{...state.world.objects[index],...normalizeWorldObjectPatch(raw)}:obj;}
+async function applyUiAction(action){if(action?.type==='action_sequence')for(const step of action.payload?.actions||[])await applyAtomicAction(step);else if(action?.type==='lesson_complete')state.phase='complete';}
+async function applyAtomicAction(action){if(!action||typeof action!=='object')return;const object=action.object_id==null?null:state.world.objects.find(x=>String(x.id)===String(action.object_id));if(action.type==='update_object'&&object)Object.assign(object,normalizeWorldObjectPatch(action.patch||{}));else if(action.type==='reveal_object'&&object)object.state='face_up';else if(action.type==='hide_object'&&object)object.state='face_down';else if(action.type==='remove_object'&&object)object.state='removed';else if(action.type==='set_turn')state.world.turn=action.to||null;else if(action.type==='set_status')state.world.status=String(action.text||'');else if(action.type==='set_counter'){const id=String(action.counter_id||'');let c=state.world.counters.find(x=>String(x.id)===id);if(!c&&id){c={id,label:action.label||id,value:0};state.world.counters.push(c);}if(c)c.value=action.value??0;}render();await wait(clampNumber(action.delay_ms??action.ms,0,1600,280));}
+function toggleVoiceInput(){if(!state.voiceSupported||state.loading)return;if(state.listening){stopRecognition();render();return;}recognition=new SpeechRecognitionCtor();recognition.lang='en-US';recognition.continuous=false;recognition.interimResults=true;recognition.maxAlternatives=3;recognition.onstart=()=>{state.listening=true;state.apiError='';render();};recognition.onresult=event=>{let transcript='';let confidence=0;let alternatives=[];for(let i=event.resultIndex;i<event.results.length;i+=1){const r=event.results[i];transcript+=r[0]?.transcript||'';confidence=Math.max(confidence,Number(r[0]?.confidence||0));alternatives=Array.from(r).slice(0,3).map(x=>x.transcript).filter(Boolean);}state.inputDraft=transcript.trim();state.voiceMeta={confidence,alternatives,is_final:Boolean(event.results[event.results.length-1]?.isFinal)};render();};recognition.onerror=event=>{state.listening=false;if(!['aborted','no-speech'].includes(event.error))state.apiError=`Speech input error: ${event.error}`;render();};recognition.onend=()=>{state.listening=false;recognition=null;render();};recognition.start();}
+function stopRecognition(){if(recognition){recognition.onend=null;try{recognition.abort();}catch{}recognition=null;}state.listening=false;}
+function normalizeWorld(raw){const w=blankWorld();if(!raw||typeof raw!=='object')return w;if('name'in raw)w.name=String(raw.name||'');if('status'in raw)w.status=String(raw.status||'');if('ready'in raw)w.ready=Boolean(raw.ready);if('turn'in raw)w.turn=raw.turn;w.surface=sanitizeSurface(raw.surface||{});w.objects=Array.isArray(raw.objects)?raw.objects.map(normalizeWorldObject).filter(Boolean).slice(0,40):[];w.counters=Array.isArray(raw.counters)?raw.counters.map(normalizeCounter).filter(Boolean).slice(0,8):[];return w;}
+function sanitizeSurface(raw,patch=false){if(!raw||typeof raw!=='object')return patch?{}:{type:'table',rows:0,columns:0};const o={};if(!patch||'type'in raw)o.type=['table','grid'].includes(raw.type)?raw.type:'table';if(!patch||'rows'in raw)o.rows=clampNumber(raw.rows,0,8,0);if(!patch||'columns'in raw)o.columns=clampNumber(raw.columns,0,8,o.type==='grid'?3:0);return o;}
+function normalizeWorldObject(raw){if(!raw?.id)return null;return{id:String(raw.id).slice(0,64),kind:normalizeKind(raw.kind),label:String(raw.label||'').slice(0,80),symbol:String(raw.symbol||'').slice(0,12),caption:String(raw.caption||'').slice(0,80),state:String(raw.state||'available').slice(0,32),row:clampNullableNumber(raw.row,1,8),column:clampNullableNumber(raw.column,1,8),owner:raw.owner==null?null:String(raw.owner).slice(0,40),interactive:Boolean(raw.interactive)};}
+function normalizeWorldObjectPatch(raw){const p={};if(!raw||typeof raw!=='object')return p;for(const k of ['label','symbol','caption','state'])if(k in raw)p[k]=String(raw[k]||'');if('kind'in raw)p.kind=normalizeKind(raw.kind);if('row'in raw)p.row=clampNullableNumber(raw.row,1,8);if('column'in raw)p.column=clampNullableNumber(raw.column,1,8);if('owner'in raw)p.owner=raw.owner==null?null:String(raw.owner);if('interactive'in raw)p.interactive=Boolean(raw.interactive);return p;}
+function normalizeCounter(raw){if(!raw?.id)return null;return{id:String(raw.id),label:String(raw.label||raw.id),value:['string','number'].includes(typeof raw.value)?raw.value:0};}
+function normalizeKind(kind){return['card','token','piece','cell','marker','tile','zone','object','other'].includes(kind)?kind:'object';}
+function buildObjectPositionStyle(object){const parts=[];if(object.column)parts.push(`grid-column:${clampNumber(object.column,1,8,1)}`);if(object.row)parts.push(`grid-row:${clampNumber(object.row,1,8,1)}`);return parts.join(';');}
+function describeWorldEvent(event){if(event?.type==='object_click'){const o=state.world.objects.find(x=>String(x.id)===String(event.object_id));return `You selected ${o?.label||'an item'}.`;}return '';}
+function clampNumber(value,min,max,fallback){const n=Number(value);return Number.isFinite(n)?Math.min(max,Math.max(min,Math.round(n))):fallback;}
+function clampNullableNumber(value,min,max){return value==null||value===''?null:clampNumber(value,min,max,null);}
+function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+function escapeHtml(value){return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');}
+function escapeAttr(value){return escapeHtml(value).replaceAll('`','&#096;');}
 render();

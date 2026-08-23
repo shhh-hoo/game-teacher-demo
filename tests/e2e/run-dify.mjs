@@ -4,511 +4,67 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import {
-  applyActions,
-  applyWorldPatch,
-  blankWorld,
-  flattenActions,
-  runAssertions,
-} from './assertions.mjs';
+import { applyActions, applyWorldPatch, blankWorld, flattenActions, runAssertions } from './assertions.mjs';
 import { findInternalGapLeakage } from './check-internal-gap-leakage.mjs';
 import { judgeTrace } from './judge.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const scenarios = JSON.parse(await fs.readFile(path.join(here, 'scenarios.json'), 'utf8'));
+const baseScenarios = JSON.parse(await fs.readFile(path.join(here, 'scenarios.json'), 'utf8'));
+const followScenario = { name:'follow-listener-perspective', suite:'must-run', demoRole:'Prove that the learner experiences the information gap from the listener side before being asked to explain anything.', description:'Raku owns a hidden target, gives only the next needed instruction, and must become more specific after an instruction supports more than one reasonable placement.', manualReview:['The vague first direction should feel genuinely usable but under-specified, not like a quiz.','Raku should add only the detail needed for the current step.','The target reveal should make the value of listener-centered information obvious without a lecture.'], bootstrap:'v12-follow', turns:[] };
+const guideScenario = { name:'guide-role-reversal', suite:'must-run', demoRole:'Prove the role reversal: Raku acts only from learner language while the hidden target stays outside the AI listener.', description:'The learner sees a target Raku cannot see, gives an ambiguous instruction, observes a reasonable but unintended action, repairs it, and guides Raku to the full target.', manualReview:['Raku should make a reasonable choice for “at the bottom,” not ask a tutoring-style checklist question.','The learner correction should immediately change the visible board.','The stage should end only when Raku actually matches the hidden target.'], bootstrap:'v12-foundations', turns:[] };
+const scenarios = [followScenario, guideScenario, ...baseScenarios.map(scenario => ({ ...scenario, bootstrap: scenario.bootstrap || 'v12-game' }))];
 const args = process.argv.slice(2);
-const getArg = name => {
-  const index = args.indexOf(name);
-  return index >= 0 ? args[index + 1] : null;
-};
-const verbose = args.includes('--verbose');
-const judgeEnabled = args.includes('--judge');
+const getArg = name => { const index=args.indexOf(name); return index>=0?args[index+1]:null; };
+const verbose=args.includes('--verbose'); const judgeEnabled=args.includes('--judge');
+if(args.includes('--list')){for(const scenario of scenarios)console.log(scenario.name);process.exit(0);}
+const apiKey=process.env.DIFY_API_KEY; const baseUrl=(process.env.DIFY_API_BASE_URL||'https://api.dify.ai/v1').replace(/\/$/,''); const versionLabel=getArg('--label')||process.env.DIFY_TEST_VERSION; const expectedDslVersion=process.env.DIFY_EXPECT_DSL_VERSION||''; const requestedScenario=getArg('--scenario'); const repeat=Math.max(1,Number(getArg('--repeat')||1));
+if(!apiKey){console.error('Missing DIFY_API_KEY.');process.exit(1);} if(!versionLabel){console.error('Missing version label. Use --label <label> (or set DIFY_TEST_VERSION).');process.exit(1);}
+const selected=requestedScenario?scenarios.filter(s=>s.name===requestedScenario):scenarios; if(!selected.length){console.error(`Unknown scenario: ${requestedScenario}`);process.exit(1);}
 
-if (args.includes('--list')) {
-  for (const scenario of scenarios) console.log(scenario.name);
-  process.exit(0);
-}
+const V12_FOLLOW_TURNS=[
+ {label:'follow · start',stopScenarioOnFailure:true,event:{type:'lesson_start'},assert:{phase:'follow',worldName:'Can You Follow Me?',supportType:'listener_task',minObjects:9,actionTypes:[]}},
+ {label:'follow · select triangle',stopScenarioOnFailure:true,event:{type:'object_click',object_id:'follow_triangle'},assert:{phase:'follow',supportType:'listener_task',actionTypes:[]}},
+ {label:'follow · vague direction permits wrong top spot',stopScenarioOnFailure:true,event:{type:'object_click',object_id:'follow_tr'},assert:{phase:'follow',supportType:'listener_task',supportInstructionContains:'top-left',actionTypes:['update_object'],objectPositionAfterActions:{id:'follow_triangle',row:1,column:3}}},
+ {label:'follow · reselect triangle',stopScenarioOnFailure:true,event:{type:'object_click',object_id:'follow_triangle'},assert:{actionTypes:[]}},
+ {label:'follow · specific repair fixes triangle',stopScenarioOnFailure:true,event:{type:'object_click',object_id:'follow_tl'},assert:{phase:'follow',actionTypes:['update_object'],objectPositionAfterActions:{id:'follow_triangle',row:1,column:1}}},
+ {label:'follow · select circle',event:{type:'object_click',object_id:'follow_circle'},assert:{actionTypes:[]}},
+ {label:'follow · relational instruction places circle',event:{type:'object_click',object_id:'follow_tc'},assert:{actionTypes:['update_object'],objectPositionAfterActions:{id:'follow_circle',row:1,column:2}}},
+ {label:'follow · select square',event:{type:'object_click',object_id:'follow_square'},assert:{actionTypes:[]}},
+ {label:'follow · complete hidden target',stopScenarioOnFailure:true,event:{type:'object_click',object_id:'follow_bc'},assert:{phase:'follow',supportType:'reconstruction_result',actionTypes:['update_object'],objectPositionAfterActions:{id:'follow_square',row:2,column:2}}},
+];
+const V12_GUIDE_TURNS=[
+ {label:'guide · role reversal',stopScenarioOnFailure:true,event:{type:'continue_stage'},assert:{phase:'guide',worldName:'This Time You Lead',supportType:'reconstruction_task',actionTypes:[]}},
+ {label:'guide · ambiguous bottom placement',stopScenarioOnFailure:true,query:'Put the circle at the bottom.',assert:{phase:'guide',supportType:'reconstruction_task',actionTypes:['update_object'],objectPositionAfterActions:{id:'guide_circle',row:2,column:2}}},
+ {label:'guide · learner repairs exact position',stopScenarioOnFailure:true,query:'No, put the circle in the bottom-left spot.',assert:{phase:'guide',actionTypes:['update_object'],objectPositionAfterActions:{id:'guide_circle',row:2,column:1}}},
+ {label:'guide · explicit square placement',query:'Put the square in the top-left spot.',assert:{phase:'guide',actionTypes:['update_object'],objectPositionAfterActions:{id:'guide_square',row:1,column:1}}},
+ {label:'guide · relational triangle completes target',stopScenarioOnFailure:true,query:'Put the triangle to the right of the square.',assert:{phase:'game_select',supportType:'game_picker',actionTypes:['update_object'],objectPositionAfterActions:{id:'guide_triangle',row:1,column:2}}},
+];
+function gameChoiceForScenario(name){if(name==='breadth-tic-tac-toe')return'Tic-Tac-Toe';if(name==='breadth-rock-paper-scissors')return'Rock Paper Scissors';if(name==='breadth-token-race')return'Another simple game';return'Matching Pairs';}
+function gameSelectTurn(name){const choice=gameChoiceForScenario(name);const worldName=choice==='Another simple game'?'Your game':choice;return{label:`game · choose ${choice}`,stopScenarioOnFailure:true,event:{type:'game_choice_selected',choice},assert:{phase:'student_teaching',supportType:'game_guide',worldName,actionTypes:[]}};}
 
-const apiKey = process.env.DIFY_API_KEY;
-const baseUrl = (process.env.DIFY_API_BASE_URL || 'https://api.dify.ai/v1').replace(/\/$/, '');
-const versionLabel = getArg('--label') || process.env.DIFY_TEST_VERSION;
-const expectedDslVersion = process.env.DIFY_EXPECT_DSL_VERSION || '';
-const requestedScenario = getArg('--scenario');
-const repeat = Math.max(1, Number(getArg('--repeat') || 1));
+class HarnessError extends Error{constructor(message){super(message);this.name='HarnessError';}}
+function parseDifyAnswer(answer){if(answer&&typeof answer==='object')return answer;if(typeof answer!=='string')throw new Error(`Unexpected Dify answer type: ${typeof answer}`);const trimmed=answer.trim();const candidates=[trimmed];const fenced=trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);if(fenced)candidates.push(fenced[1].trim());const a=trimmed.indexOf('{');const b=trimmed.lastIndexOf('}');if(a!==-1&&b>a)candidates.push(trimmed.slice(a,b+1));for(const candidate of[...new Set(candidates)]){try{let parsed=JSON.parse(candidate);if(typeof parsed==='string')parsed=JSON.parse(parsed);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))return parsed;}catch{}}throw new Error(`Dify answer is not frontend JSON: ${answer.slice(0,800)}`);}
+function encodeGameTeacherEvent(event){return`[[GAME_TEACHER_EVENT]]\n${JSON.stringify(event)}`;}
+async function sendTurn({query,conversationId,user}){const startedAt=Date.now();const response=await fetch(`${baseUrl}/chat-messages`,{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({inputs:{},query,response_mode:'blocking',conversation_id:conversationId||'',user})});const raw=await response.text();if(!response.ok)throw new Error(`Dify ${response.status}: ${raw}`);const data=JSON.parse(raw);return{elapsedMs:Date.now()-startedAt,data,payload:parseDifyAnswer(data.answer)};}
+function safeStamp(){return new Date().toISOString().replace(/[:.]/g,'-');}
+function classifyError(error){if(error instanceof HarnessError)return'harness';const message=String(error?.message||error||'');if(/fetch failed|Model .* not exist|provider|credential|api key|rate limit|quota|service unavailable|gateway|timeout/i.test(message))return'infra';return'runtime';}
+function conciseError(error){const message=String(error?.message||error||'');const d=message.match(/\bDify\s+(\d{3})\b/i);if(d)return`Dify ${d[1]}`;return(message.split('\n').find(line=>line.trim())||'Unknown error').trim().slice(0,220);}
+function usageFrom(data){const u=data?.metadata?.usage||{};return{promptTokens:Number(u.prompt_tokens||0),completionTokens:Number(u.completion_tokens||0),totalTokens:Number(u.total_tokens||0)};}
+function addMetrics(target,elapsedMs,usage){target.elapsedMs+=Number(elapsedMs||0);target.promptTokens+=usage.promptTokens;target.completionTokens+=usage.completionTokens;target.totalTokens+=usage.totalTokens;target.successfulTurns+=1;}
+function transcriptText(dialogue){return dialogue.map(turn=>`Student: ${turn.student}\nRaku: ${turn.jamie}`).join('\n\n');}
+function normalizedActionTypes(actions){return actions.filter(a=>a.type!=='wait').map(a=>a.type);}
+function pairIdentity(object){for(const key of['symbol','caption']){const value=String(object?.[key]??'').trim();if(value)return`${key}:${value}`;}return null;}
+function visiblePair(world){const revealed=(world?.objects||[]).filter(o=>o?.state==='face_up');if(revealed.length!==2)throw new HarnessError(`Expected exactly two revealed objects before state-dependent repair; got ${revealed.length}.`);const identities=revealed.map(pairIdentity);if(identities.some(v=>!v))throw new HarnessError('Cannot determine revealed-pair identity.');return{objects:revealed,matches:identities[0]===identities[1],identity:identities};}
+function resolveTurnInput(turn,world){if(turn.event&&typeof turn.event==='object')return{query:encodeGameTeacherEvent(turn.event),display:`[event] ${turn.event.type}${turn.event.object_id?` · ${turn.event.object_id}`:''}`,source:'event'};if(typeof turn.query==='string')return{query:turn.query,display:turn.query,source:'literal'};const pair=visiblePair(world);if(turn.queryFromWorld==='repair-revealed-pair'){const query=pair.matches?'If they match, take both cards out.':"If they don't match, turn both cards face down again.";return{query,display:query,source:turn.queryFromWorld};}if(turn.queryFromWorld==='variant-revealed-pair'){const query=pair.matches?'In my version, if they match, turn both cards face down again.':"In my version, if they don't match, take both cards out.";return{query,display:query,source:turn.queryFromWorld};}throw new HarnessError(`Turn has no supported input source: ${JSON.stringify(turn)}`);}
+function visibleWorldText(patch){const text=[];for(const key of['name','status'])if(patch?.[key]!=null)text.push(String(patch[key]));const replace=patch?.replace;if(replace&&typeof replace==='object'){for(const key of['name','status'])if(replace?.[key]!=null)text.push(String(replace[key]));for(const object of replace?.objects||[])for(const key of['label','caption'])if(object?.[key]!=null)text.push(String(object[key]));}for(const listName of['add_objects','update_objects'])for(const object of patch?.[listName]||[])for(const key of['label','caption'])if(object?.[key]!=null)text.push(String(object[key]));return text.join(' ');}
+function replyExposesOpenGap(reply){const text=String(reply||'').trim();return Boolean(text&&(text.includes('?')||/\b(?:don['’]?t know|do not know|not sure|need to know|what happens|what next|now what)\b/i.test(text)));}
+function extraAssertions({expected,payload,previousWorld,worldAfterPatch,worldAfterActions,actions}){const results=[];const pass=(name,detail='')=>({name,ok:true,detail});const fail=(name,detail)=>({name,ok:false,detail});if(expectedDslVersion){const actual=String(payload?.debug?.dsl_version||'').trim();results.push(actual===expectedDslVersion?pass('protocol.dsl-version',actual):fail('protocol.dsl-version',`Expected ${expectedDslVersion}; got ${JSON.stringify(actual||null)}.`));}const leakage=findInternalGapLeakage(payload);if(leakage.length)results.push(fail('protocol.internal-gap-leakage',leakage.map(x=>x.text).join(' | ')));if(typeof expected.phase==='string'){const actual=String(payload?.phase||'');results.push(actual===expected.phase?pass('turn.phase',actual):fail('turn.phase',`Expected phase=${expected.phase}; got ${actual}.`));}if(typeof expected.supportType==='string'){const actual=String(payload?.support?.type||'');results.push(actual===expected.supportType?pass('turn.support-type',actual):fail('turn.support-type',`Expected ${expected.supportType}; got ${actual}.`));}if(typeof expected.supportInstructionContains==='string'){const actual=String(payload?.support?.instruction||'');results.push(actual.toLowerCase().includes(expected.supportInstructionContains.toLowerCase())?pass('turn.support-instruction',actual):fail('turn.support-instruction',`Expected ${expected.supportInstructionContains}; got ${actual}.`));}if(typeof expected.worldName==='string'){const actual=String(worldAfterPatch?.name||'');results.push(actual===expected.worldName?pass('turn.world-name',actual):fail('turn.world-name',`Expected ${expected.worldName}; got ${actual}.`));}if(expected.objectPositionAfterActions?.id){const target=(worldAfterActions?.objects||[]).find(o=>String(o?.id)===String(expected.objectPositionAfterActions.id));const actual={row:target?.row??null,column:target?.column??null};const wanted={row:expected.objectPositionAfterActions.row,column:expected.objectPositionAfterActions.column};results.push(actual.row===wanted.row&&actual.column===wanted.column?pass('turn.object-position-after-actions',`${target?.id}:${actual.row},${actual.column}`):fail('turn.object-position-after-actions',`Expected ${JSON.stringify(wanted)}; got ${JSON.stringify(actual)}.`));}if(Array.isArray(expected.worldTextMustNotContain)){const text=visibleWorldText(payload?.world_patch||{}).toLowerCase();const bad=expected.worldTextMustNotContain.filter(t=>text.includes(String(t).toLowerCase()));results.push(bad.length?fail('turn.world-visible-text-leakage',bad.join(', ')):pass('turn.world-visible-text-leakage'));}if(expected.worldGameplayStateMustBeNeutral){const allowed=new Set(['','available','empty']);const bad=(worldAfterPatch?.objects||[]).filter(o=>!allowed.has(String(o?.state??'')));results.push(bad.length?fail('turn.world-gameplay-state-leakage',bad.map(o=>`${o.id}:${o.state}`).join(', ')):pass('turn.world-gameplay-state-leakage'));}if(expected.worldReadyMustBeFalse)results.push(worldAfterPatch?.ready===false?pass('turn.world-ready-false'):fail('turn.world-ready-false',`got ${JSON.stringify(worldAfterPatch?.ready)}`));if(expected.listenerGapAfterAction){const gap=payload?.debug?.action_plan?.post_action_gap||payload?.debug?.controller?.pending_gap;const missing=String(gap?.missing_for_next_action||'').trim();results.push(missing?pass('turn.listener-gap-internal',missing):fail('turn.listener-gap-internal','No grounded listener gap recorded.'));}if(expected.actionTypesMatchRevealedPair||expected.actionTypesMatchVariantPair){const pair=visiblePair(previousWorld);const expectedTypes=expected.actionTypesMatchVariantPair?(pair.matches?['hide_object','hide_object']:['remove_object','remove_object']):(pair.matches?['remove_object','remove_object']:['hide_object','hide_object']);const actual=normalizedActionTypes(actions);results.push(JSON.stringify(actual)===JSON.stringify(expectedTypes)?pass('turn.pair-branch',actual.join(', ')):fail('turn.pair-branch',`Expected ${JSON.stringify(expectedTypes)}, got ${JSON.stringify(actual)}`));}return results;}
+function qualitySignals({expected,payload}){const signals=[];if(expected.listenerGapAfterAction){const visible=replyExposesOpenGap(payload?.reply);signals.push({name:'quality.listener-gap-visible',ok:visible,detail:String(payload?.reply||'')});}return signals;}
 
-if (!apiKey) {
-  console.error('Missing DIFY_API_KEY.');
-  process.exit(1);
-}
-if (!versionLabel) {
-  console.error('Missing version label. Use --label v8 (or set DIFY_TEST_VERSION).');
-  process.exit(1);
-}
-
-const selected = requestedScenario
-  ? scenarios.filter(scenario => scenario.name === requestedScenario)
-  : scenarios;
-if (!selected.length) {
-  console.error(`Unknown scenario: ${requestedScenario}`);
-  console.error('Use --list to see available scenario names.');
-  process.exit(1);
-}
-
-class HarnessError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = 'HarnessError';
-  }
-}
-
-function parseDifyAnswer(answer) {
-  if (answer && typeof answer === 'object') return answer;
-  if (typeof answer !== 'string') throw new Error(`Unexpected Dify answer type: ${typeof answer}`);
-  const trimmed = answer.trim();
-  const candidates = [trimmed];
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  if (fenced) candidates.push(fenced[1].trim());
-  const firstBrace = trimmed.indexOf('{');
-  const lastBrace = trimmed.lastIndexOf('}');
-  if (firstBrace !== -1 && lastBrace > firstBrace) candidates.push(trimmed.slice(firstBrace, lastBrace + 1));
-  for (const candidate of [...new Set(candidates)]) {
-    try {
-      let parsed = JSON.parse(candidate);
-      if (typeof parsed === 'string') parsed = JSON.parse(parsed);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-    } catch {
-      // Try another candidate.
-    }
-  }
-  throw new Error(`Dify answer is not frontend JSON: ${answer.slice(0, 800)}`);
-}
-
-async function sendTurn({ query, conversationId, user }) {
-  const startedAt = Date.now();
-  const response = await fetch(`${baseUrl}/chat-messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      inputs: {},
-      query,
-      response_mode: 'blocking',
-      conversation_id: conversationId || '',
-      user,
-    }),
-  });
-  const raw = await response.text();
-  if (!response.ok) throw new Error(`Dify ${response.status}: ${raw}`);
-  const data = JSON.parse(raw);
-  return {
-    elapsedMs: Date.now() - startedAt,
-    data,
-    payload: parseDifyAnswer(data.answer),
-  };
-}
-
-function safeStamp() {
-  return new Date().toISOString().replace(/[:.]/g, '-');
-}
-
-function classifyError(error) {
-  if (error instanceof HarnessError) return 'harness';
-  const message = String(error?.message || error || '');
-  if (/fetch failed/i.test(message)) return 'infra';
-  if (/Model .* not exist/i.test(message)) return 'infra';
-  if (/provider|credential|api key|rate limit|quota|service unavailable|gateway|timeout/i.test(message)) return 'infra';
-  return 'runtime';
-}
-
-function conciseError(error) {
-  const message = String(error?.message || error || '');
-  const difyStatus = message.match(/\bDify\s+(\d{3})\b/i);
-  const jsonMessage = message.match(/"message"\s*:\s*"([^"]+)"/i);
-  if (difyStatus && jsonMessage) return `Dify ${difyStatus[1]} · ${jsonMessage[1]}`;
-  const htmlTitle = message.match(/<title>\s*[^|<]*\|\s*(?:\d{3}:\s*)?([^<]+)<\/title>/i);
-  if (difyStatus && htmlTitle) return `Dify ${difyStatus[1]} · ${htmlTitle[1].trim()}`;
-  if (difyStatus) return `Dify ${difyStatus[1]}`;
-  if (/fetch failed/i.test(message)) return 'fetch failed';
-  const firstLine = message.split('\n').find(line => line.trim()) || 'Unknown error';
-  return firstLine.trim().slice(0, 220);
-}
-
-function usageFrom(data) {
-  const usage = data?.metadata?.usage || {};
-  return {
-    promptTokens: Number(usage.prompt_tokens || 0),
-    completionTokens: Number(usage.completion_tokens || 0),
-    totalTokens: Number(usage.total_tokens || 0),
-    modelLatencyMs: Number(usage.latency || 0) * 1000,
-    timeToFirstTokenMs: Number(usage.time_to_first_token || 0) * 1000,
-  };
-}
-
-function addMetrics(target, elapsedMs, usage) {
-  target.elapsedMs += Number(elapsedMs || 0);
-  target.promptTokens += usage.promptTokens;
-  target.completionTokens += usage.completionTokens;
-  target.totalTokens += usage.totalTokens;
-  target.successfulTurns += 1;
-}
-
-function transcriptText(dialogue) {
-  return dialogue.map(turn => `Student: ${turn.student}\nJamie: ${turn.jamie}`).join('\n\n');
-}
-
-function normalizedActionTypes(actions) {
-  return actions.filter(action => action.type !== 'wait').map(action => action.type);
-}
-
-function pairIdentity(object) {
-  // label is deliberately excluded: generic labels such as "Card" are not pair identity.
-  for (const key of ['symbol', 'caption']) {
-    const value = String(object?.[key] ?? '').trim();
-    if (value) return `${key}:${value}`;
-  }
-  return null;
-}
-
-function visiblePair(world) {
-  const revealed = (world?.objects || []).filter(object => object?.state === 'face_up');
-  if (revealed.length !== 2) {
-    throw new HarnessError(`Expected exactly two revealed objects before state-dependent repair; got ${revealed.length}.`);
-  }
-  const identities = revealed.map(pairIdentity);
-  if (identities.some(value => !value)) {
-    throw new HarnessError('Cannot determine whether the revealed pair matches: revealed objects have no symbol/caption identity.');
-  }
-  return { objects: revealed, matches: identities[0] === identities[1], identity: identities };
-}
-
-function resolveTurnQuery(turn, world) {
-  if (typeof turn.query === 'string') return turn.query;
-  const pair = visiblePair(world);
-  if (turn.queryFromWorld === 'repair-revealed-pair') {
-    return pair.matches
-      ? 'If they match, take both cards out.'
-      : "If they don't match, turn both cards face down again.";
-  }
-  if (turn.queryFromWorld === 'variant-revealed-pair') {
-    return pair.matches
-      ? 'In my version, if they match, turn both cards face down again.'
-      : "In my version, if they don't match, take both cards out.";
-  }
-  throw new HarnessError(`Turn has no supported query source: ${JSON.stringify(turn)}`);
-}
-
-function visibleWorldText(patch) {
-  const text = [];
-  for (const key of ['name', 'status']) {
-    if (patch?.[key] != null) text.push(String(patch[key]));
-  }
-  for (const listName of ['add_objects', 'update_objects']) {
-    for (const object of patch?.[listName] || []) {
-      for (const key of ['label', 'caption']) {
-        if (object?.[key] != null) text.push(String(object[key]));
-      }
-    }
-  }
-  return text.join(' ');
-}
-
-function replyExposesOpenGap(reply) {
-  const text = String(reply || '').trim();
-  if (!text) return false;
-  if (text.includes('?')) return true;
-  return /\b(?:don['’]?t know|do not know|not sure|need to know|what happens|what next|now what)\b/i.test(text);
-}
-
-function extraAssertions({ expected, payload, previousWorld, worldAfterPatch, actions }) {
-  const results = [];
-  const pass = (name, detail = '') => ({ name, ok: true, detail });
-  const fail = (name, detail) => ({ name, ok: false, detail });
-
-  if (expectedDslVersion) {
-    const actual = String(payload?.debug?.dsl_version || '').trim();
-    results.push(actual === expectedDslVersion
-      ? pass('protocol.dsl-version', actual)
-      : fail('protocol.dsl-version', `Expected runtime DSL ${expectedDslVersion}; got ${JSON.stringify(actual || null)}.`));
-  }
-
-  const internalLeakage = findInternalGapLeakage(payload);
-  if (internalLeakage.length) {
-    results.push(fail(
-      'protocol.internal-gap-leakage',
-      internalLeakage.map(item => item.text).join(' | '),
-    ));
-  }
-
-  if (Array.isArray(expected.worldTextMustNotContain)) {
-    const text = visibleWorldText(payload?.world_patch || {});
-    const lower = text.toLowerCase();
-    const bad = expected.worldTextMustNotContain.filter(token => lower.includes(String(token).toLowerCase()));
-    results.push(bad.length
-      ? fail('turn.world-visible-text-leakage', `Visible world text contains unstated gameplay language: ${bad.join(', ')}. Text=${JSON.stringify(text)}`)
-      : pass('turn.world-visible-text-leakage'));
-  }
-
-  if (expected.worldGameplayStateMustBeNeutral) {
-    const allowed = new Set(['', 'available', 'empty']);
-    const bad = (worldAfterPatch?.objects || []).filter(object => !allowed.has(String(object?.state ?? '')));
-    results.push(bad.length
-      ? fail('turn.world-gameplay-state-leakage', `World contains gameplay state before it was taught: ${bad.map(object => `${object.id}:${object.state}`).join(', ')}`)
-      : pass('turn.world-gameplay-state-leakage'));
-  }
-
-  if (expected.worldReadyMustBeFalse) {
-    results.push(worldAfterPatch?.ready === false
-      ? pass('turn.world-ready-false')
-      : fail('turn.world-ready-false', `Expected ready=false before an executable/setup instruction; got ${JSON.stringify(worldAfterPatch?.ready)}.`));
-  }
-
-  if (expected.listenerGapAfterAction) {
-    const actionPlanGap = payload?.debug?.action_plan?.post_action_gap;
-    const pendingGap = payload?.debug?.controller?.pending_gap;
-    const gap = actionPlanGap || pendingGap;
-    const missing = String(gap?.missing_for_next_action || '').trim();
-    results.push(missing
-      ? pass('turn.listener-gap-internal', missing)
-      : fail('turn.listener-gap-internal', 'Jamie acted, but no grounded post-action/pending listener gap was recorded.'));
-  }
-
-  if (expected.actionTypesMatchRevealedPair || expected.actionTypesMatchVariantPair) {
-    let pair;
-    try {
-      pair = visiblePair(previousWorld);
-    } catch (error) {
-      throw error instanceof HarnessError ? error : new HarnessError(String(error?.message || error));
-    }
-    const expectedTypes = expected.actionTypesMatchVariantPair
-      ? (pair.matches ? ['hide_object', 'hide_object'] : ['remove_object', 'remove_object'])
-      : (pair.matches ? ['remove_object', 'remove_object'] : ['hide_object', 'hide_object']);
-    const actual = normalizedActionTypes(actions);
-    const name = expected.actionTypesMatchVariantPair ? 'turn.variant-branch' : 'turn.repair-branch';
-    results.push(JSON.stringify(actual) === JSON.stringify(expectedTypes)
-      ? pass(name, `${pair.matches ? 'matching' : 'non-matching'} pair → ${actual.join(', ')}`)
-      : fail(name, `Revealed pair was ${pair.matches ? 'matching' : 'non-matching'} (${pair.identity.join(' vs ')}); expected ${JSON.stringify(expectedTypes)}, got ${JSON.stringify(actual)}`));
-  }
-
-  return results;
-}
-
-function qualitySignals({ expected, payload }) {
-  const signals = [];
-  if (expected.listenerGapAfterAction) {
-    const visible = replyExposesOpenGap(payload?.reply);
-    signals.push({
-      name: 'quality.listener-gap-visible',
-      ok: visible,
-      detail: visible
-        ? String(payload?.reply || '')
-        : `Jamie has an internal listener gap but does not explicitly surface it in this reply: ${JSON.stringify(payload?.reply || '')}`,
-    });
-  }
-  return signals;
-}
-
-const traceRoot = path.resolve(process.cwd(), '.artifacts', 'dify-e2e');
-await fs.mkdir(traceRoot, { recursive: true });
-
-let totalBehaviorFailures = 0;
-let totalAssertionFailures = 0;
-let totalInfraErrors = 0;
-let totalRuntimeErrors = 0;
-let totalHarnessErrors = 0;
-let totalSoftQualityIssues = 0;
-const aggregateMetrics = { elapsedMs: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, successfulTurns: 0 };
-const completedDialogues = [];
-
-console.log(`Dify E2E · ${versionLabel}`);
-if (expectedDslVersion) console.log(`Runtime DSL expected · ${expectedDslVersion}`);
-if (judgeEnabled) console.log('AI judge · enabled (soft evaluation only)');
-if (verbose) {
-  console.log(`Scenarios: ${selected.length} × ${repeat}`);
-  console.log(`Base URL: ${baseUrl}`);
-}
-console.log('');
-
-for (let iteration = 1; iteration <= repeat; iteration += 1) {
-  for (const scenario of selected) {
-    const user = `game-teacher-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    let conversationId = '';
-    let world = blankWorld();
-    let baseline = null;
-    const turnsTrace = [];
-    const dialogue = [];
-    let scenarioBehaviorFailures = 0;
-    let scenarioAssertionFailures = 0;
-    let scenarioInfraErrors = 0;
-    let scenarioRuntimeErrors = 0;
-    let scenarioHarnessErrors = 0;
-    let scenarioSoftQualityIssues = 0;
-    const scenarioMetrics = { elapsedMs: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, successfulTurns: 0 };
-
-    console.log(`▶ ${scenario.name}${repeat > 1 ? ` [${iteration}/${repeat}]` : ''}`);
-
-    for (let index = 0; index < scenario.turns.length; index += 1) {
-      const turn = scenario.turns[index];
-      const previousWorld = JSON.parse(JSON.stringify(world));
-      let query = '';
-      try {
-        query = resolveTurnQuery(turn, previousWorld);
-        const result = await sendTurn({ query, conversationId, user });
-        conversationId = result.data.conversation_id || conversationId;
-        const payload = result.payload;
-        const actions = flattenActions(payload.ui_action);
-        const worldAfterPatch = applyWorldPatch(world, payload.world_patch);
-        if (payload.capture_baseline && !baseline) baseline = JSON.parse(JSON.stringify(worldAfterPatch));
-        world = applyActions(worldAfterPatch, actions, baseline);
-
-        const assertionResults = [
-          ...runAssertions({ expected: turn.assert || {}, payload, previousWorld, worldAfterPatch, actions }),
-          ...extraAssertions({ expected: turn.assert || {}, payload, previousWorld, worldAfterPatch, actions }),
-        ];
-        const softSignals = qualitySignals({ expected: turn.assert || {}, payload });
-        const failures = assertionResults.filter(resultItem => !resultItem.ok);
-        const softIssues = softSignals.filter(resultItem => !resultItem.ok);
-        if (failures.length) {
-          scenarioBehaviorFailures += 1;
-          totalBehaviorFailures += 1;
-          scenarioAssertionFailures += failures.length;
-          totalAssertionFailures += failures.length;
-        }
-        if (softIssues.length) {
-          scenarioSoftQualityIssues += softIssues.length;
-          totalSoftQualityIssues += softIssues.length;
-        }
-
-        const turnUsage = usageFrom(result.data);
-        addMetrics(scenarioMetrics, result.elapsedMs, turnUsage);
-        addMetrics(aggregateMetrics, result.elapsedMs, turnUsage);
-        const mark = failures.length ? '✗' : '✓';
-        const perf = verbose
-          ? `${(result.elapsedMs / 1000).toFixed(1)}s · ${turnUsage.totalTokens.toLocaleString()} tok`
-          : `${(result.elapsedMs / 1000).toFixed(1)}s`;
-        console.log(`  ${mark} turn ${index + 1} · ${perf}`);
-        if (failures.length) {
-          for (const failure of failures) console.log(`    ${failure.name}: ${failure.detail}`);
-        } else if (verbose) {
-          console.log(`    Student: ${query}`);
-          console.log(`    Jamie: ${String(payload?.reply || '')}`);
-        }
-        for (const issue of softIssues) console.log(`    ~ ${issue.name}: ${issue.detail}`);
-
-        const jamieReply = String(payload?.reply || '');
-        dialogue.push({ student: query, jamie: jamieReply });
-        turnsTrace.push({
-          index: index + 1,
-          query,
-          querySource: turn.queryFromWorld || 'literal',
-          elapsedMs: result.elapsedMs,
-          usage: turnUsage,
-          conversationId,
-          messageId: result.data.message_id,
-          rawDifyResponse: result.data,
-          payload,
-          assertions: assertionResults,
-          qualitySignals: softSignals,
-          previousWorld,
-          worldAfterPatch,
-          worldAfterActions: world,
-          baseline,
-        });
-
-        if (failures.length && turn.stopScenarioOnFailure) {
-          console.log('  ↳ stop · prerequisite turn failed; later state-dependent turns skipped');
-          break;
-        }
-      } catch (error) {
-        const category = classifyError(error);
-        if (category === 'infra') {
-          scenarioInfraErrors += 1;
-          totalInfraErrors += 1;
-        } else if (category === 'harness') {
-          scenarioHarnessErrors += 1;
-          totalHarnessErrors += 1;
-        } else {
-          scenarioRuntimeErrors += 1;
-          totalRuntimeErrors += 1;
-        }
-        const mark = category === 'infra' ? '!' : '✗';
-        console.log(`  ${mark} turn ${index + 1} · ${category} · ${conciseError(error)}`);
-        if (verbose) console.log(`    ${String(error?.message || error).slice(0, 1200)}`);
-        turnsTrace.push({
-          index: index + 1,
-          query: query || turn.query || `[${turn.queryFromWorld || 'unresolved query'}]`,
-          errorCategory: category,
-          runtimeError: error.stack || error.message,
-        });
-        break;
-      }
-    }
-
-    const trace = {
-      versionLabel,
-      expectedDslVersion: expectedDslVersion || null,
-      observedDslVersion: turnsTrace.find(turn => turn?.payload?.debug?.dsl_version)?.payload?.debug?.dsl_version || null,
-      scenario: scenario.name,
-      description: scenario.description,
-      manualReview: scenario.manualReview || [],
-      iteration,
-      startedUser: user,
-      finalConversationId: conversationId,
-      failures: scenarioBehaviorFailures,
-      behaviorFailures: scenarioBehaviorFailures,
-      assertionFailures: scenarioAssertionFailures,
-      softQualityIssues: scenarioSoftQualityIssues,
-      infraErrors: scenarioInfraErrors,
-      runtimeErrors: scenarioRuntimeErrors,
-      harnessErrors: scenarioHarnessErrors,
-      metrics: scenarioMetrics,
-      conversation: dialogue,
-      turns: turnsTrace,
-      aiEval: null,
-    };
-
-    if (judgeEnabled && dialogue.length) {
-      try {
-        trace.aiEval = await judgeTrace(trace);
-      } catch (error) {
-        trace.aiEval = { status: 'error', reason: conciseError(error) };
-      }
-    }
-
-    const stem = `${safeStamp()}__${versionLabel.replace(/[^a-zA-Z0-9_.-]/g, '_')}__${scenario.name}__${iteration}`;
-    const tracePath = path.join(traceRoot, `${stem}.json`);
-    const conversationPath = path.join(traceRoot, `${stem}__conversation.txt`);
-    await fs.writeFile(tracePath, JSON.stringify(trace, null, 2));
-    await fs.writeFile(conversationPath, `${transcriptText(dialogue)}${dialogue.length ? '\n' : ''}`);
-
-    console.log(`  trace · ${path.relative(process.cwd(), tracePath)}`);
-    console.log(`  text  · ${path.relative(process.cwd(), conversationPath)}`);
-    if (trace.aiEval?.status === 'ok') {
-      const issue = trace.aiEval.critical_failure ? `critical · ${trace.aiEval.critical_issues.join(', ') || 'unspecified'}` : 'no critical issue';
-      console.log(`  AI eval · ${trace.aiEval.overall.toFixed(2)}/5 · ${issue}`);
-    } else if (trace.aiEval?.status === 'skipped') {
-      console.log(`  AI eval · skipped · ${trace.aiEval.reason}`);
-    } else if (trace.aiEval?.status === 'error') {
-      console.log(`  AI eval · error · ${trace.aiEval.reason}`);
-    }
-    if (verbose && scenario.manualReview?.length) console.log(`  manual review · ${scenario.manualReview.length} item(s)`);
-    console.log('');
-    completedDialogues.push(dialogue);
-  }
-}
-
-const averageMs = aggregateMetrics.successfulTurns ? aggregateMetrics.elapsedMs / aggregateMetrics.successfulTurns : 0;
-const averageTokens = aggregateMetrics.successfulTurns ? aggregateMetrics.totalTokens / aggregateMetrics.successfulTurns : 0;
-console.log(`Result · ${totalBehaviorFailures} behavior · ${totalInfraErrors} infra · ${totalRuntimeErrors} runtime · ${totalHarnessErrors} harness`);
-if (totalAssertionFailures) console.log(`Checks · ${totalAssertionFailures} failed assertion${totalAssertionFailures === 1 ? '' : 's'}`);
-if (totalSoftQualityIssues) console.log(`Quality · ${totalSoftQualityIssues} soft signal${totalSoftQualityIssues === 1 ? '' : 's'}`);
-if (aggregateMetrics.successfulTurns) {
-  console.log(`Perf   · ${(averageMs / 1000).toFixed(1)}s/turn · ${Math.round(averageTokens).toLocaleString()} tok/turn`);
-}
-if (completedDialogues.length === 1 && completedDialogues[0].length) {
-  console.log('\nConversation\n');
-  console.log(transcriptText(completedDialogues[0]));
-}
-
-if (totalBehaviorFailures || totalInfraErrors || totalRuntimeErrors || totalHarnessErrors) process.exit(1);
+const traceRoot=path.resolve(process.cwd(),'.artifacts','dify-e2e');await fs.mkdir(traceRoot,{recursive:true});
+let totalBehaviorFailures=0,totalAssertionFailures=0,totalInfraErrors=0,totalRuntimeErrors=0,totalHarnessErrors=0,totalSoftQualityIssues=0;const aggregateMetrics={elapsedMs:0,promptTokens:0,completionTokens:0,totalTokens:0,successfulTurns:0};const completedDialogues=[];
+console.log(`Dify E2E · ${versionLabel}`);if(expectedDslVersion)console.log(`Runtime DSL expected · ${expectedDslVersion}`);if(judgeEnabled)console.log('AI judge · enabled (soft evaluation only)');console.log('');
+for(let iteration=1;iteration<=repeat;iteration+=1){for(const scenario of selected){const user=`game-teacher-e2e-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;let conversationId='',world=blankWorld(),baseline=null;const turnsTrace=[],dialogue=[];let scenarioBehaviorFailures=0,scenarioAssertionFailures=0,scenarioInfraErrors=0,scenarioRuntimeErrors=0,scenarioHarnessErrors=0,scenarioSoftQualityIssues=0;const scenarioMetrics={elapsedMs:0,promptTokens:0,completionTokens:0,totalTokens:0,successfulTurns:0};let turns=scenario.turns||[];if(scenario.bootstrap==='v12-follow')turns=V12_FOLLOW_TURNS.map(t=>({...t,isBootstrap:true}));else if(scenario.bootstrap==='v12-foundations')turns=[...V12_FOLLOW_TURNS,...V12_GUIDE_TURNS].map(t=>({...t,isBootstrap:true}));else if(scenario.bootstrap==='v12-game')turns=[...V12_FOLLOW_TURNS,...V12_GUIDE_TURNS,gameSelectTurn(scenario.name)].map(t=>({...t,isBootstrap:true})).concat(scenario.turns||[]);console.log(`▶ ${scenario.name}${repeat>1?` [${iteration}/${repeat}]`:''}`);
+for(let index=0;index<turns.length;index+=1){const turn=turns[index];const previousWorld=JSON.parse(JSON.stringify(world));let input=null;try{input=resolveTurnInput(turn,previousWorld);const result=await sendTurn({query:input.query,conversationId,user});conversationId=result.data.conversation_id||conversationId;const payload=result.payload;const actions=flattenActions(payload.ui_action);const worldAfterPatch=applyWorldPatch(world,payload.world_patch);if(payload.capture_baseline&&!baseline)baseline=JSON.parse(JSON.stringify(worldAfterPatch));const worldAfterActions=applyActions(worldAfterPatch,actions,baseline);world=worldAfterActions;const assertionResults=[...runAssertions({expected:turn.assert||{},payload,previousWorld,worldAfterPatch,actions}),...extraAssertions({expected:turn.assert||{},payload,previousWorld,worldAfterPatch,worldAfterActions,actions})];const softSignals=qualitySignals({expected:turn.assert||{},payload});const failures=assertionResults.filter(x=>!x.ok);const softIssues=softSignals.filter(x=>!x.ok);if(failures.length){scenarioBehaviorFailures+=1;totalBehaviorFailures+=1;scenarioAssertionFailures+=failures.length;totalAssertionFailures+=failures.length;}if(softIssues.length){scenarioSoftQualityIssues+=softIssues.length;totalSoftQualityIssues+=softIssues.length;}const usage=usageFrom(result.data);addMetrics(scenarioMetrics,result.elapsedMs,usage);addMetrics(aggregateMetrics,result.elapsedMs,usage);const label=turn.label||`turn ${index+1}`;console.log(`  ${failures.length?'✗':'✓'} ${label} · ${(result.elapsedMs/1000).toFixed(1)}s`);if(failures.length)for(const failure of failures)console.log(`    ${failure.name}: ${failure.detail}`);else if(verbose){console.log(`    Student: ${input.display}`);console.log(`    Raku: ${String(payload?.reply||'')}`);}for(const issue of softIssues)console.log(`    ~ ${issue.name}: ${issue.detail}`);dialogue.push({student:input.display,jamie:String(payload?.reply||'')});turnsTrace.push({index:index+1,label:turn.label||null,isBootstrap:Boolean(turn.isBootstrap),query:input.query,displayInput:input.display,querySource:input.source,elapsedMs:result.elapsedMs,usage,conversationId,messageId:result.data.message_id,rawDifyResponse:result.data,payload,assertions:assertionResults,qualitySignals:softSignals,previousWorld,worldAfterPatch,worldAfterActions,baseline});if(failures.length&&turn.stopScenarioOnFailure){console.log('  ↳ stop · prerequisite turn failed');break;}}catch(error){const category=classifyError(error);if(category==='infra'){scenarioInfraErrors+=1;totalInfraErrors+=1;}else if(category==='harness'){scenarioHarnessErrors+=1;totalHarnessErrors+=1;}else{scenarioRuntimeErrors+=1;totalRuntimeErrors+=1;}console.log(`  ${category==='infra'?'!':'✗'} ${turn.label||`turn ${index+1}`} · ${category} · ${conciseError(error)}`);turnsTrace.push({index:index+1,label:turn.label||null,errorCategory:category,runtimeError:error.stack||error.message});break;}}
+const trace={versionLabel,expectedDslVersion:expectedDslVersion||null,observedDslVersion:turnsTrace.find(t=>t?.payload?.debug?.dsl_version)?.payload?.debug?.dsl_version||null,scenario:scenario.name,description:scenario.description,bootstrap:scenario.bootstrap||null,manualReview:scenario.manualReview||[],iteration,startedUser:user,finalConversationId:conversationId,failures:scenarioBehaviorFailures,behaviorFailures:scenarioBehaviorFailures,assertionFailures:scenarioAssertionFailures,softQualityIssues:scenarioSoftQualityIssues,infraErrors:scenarioInfraErrors,runtimeErrors:scenarioRuntimeErrors,harnessErrors:scenarioHarnessErrors,metrics:scenarioMetrics,conversation:dialogue,turns:turnsTrace,aiEval:null};if(judgeEnabled&&dialogue.length){try{trace.aiEval=await judgeTrace(trace);}catch(error){trace.aiEval={status:'error',reason:conciseError(error)};}}const stem=`${safeStamp()}__${versionLabel.replace(/[^a-zA-Z0-9_.-]/g,'_')}__${scenario.name}__${iteration}`;const tracePath=path.join(traceRoot,`${stem}.json`);const conversationPath=path.join(traceRoot,`${stem}__conversation.txt`);await fs.writeFile(tracePath,JSON.stringify(trace,null,2));await fs.writeFile(conversationPath,`${transcriptText(dialogue)}${dialogue.length?'\n':''}`);console.log(`  trace · ${path.relative(process.cwd(),tracePath)}`);console.log('');completedDialogues.push(dialogue);}}
+const averageMs=aggregateMetrics.successfulTurns?aggregateMetrics.elapsedMs/aggregateMetrics.successfulTurns:0;console.log(`Result · ${totalBehaviorFailures} behavior · ${totalInfraErrors} infra · ${totalRuntimeErrors} runtime · ${totalHarnessErrors} harness`);if(totalAssertionFailures)console.log(`Checks · ${totalAssertionFailures} failed assertion(s)`);if(totalSoftQualityIssues)console.log(`Quality · ${totalSoftQualityIssues} soft signal(s)`);if(aggregateMetrics.successfulTurns)console.log(`Perf · ${(averageMs/1000).toFixed(1)}s/turn`);if(completedDialogues.length===1&&completedDialogues[0].length){console.log('\nConversation\n');console.log(transcriptText(completedDialogues[0]));}if(totalBehaviorFailures||totalInfraErrors||totalRuntimeErrors||totalHarnessErrors)process.exit(1);

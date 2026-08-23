@@ -1,160 +1,86 @@
-# Teach Me a Game acceptance harness
+# Teach Me a Game — V12 acceptance harness
 
-This harness supports the take-home prototype and deliberately separates **hard behavioral contracts** from **soft learner-experience quality**.
+V12 tests three progressively harder jobs:
 
-The current product question is:
+1. **Follow** — can the learner experience what information a listener actually needs?
+2. **Guide** — can the learner direct Raku, observe the interpretation, and repair it?
+3. **Game** — can those skills support a complete learner-taught game through a grounded ending?
 
-> Can a Grade 3–4 child explain a game, see that explanation become executable, encounter a real listener gap, repair it, continue playing, and eventually reach a child-taught ending without Jamie importing an answer key?
-
-The core loop is:
-
-**Explain → Act → Encounter gap → Repair → Reality changes → Continue → Grounded ending**
-
-## Current runtime target
-
-The current validated v10 candidate emits:
+Expected runtime marker:
 
 ```text
-debug.dsl_version = v10
-debug.build_id = v10-no-thinking-r4-20260822
+debug.dsl_version = v12
+debug.build_id = v12-listener-reconstruction-game-r7-20260823
 ```
 
-Use a human trace label that matches the experiment, but remember that `DIFY_TEST_VERSION` is only a label. `DIFY_EXPECT_DSL_VERSION` checks what the published Dify runtime actually emitted.
-
-## Run the deterministic regressions
+## Must-run sequence
 
 ```bash
 export DIFY_API_KEY='app-...'
-export DIFY_TEST_VERSION='v10-r4'
-export DIFY_EXPECT_DSL_VERSION='v10'
+export DIFY_TEST_VERSION='v12-r7'
+export DIFY_EXPECT_DSL_VERSION='v12'
 
-node tests/e2e/run-dify.mjs --scenario golden-path-learning-loop
-node tests/e2e/run-dify.mjs --scenario faithful-listener-not-answer-key
-node tests/e2e/run-dify.mjs --scenario smart-listener-not-pedantic
+node tests/e2e/run-dify.mjs --scenario follow-listener-perspective --verbose
+node tests/e2e/run-dify.mjs --scenario guide-role-reversal --verbose
+node tests/e2e/run-dify.mjs --scenario golden-path-learning-loop --verbose
+node tests/e2e/run-dify.mjs --scenario faithful-listener-not-answer-key --verbose
+node tests/e2e/run-dify.mjs --scenario smart-listener-not-pedantic --verbose
 ```
 
-The three scenarios have different jobs:
+`repair-locate-not-guess` remains optional depth evidence. `breadth-*` remain architecture probes.
 
-- `golden-path-learning-loop` — prove progressive world creation, delegated player choice, a genuine post-action gap, child repair, and visible reality change without immediate lecture/reflection.
-- `faithful-listener-not-answer-key` — prove that a child-defined rule overrides familiar-game priors.
-- `smart-listener-not-pedantic` — prove that normal Grade 3–4 disfluency and self-correction do not manufacture a fake communication failure.
+## Generalization requirement
 
-`repair-locate-not-guess` is optional design-depth evidence. `breadth-*` scenarios remain architecture probes and should not drive bespoke special-casing before the primary path is credible.
+Regression scenarios must stay unchanged while the runtime is repaired. Do not move a scenario phrase, expected branch, or familiar-game answer into an LLM prompt or narrow fallback. A valid fix should express a reusable semantic invariant and then pass the same scenario.
 
-## Hard vs soft
+## Follow contract
 
-Hard checks affect the exit code. They cover things the product cannot get wrong:
+The harness runs the authored hidden-target task:
 
-- valid frontend/protocol shape and strict runtime identity;
-- no unrecoverable internal pipeline failure masquerading as normal pedagogy;
-- no hidden/candidate rules leaking into listener-gap state;
-- no untaught gameplay state or logic appearing in the visible world;
-- delegated choices such as `any two` execute without unnecessary clarification;
-- action targets exist and runtime effects are not pre-applied in `world_patch`;
-- a genuine missing transition may coexist with an action that is executable now;
-- child repair applies to the actual current world state;
-- child-defined rules outrank familiar-game priors;
-- Jamie may not claim a physical move that the validated plan did not authorize.
+- `lesson_start` creates the reconstruction board;
+- the learner selects the triangle and chooses a reasonable but unintended top position;
+- Raku adds the missing positional detail rather than blaming the learner;
+- the learner repairs the triangle placement;
+- clear relational instructions place the circle and square;
+- the stage ends only when the hidden target is genuinely reproduced and revealed.
 
-Soft quality does not fail the deterministic run. Examples include exact wording, whether Jamie says `Now what?` on every appropriate turn, and general conversational smoothness.
+Hard checks protect the actual board positions and the support payload type.
 
-A harness problem must not be converted into a guessed runtime failure, and a provider/runtime problem must not be converted into a learner communication failure.
+## Guide contract
 
-## Golden path semantics
+The harness then reverses roles:
 
-`golden-path-learning-loop` intentionally stops after proving the core repair loop; it is not the full-game completion test.
+- the learner sees a target Raku cannot see;
+- an underspecified placement produces a real reasonable action rather than a fake clarification;
+- the learner corrects it precisely;
+- explicit and relational directions place the other shapes;
+- the stage reaches `game_select` only when the deterministic hidden-target check confirms an exact match.
 
-1. The child describes a card game with matching pictures. The world may appear provisionally, but gameplay rules may not be invented.
-2. The child teaches the face-down setup.
-3. The child says `flip any two cards`. Jamie chooses two eligible cards and actually reveals exactly two.
-4. Because the child has not yet taught the outcome branch, a grounded post-action listener gap is allowed.
-5. The harness inspects the revealed pair and supplies only the branch needed for the state Jamie actually encountered.
-6. Jamie immediately applies the repair to the same pair.
-7. The old gap is resolved and play continues. A repair may earn an internal reflection candidate, but there should be no immediate lesson-summary speech.
+The AI interpreter never receives the target. The target exists only in deterministic task logic and frontend support.
 
-Pair identity is derived from visible identity fields such as `symbol` / `caption`, never from a generic label such as `Card`.
+## Game bootstrap
 
-## Grounded completion: AI full-game smoke
+Every existing game scenario automatically runs both foundation tasks first, then selects an appropriate game label:
 
-Use [`run-ai-full-game.mjs`](./run-ai-full-game.mjs) to test whether the same architecture can finish an unscripted original game rather than only a fixed regression transcript.
+- Matching Pairs scenarios → `Matching Pairs`
+- Tic-Tac-Toe breadth → `Tic-Tac-Toe`
+- Rock Paper Scissors breadth → `Rock Paper Scissors`
+- Token Race breadth → `Another simple game`
 
-```bash
-export DIFY_TEST_VERSION='v10-r4'
-export DIFY_EXPECT_DSL_VERSION='v10'
+The game label is context only; all existing Game assertions continue to protect rule authority, real actions, grounded gaps, repair, and prior-knowledge suppression.
 
-export GAME_TEACHER_PROXY_URL='https://game-teacher-demo.vercel.app/api/chat'
-export AI_FULL_GAME_API_KEY='...'
-export AI_FULL_GAME_BASE_URL='https://your-openai-compatible-provider.example/v1'
-export AI_FULL_GAME_MODEL='your-model'
+## Existing final-game regressions
 
-node tests/e2e/run-ai-full-game.mjs --verbose
-```
+- `golden-path-learning-loop` — progressive world creation, delegated player choice, a real post-action gap, repair, and visible reality change.
+- `faithful-listener-not-answer-key` — learner-defined rules override familiar-game priors.
+- `smart-listener-not-pedantic` — ordinary Grade 3–4 disfluency does not manufacture fake communication failures.
+- `repair-locate-not-guess` — vague rejection leads to locating the mismatch rather than guessed correction.
+- `breadth-*` — generic architecture probes only.
 
-The full-game smoke passes only when:
+## AI full-game smoke
 
-- `game_complete=true`;
-- `phase=complete`;
-- `completion_evidence` is non-empty;
-- `pending_gap=null`;
-- no `pipeline_errors` occurred in the run.
+`run-ai-full-game.mjs` runs the same Follow and Guide tasks, selects `Another simple game`, then lets the AI child invent and teach an original game. Foundation turns do not consume the final-game turn budget.
 
-The current no-thinking v10 r4 runtime has passed this smoke on an AI-generated original game, including visible state progression and a grounded child-taught ending. This is broad smoke evidence, not proof of production-ready arbitrary-game breadth.
+The run passes only when the learner-authored game reaches a grounded ending with completion evidence and the lesson subsequently reaches `phase=complete` after transfer, with no pending gap, pipeline error, or phantom physical-action claim.
 
-See [`AI_FULL_GAME.md`](./AI_FULL_GAME.md) for setup and [`LIVE_TRACE.md`](./LIVE_TRACE.md) for crash-safe live logging.
-
-## Optional whole-scenario AI judge
-
-For semantic qualities that do not have one exact correct wording, add `--judge`:
-
-```bash
-export AI_EVAL_API_KEY='...'
-export AI_EVAL_BASE_URL='https://your-openai-compatible-provider.example/v1'
-export AI_EVAL_MODEL='your-evaluator-model'
-
-node tests/e2e/run-dify.mjs \
-  --scenario golden-path-learning-loop \
-  --judge
-```
-
-The judge runs once after the complete deterministic scenario and scores:
-
-- conversational naturalness;
-- listener-centered communication;
-- child agency;
-- grounded repair;
-- overall loop coherence.
-
-It is intentionally soft-only: its result is saved in the trace but never changes the deterministic exit code.
-
-## Failure categories
-
-The deterministic runner distinguishes:
-
-- **behavior** — a hard learner-facing/protocol contract failed;
-- **infra** — provider/network/model configuration failure;
-- **runtime** — Dify/workflow returned an unexpected runtime result;
-- **harness** — the test cannot make a reliable determination;
-- **soft quality signal** — useful interaction feedback that does not fail the run.
-
-The AI full-game runner additionally fails fast by default on pipeline errors or phantom physical-action claims because either already makes the hard full-game acceptance impossible. Use `--keep-going` only when deliberately collecting more diagnostic behavior.
-
-## Output
-
-Deterministic scenarios write:
-
-- `*.json` — complete technical trace, hard assertions, soft quality signals, and optional `aiEval`;
-- `*__conversation.txt` — Student/Jamie dialogue for quick review.
-
-AI full-game runs maintain three files from the beginning of the run:
-
-- `*__ai-full-game.json` — rolling full snapshot;
-- `*__ai-full-game__live.jsonl` — append-only event stream for live/crash-safe inspection;
-- `*__ai-full-game__conversation.txt` — concise conversation appended per completed turn.
-
-Generated artifacts stay under `.artifacts/dify-e2e/` and should not be committed.
-
-The standalone hidden-gap audit can still be run against older traces:
-
-```bash
-node tests/e2e/check-internal-gap-leakage.mjs .artifacts/dify-e2e/<trace>.json
-```
+Artifacts remain under `.artifacts/dify-e2e/` and must not be committed.

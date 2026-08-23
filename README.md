@@ -1,55 +1,67 @@
-# Game Teacher Demo
+# Game Teacher Demo — V12
 
 A short AI-native Lesson Card prototype for US Grade 3–4 learners.
 
-The child teaches Jamie, a capable but bounded same-age friend, a simple game. The child's explanation progressively creates the visible game world Jamie is allowed to understand, Jamie acts only on child-taught rules, real play exposes missing information, and the child repairs the explanation so the world can keep moving.
+The lesson trains one communication skill: **organize and revise an executable explanation around what the listener currently understands and needs next.** The learner first experiences the task from the listener side, then reverses roles and guides Raku, then transfers the same skill into teaching a complete game.
 
-The current learner loop is:
-
-**Explain → Act → Encounter a real gap → Repair → Reality changes → Continue → Reach a child-taught ending**
-
-The central design boundary is:
-
-> **AI may complete presentation details, but it must not complete the child's game logic.**
-
-Jamie may use ordinary player agency inside rules the child has taught. It may not use pretrained knowledge of a familiar game as a hidden answer key. A phrase such as `any two` delegates the choice of two eligible objects to Jamie; it does not delegate the missing rules of what happens next.
-
-## Current runtime contract
-
-The active experiment line is **v10 semantic-core**. The current validated candidate emits:
+The learner-facing progression is:
 
 ```text
-debug.dsl_version = v10
-debug.build_id = v10-no-thinking-r4-20260822
+Follow Raku's directions
+    ↓
+See what information a listener actually needs
+    ↓
+Switch roles and guide Raku to a hidden target
+    ↓
+Observe Raku's real interpretation and repair mismatches
+    ↓
+Choose a familiar game
+    ↓
+Teach Raku while the game becomes playable
+    ↓
+Keep explaining / repairing as new states appear
+    ↓
+Reach a learner-taught ending
+    ↓
+One short transfer question
 ```
 
-All LLM nodes currently run with `thinking=false`. This is intentional: the DeepSeek/Dify reasoning-output integration proved less reliable than normal JSON mode for the Action Planner, while the no-thinking semantic-core runtime successfully completed an unscripted original full game with grounded completion evidence.
+## V12 lesson stages
 
-Dify workflow exports are deployment artifacts and are not committed to this repository. A human trace label such as `DIFY_TEST_VERSION=v10-r4` is not proof of the runtime that was actually published; use `DIFY_EXPECT_DSL_VERSION=v10` to check the emitted runtime marker.
+### 1. Follow — listener perspective
 
-## Runtime responsibilities
+Raku can see a simple target arrangement that the learner cannot see. The learner manipulates shapes while Raku gives only the next information needed. The first instruction is deliberately compatible with more than one reasonable action; when that matters, Raku becomes more specific. The task ends by revealing the target and comparing the result.
 
-- **Listener Interpreter** extracts only what the child communicated and maintains grounded listener memory.
-- **World Builder + World Guard** progressively materialize a visible world while separating harmless presentation inference from gameplay semantics.
-- **Action Planner + Validator** decide what Jamie can physically do now from child-taught procedures and the authorized world state. Structured-output failures are technical failures, not learner failures.
-- **Gap Evaluator + Controller** distinguish a genuine communication gap from ordinary player choice, continuation, or pipeline failure.
-- **Jamie response + Response Guard** produce short learner-facing dialogue and may not narrate physical actions that the validated plan did not actually authorize.
-- **Browser UI** renders `world_patch` first, then executes `ui_action`, so world definition and physical runtime effects remain separate.
-- **`/api/chat`** keeps the Dify API key server-side and forwards child messages or game-world events to the published Dify app.
+### 2. Guide — role reversal
 
-## Completion and reflection
+The learner sees a new target that Raku cannot see. The learner gives directions in ordinary language. Raku acts only from those words and its current board state. The AI listener never receives the hidden target. A deterministic controller executes the interpreted instruction and separately checks whether the visible board matches the target.
 
-`game_complete=true` is grounded in the game, not in a lesson-state counter. Completion is valid only when:
+### 3. Game — integrated transfer
 
-1. the child taught an ending condition;
-2. the authorized world actually reaches that condition; and
-3. `completion_evidence` cites child-taught evidence.
+The learner chooses a familiar simple game. The selected game name is context only and never supplies rules. The existing runtime-first semantic core then handles learner-grounded listener memory, Rule IR, world construction, validated actions, real communication gaps, repair, continued play, and grounded completion.
 
-A repair may earn an internal `reflection_candidate`, but repair does not immediately trigger a lecture. Any learner-facing reflection is deferred to a later earned moment such as a grounded game ending, stays specific to what happened, and should be at most one short conversational sentence.
+The Game Guide starts visible with five light prompts — **Goal / Start / Turn / Special / Ending** — then fades as play succeeds. The learner does not need to explain every rule before play starts; Raku acts as soon as the current information supports an action and asks only when the next state truly needs more information.
+
+## Runtime identity
+
+The V12 deployment candidate should emit:
+
+```text
+debug.dsl_version = v12
+debug.build_id = v12-listener-reconstruction-game-r7-20260823
+```
+
+The Dify workflow export remains a deployment artifact and is intentionally not committed to this repository.
+
+## Core authority boundary
+
+During the final game, learner-taught rules are the only source of gameplay semantics. The selected game label may help resolve ordinary nouns or references, but it is never evidence for an omitted rule, state, legal move, consequence, goal, or ending. Presentation details may be inferred; legal moves, outcomes, turn logic, repetition, scores, and ending conditions remain learner-authored.
+
+Regression scenarios are acceptance evidence, not implementation instructions. Scenario-specific phrases or familiar-game branches must not be copied into LLM prompts or narrow fallbacks merely to make a test pass; the runtime should encode general semantic contracts and be validated against unchanged scenarios.
 
 ## Run locally
 
-This demo has no local lesson-logic mock. Create `.env.local` from `.env.example`, point it at the published Dify app, then run:
+Create `.env.local` from `.env.example`, point it at the published V12 Dify app, then run:
 
 ```bash
 set -a
@@ -58,61 +70,26 @@ set +a
 npx vercel dev
 ```
 
-Open the local URL printed by Vercel.
-
-## Frontend response contract
-
-The browser expects a payload in this shape:
-
-```json
-{
-  "reply": "Okay, I'll water the first flower!",
-  "phase": "experience",
-  "world_patch": {
-    "add_objects": [],
-    "update_objects": [],
-    "ready": true
-  },
-  "ui_action": {
-    "type": "action_sequence",
-    "payload": {
-      "actions": []
-    }
-  },
-  "support": null,
-  "capture_baseline": false,
-  "debug": {
-    "dsl_version": "v10",
-    "game_complete": false,
-    "completion_evidence": [],
-    "pipeline_errors": []
-  }
-}
-```
-
-`world_patch` changes what exists or how the world is defined. `ui_action` changes what physically happens inside that world. Do not pre-apply the same runtime effect in both places.
-
 ## Validation
 
-The deterministic E2E harness lives under `tests/e2e/`. The primary regression set is:
+Focused deterministic runs:
 
 ```bash
-DIFY_TEST_VERSION=v10-r4 DIFY_EXPECT_DSL_VERSION=v10 \
-node tests/e2e/run-dify.mjs --scenario golden-path-learning-loop
+export DIFY_TEST_VERSION='v12-r7'
+export DIFY_EXPECT_DSL_VERSION='v12'
 
-DIFY_TEST_VERSION=v10-r4 DIFY_EXPECT_DSL_VERSION=v10 \
-node tests/e2e/run-dify.mjs --scenario faithful-listener-not-answer-key
-
-DIFY_TEST_VERSION=v10-r4 DIFY_EXPECT_DSL_VERSION=v10 \
-node tests/e2e/run-dify.mjs --scenario smart-listener-not-pedantic
+node tests/e2e/run-dify.mjs --scenario follow-listener-perspective --verbose
+node tests/e2e/run-dify.mjs --scenario guide-role-reversal --verbose
+node tests/e2e/run-dify.mjs --scenario golden-path-learning-loop --verbose
+node tests/e2e/run-dify.mjs --scenario faithful-listener-not-answer-key --verbose
+node tests/e2e/run-dify.mjs --scenario smart-listener-not-pedantic --verbose
 ```
 
-`tests/e2e/run-ai-full-game.mjs` adds broad unscripted evidence by having an AI child invent and teach a small original game. It passes only on grounded completion with no pending gap or pipeline error. See [`tests/e2e/AI_FULL_GAME.md`](tests/e2e/AI_FULL_GAME.md) and [`tests/e2e/LIVE_TRACE.md`](tests/e2e/LIVE_TRACE.md).
+Then run `repair-locate-not-guess`, the `breadth-*` probes, and finally `run-ai-full-game.mjs --verbose`.
 
-## Repository source of truth
+## Source of truth
 
-- [`dify/README.md`](dify/README.md) — current v10 runtime architecture and behavioral contract.
-- [`tests/e2e/README.md`](tests/e2e/README.md) — deterministic acceptance philosophy and commands.
-- [`tests/e2e/AI_FULL_GAME.md`](tests/e2e/AI_FULL_GAME.md) — unscripted full-game completion smoke.
-- [`tests/e2e/prd-manual-scenarios.md`](tests/e2e/prd-manual-scenarios.md) — remaining learner-facing/manual QA.
-- [`dify/v8/`](dify/v8/) and the old `dify/interpreter-prompt.md` / `dify/lesson-engine.py` files are historical references only; they are not the active v10 workflow source.
+- `dify/README.md` — V12 runtime responsibilities and authority boundaries.
+- `tests/e2e/README.md` — deterministic V12 acceptance sequence.
+- `tests/e2e/AI_FULL_GAME.md` — unscripted full-game smoke after the two foundation tasks.
+- `AGENTS.md` — repository discipline and non-negotiable runtime invariants.
