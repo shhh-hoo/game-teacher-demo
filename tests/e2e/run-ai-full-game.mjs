@@ -152,6 +152,8 @@ function compactWorld(world) {
       caption: o.state === 'face_down' ? null : o.caption,
       state: o.state,
       owner: o.owner ?? null,
+      row: o.row ?? null,
+      column: o.column ?? null,
     })),
   };
 }
@@ -279,7 +281,7 @@ function currentCompletion(payload) {
 
 function looksLikePhysicalActionClaim(reply) {
   const text = String(reply || '').toLowerCase();
-  return /\b(i\s+)?(flip|flipped|reveal|revealed|hide|hid|remove|removed|take|took|collect|collected|move|moved|put|place|placed|turn|turned)\b/.test(text);
+  return /\b(?:i(?:'ll| will| have| just)?|let me)\s+(?:flip|flipped|reveal|revealed|hide|hid|remove|removed|take|took|collect|collected|move|moved|put|place|placed|turn|turned|swap|swapped)\b/.test(text);
 }
 
 const traceRoot = path.resolve(process.cwd(), '.artifacts', 'dify-e2e');
