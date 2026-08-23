@@ -2,65 +2,91 @@
 
 A short AI-native Lesson Card prototype for US Grade 3–4 learners.
 
-The child first experiences Jamie giving one short, complete procedure for a tiny fixed game. The roles then reverse: the child teaches Jamie a game they know, Jamie acts only on child-taught rules, real play exposes missing information, and the child repairs the explanation until Jamie can play. Guided support then disappears and a fresh-listener Jamie must be taught again before the lesson can finish.
+## v11 learner experience
 
-The v11 learner loop is:
+v11 is a continuous lesson, not a reset-and-retest flow:
 
-**Model → Experience → Real gap → Teach/Repair → Guided replay → Fresh-listener independent replay → Transfer → Complete**
+**Raku teaches → child teaches Raku with a guide → real play exposes a genuine gap → child repairs → the same game continues while the guide fades → child-taught ending → short transfer → complete**
 
-The central design boundary is:
+The central design boundary remains:
 
 > **AI may complete presentation details, but it must not complete the child's game logic.**
 
-Jamie may use ordinary player agency inside rules the child has taught. It may not use pretrained knowledge of a familiar game as a hidden answer key. A phrase such as `any two` delegates the choice of two eligible objects to Jamie; it does not delegate missing gameplay rules.
+`main` remains the locked v10 behavioural fallback. This branch is the direct v11 delivery path; intermediate v10.1/v10.2/v10.3 artifacts are architecture references, not deployment milestones.
 
-## Runtime status
-
-`main` remains the locked v10 behavioural fallback:
-
-```text
-debug.dsl_version = v10
-debug.build_id = v10-no-thinking-r4-20260822
-```
-
-This branch is the direct v11 delivery path. Intermediate v10.1/v10.2/v10.3 workflows are architecture references, not deployment milestones. The target v11 runtime identity is:
+Target runtime identity:
 
 ```text
 debug.dsl_version = v11
-debug.build_id = v11-runtime-first-mastery-gate-r1-20260823
+debug.build_id = v11-runtime-first-continuous-play-r2-20260823
 ```
 
-All LLM nodes run with `thinking=false`.
+All LLM nodes use `thinking=false`.
 
-Dify workflow exports are deployment artifacts and are intentionally not committed to this repository. Human trace labels are not proof of what is published; the harness checks the emitted `debug.dsl_version` and can also require `debug.build_id`.
+## Part 1 — Raku teaches first
 
-## v11 runtime responsibilities
+The lesson opens with a real game rather than asking the child to teach immediately. Raku proposes **Tic-Tac-Toe**, asks how familiar the learner is, and adapts the introduction accordingly.
 
-- **Listener Interpreter** extracts only what the child communicated. Durable student evidence and the active Jamie listener model are separate states.
-- **World Builder + World Guard** progressively materialize a visible world while separating harmless presentation inference from gameplay semantics.
-- **Executable Rule Compiler + Validator** compile only current child-taught gameplay meaning into a limited Rule IR. Corrections supersede earlier rules rather than silently mutating history.
-- **Deterministic Runtime Primary** owns supported physical transitions from validated Rule IR and authorized world state.
-- **Bounded Semantic Resolver** is used only when the deterministic Runtime cannot safely execute an existing grounded transition. It may not become a second rule compiler.
-- **Gap Evaluator + Full-Lesson Controller** distinguish real communication gaps from ordinary player choice or technical failure and own phase progression.
-- **Jamie response + Response Guard** produce short learner-facing dialogue and may not narrate physical actions that the validated plan did not authorize.
-- **Browser UI** renders definition deltas separately from physical actions. When a completed replay triggers a reset, the final grounded action is shown first, then the world resets.
-- **`/api/chat`** keeps the Dify API key server-side and forwards child messages or game-world events to the published Dify app.
+Raku introduces the game in visible chunks:
 
-## Lesson and mastery contract
+**Goal → Start → Turn → Ending**
 
-The fixed Rabbit Star Hop model gives its complete four-step procedure before the learner acts. Jamie does not reveal a new rule after every click; the model is meant to demonstrate what a usable procedure sounds like.
+For a learner who already knows a part, Raku skips it. For an unfamiliar learner, Raku explains one small chunk and moves on. The learner then actually plays Tic-Tac-Toe with Raku. The model therefore demonstrates two ideas before role reversal: a game explanation has structure, and a good explainer responds to what the listener already knows.
 
-The first genuine blocking listener gap earns the explicit teaching moment. Repair must change executable behaviour and play must continue.
+## Part 2 — child teaches Raku
 
-Practice remains scaffolded until the child-taught ending is actually reached. v11 requires **one complete, grounded guided replay**, which may span multiple actions. Individual successful actions are evidence, but they do not advance the learner to independent practice by themselves.
+The child then teaches a game they already know. This preserves the successful v10 mechanism:
 
-The independent phase uses a fresh listener: durable student evidence remains available for evaluation, but active listener knowledge, executable Rule IR, pending gap state, and game progress are reset to the preserved baseline. Support is removed. A bare `Go ahead` may not reuse the previous Jamie's rules.
+- the visible game world builds progressively from the child's language;
+- Raku uses only child-taught gameplay rules;
+- ordinary player choice is allowed when the child delegates it;
+- a genuine blocking gap may be exposed, but the system does not manufacture friction;
+- a repair must change executable reality and let play continue.
 
-`game_complete` and `lesson_complete` are separate. A child-grounded ending can complete a game; the lesson completes only after the fresh-listener replay and a short substantive transfer response.
+A persistent **Game Teaching Guide** is visible while the child first teaches:
+
+- Goal — What are we trying to do?
+- Start — What do we need before we begin?
+- Turn — What happens on a turn?
+- Special rules — Is there anything unusual?
+- Ending — How do we know it is over?
+
+The guide is a thinking frame, not a checklist. The child can explain naturally in any order.
+
+## Scaffold fade
+
+After a genuine gap is repaired, Raku keeps playing the **same game with the same memory and world**. There is no learner-facing fresh-listener reset and no request to teach everything again.
+
+The guide fades only as a UX scaffold:
+
+1. full guide while first teaching;
+2. compact guide after the repair becomes executable;
+3. compact reminder during the first successful continuation;
+4. persistent guide disappears after continued success, but remains available as an optional reminder;
+5. a later real gap can temporarily surface a small contextual hint.
+
+Successful-action count is never a mastery or completion condition. The game ends only when a child-taught ending condition is actually satisfied with grounded completion evidence.
+
+## Runtime architecture
+
+- **Listener Interpreter** extracts only what the child communicated.
+- **World Builder + World Guard** materialize a visible world without inventing gameplay semantics.
+- **Executable Rule Compiler + Validator** compile grounded rules into stable Rule IR; corrections supersede contradictory rules.
+- **Deterministic Runtime Primary** owns supported physical transitions.
+- **Bounded Semantic Resolver** is used only when deterministic Runtime cannot safely execute an existing grounded transition.
+- **Gap Evaluator + Full-Lesson Controller** separate real communication gaps from ordinary player choice, continuation, and technical failure.
+- **Raku response + Response Guard** may not narrate a physical action that the validated plan did not authorize.
+- **Browser UI** renders world definition separately from physical runtime effects.
+
+The v11 controller never uses learner-facing `reset_listener`, `reset_rules`, or `reset_world` transitions.
+
+## Completion and transfer
+
+`game_complete` and `lesson_complete` are separate.
+
+A game completes only when the child taught an ending condition, the authorized world actually reaches it, and completion evidence is non-empty. The final grounded action still executes visibly. The lesson then enters a short transfer question such as what the learner would check or explain when teaching another player in the future. A trivial response does not complete the lesson; a short substantive response can.
 
 ## Run locally
-
-This demo has no local lesson-logic mock. Create `.env.local` from `.env.example`, point it at the published Dify app, then run:
 
 ```bash
 set -a
@@ -69,66 +95,23 @@ set +a
 npx vercel dev
 ```
 
-Open the local URL printed by Vercel.
-
-## Frontend response contract
-
-The browser expects a payload in this shape:
-
-```json
-{
-  "reply": "Okay, I'll move now.",
-  "phase": "practice",
-  "world_patch": {
-    "add_objects": [],
-    "update_objects": [],
-    "ready": true
-  },
-  "ui_action": {
-    "type": "action_sequence",
-    "payload": {
-      "actions": []
-    }
-  },
-  "support": null,
-  "capture_baseline": false,
-  "debug": {
-    "dsl_version": "v11",
-    "build_id": "v11-runtime-first-mastery-gate-r1-20260823",
-    "game_complete": false,
-    "completion_evidence": [],
-    "pipeline_errors": []
-  }
-}
-```
-
-`world_patch` changes what exists or how the world is defined. `ui_action` changes what physically happens inside that world. Do not pre-apply the same runtime effect in both places.
+Dify workflow exports remain deployment artifacts and are intentionally not committed to the repository.
 
 ## Validation
 
-During implementation, prefer structural/micro checks. Once the v11 vertical slice is coherent, run the direct v11 lesson contract and then one regression pass rather than repeatedly deploying intermediate architectures.
+After importing and publishing the continuous-play v11 DSL:
 
 ```bash
-DIFY_TEST_VERSION=v11-direct \
-DIFY_EXPECT_DSL_VERSION=v11 \
-DIFY_EXPECT_BUILD_ID=v11-runtime-first-mastery-gate-r1-20260823 \
-node tests/e2e/run-v11-lesson-contract.mjs --verbose
+export DIFY_TEST_VERSION='v11-continuous-play'
+export DIFY_EXPECT_DSL_VERSION='v11'
+export DIFY_EXPECT_BUILD_ID='v11-runtime-first-continuous-play-r2-20260823'
 
-DIFY_TEST_VERSION=v11-direct \
-DIFY_EXPECT_DSL_VERSION=v11 \
-DIFY_EXPECT_BUILD_ID=v11-runtime-first-mastery-gate-r1-20260823 \
+node tests/e2e/run-v11-lesson-contract.mjs --verbose
 node tests/e2e/run-dify.mjs --version v11 --scenario golden-path-learning-loop
+node tests/e2e/run-dify.mjs --version v11 --scenario faithful-listener-not-answer-key
+node tests/e2e/run-dify.mjs --version v11 --scenario smart-listener-not-pedantic
 ```
 
-The dedicated v11 lesson runner is authoritative for the mastery gate: ordinary successful actions must remain in guided `practice`; only a grounded completed replay may trigger the fresh-listener reset.
+`run-v11-lesson-contract.mjs` is the authoritative v11 lesson gate. It verifies continuous state, scaffold fade, no fresh-listener reset, grounded game completion, transfer retry, and lesson completion.
 
-`tests/e2e/run-ai-full-game.mjs` remains broad unscripted evidence, but its v10 completion semantics must not be treated as a v11 lesson-completion gate until it is updated to continue through independent + transfer.
-
-## Repository source of truth
-
-- [`AGENTS.md`](AGENTS.md) — behavioural and repository invariants.
-- [`dify/README.md`](dify/README.md) — locked v10 baseline and Dify architecture context.
-- [`tests/e2e/README.md`](tests/e2e/README.md) — deterministic acceptance philosophy and commands.
-- [`tests/e2e/AI_FULL_GAME.md`](tests/e2e/AI_FULL_GAME.md) — unscripted full-game completion smoke.
-- [`tests/e2e/prd-manual-scenarios.md`](tests/e2e/prd-manual-scenarios.md) — learner-facing/manual QA.
-- [`dify/v8/`](dify/v8/) and the old `dify/interpreter-prompt.md` / `dify/lesson-engine.py` files are historical references only.
+`run-ai-full-game.mjs` is still useful as broad architecture evidence, but its current v10-shaped stop condition should not be reported as a v11 full-lesson pass until it is updated for the new transfer semantics.
