@@ -2,89 +2,91 @@
 
 A short AI-native Lesson Card prototype for US Grade 3–4 learners.
 
-## v11 learner experience
+The child first plays a familiar game with Raku. Raku checks what the learner already knows, introduces only the missing parts in a clear structure, and plays with them. The roles then reverse: the child teaches Raku a game they know, Raku acts only on child-taught rules, real play exposes genuine missing information, and the child repairs the explanation while the same game continues.
 
-v11 is a continuous lesson, not a reset-and-retest flow:
+The v11 learner loop is:
 
-**Raku teaches → child teaches Raku with a guide → real play exposes a genuine gap → child repairs → the same game continues while the guide fades → child-taught ending → short transfer → complete**
+**Raku teaches → Child teaches with a guide → Real gap → Repair → Same game continues → Guide fades → Child-taught ending → Transfer → Complete**
 
-The central design boundary remains:
+The central design boundary is:
 
 > **AI may complete presentation details, but it must not complete the child's game logic.**
 
-`main` remains the locked v10 behavioural fallback. This branch is the direct v11 delivery path; intermediate v10.1/v10.2/v10.3 artifacts are architecture references, not deployment milestones.
+Jamie/Raku may use ordinary player agency inside rules the child has taught. It may not use pretrained knowledge of a familiar game as a hidden answer key.
 
-Target runtime identity:
+## Runtime status
+
+`main` remains the locked v10 behavioural fallback:
+
+```text
+debug.dsl_version = v10
+debug.build_id = v10-no-thinking-r4-20260822
+```
+
+This branch is the direct v11 continuous-play delivery path. Intermediate v10.x migration workflows and the abandoned fresh-listener lesson are historical only.
+
+Current target:
 
 ```text
 debug.dsl_version = v11
-debug.build_id = v11-runtime-first-continuous-play-r2-20260823
+debug.build_id = v11-runtime-first-continuous-play-r4-20260823
+debug.action_plan._validation.decision_version = 1540-r4-direct-query
 ```
 
-All LLM nodes use `thinking=false`.
+All LLM nodes run with `thinking=false`.
 
-## Part 1 — Raku teaches first
+Dify workflow exports are deployment artifacts and are intentionally not committed to this repository.
 
-The lesson opens with a real game rather than asking the child to teach immediately. Raku proposes **Tic-Tac-Toe**, asks how familiar the learner is, and adapts the introduction accordingly.
-
-Raku introduces the game in visible chunks:
-
-**Goal → Start → Turn → Ending**
-
-For a learner who already knows a part, Raku skips it. For an unfamiliar learner, Raku explains one small chunk and moves on. The learner then actually plays Tic-Tac-Toe with Raku. The model therefore demonstrates two ideas before role reversal: a game explanation has structure, and a good explainer responds to what the listener already knows.
-
-## Part 2 — child teaches Raku
-
-The child then teaches a game they already know. This preserves the successful v10 mechanism:
-
-- the visible game world builds progressively from the child's language;
-- Raku uses only child-taught gameplay rules;
-- ordinary player choice is allowed when the child delegates it;
-- a genuine blocking gap may be exposed, but the system does not manufacture friction;
-- a repair must change executable reality and let play continue.
-
-A persistent **Game Teaching Guide** is visible while the child first teaches:
-
-- Goal — What are we trying to do?
-- Start — What do we need before we begin?
-- Turn — What happens on a turn?
-- Special rules — Is there anything unusual?
-- Ending — How do we know it is over?
-
-The guide is a thinking frame, not a checklist. The child can explain naturally in any order.
-
-## Scaffold fade
-
-After a genuine gap is repaired, Raku keeps playing the **same game with the same memory and world**. There is no learner-facing fresh-listener reset and no request to teach everything again.
-
-The guide fades only as a UX scaffold:
-
-1. full guide while first teaching;
-2. compact guide after the repair becomes executable;
-3. compact reminder during the first successful continuation;
-4. persistent guide disappears after continued success, but remains available as an optional reminder;
-5. a later real gap can temporarily surface a small contextual hint.
-
-Successful-action count is never a mastery or completion condition. The game ends only when a child-taught ending condition is actually satisfied with grounded completion evidence.
-
-## Runtime architecture
+## v11 runtime responsibilities
 
 - **Listener Interpreter** extracts only what the child communicated.
-- **World Builder + World Guard** materialize a visible world without inventing gameplay semantics.
-- **Executable Rule Compiler + Validator** compile grounded rules into stable Rule IR; corrections supersede contradictory rules.
+- **World Builder + World Guard** progressively materialize a visible world while separating presentation inference from gameplay semantics.
+- **Executable Rule Compiler + Validator** compile current child-taught gameplay meaning into limited Rule IR.
 - **Deterministic Runtime Primary** owns supported physical transitions.
-- **Bounded Semantic Resolver** is used only when deterministic Runtime cannot safely execute an existing grounded transition.
-- **Gap Evaluator + Full-Lesson Controller** separate real communication gaps from ordinary player choice, continuation, and technical failure.
-- **Raku response + Response Guard** may not narrate a physical action that the validated plan did not authorize.
-- **Browser UI** renders world definition separately from physical runtime effects.
+- **Bounded Semantic Resolver** is used only when Runtime cannot safely execute an existing grounded transition.
+- **Runtime/Fallback Selector (1540)** distinguishes a real execution request from a teaching/setup turn. A setup turn may build the visible world and idle without opening a learner gap.
+- **Gap Evaluator + Full-Lesson Controller** open teaching moments only for genuine blocking gaps.
+- **Browser UI** renders the game, teaching guide, scaffold fade, and transfer experience.
 
-The v11 controller never uses learner-facing `reset_listener`, `reset_rules`, or `reset_world` transitions.
+## Critical false-gap boundary
 
-## Completion and transfer
+A child is allowed to explain a game progressively. `no_applicable_supported_rule` does **not** mean a communication breakdown by itself.
 
-`game_complete` and `lesson_complete` are separate.
+Examples that should remain ordinary teaching/world-building:
 
-A game completes only when the child taught an ending condition, the authorized world actually reaches it, and completion evidence is non-empty. The final grounded action still executes visibly. The lesson then enters a short transfer question such as what the learner would check or explain when teaching another player in the future. A trivial response does not complete the lesson; a short substantive response can.
+- `Make five available tokens named A, B, C, D, and E.`
+- `Put all the cards face down to start.`
+- `We both choose rock, paper, or scissors at the same time.`
+
+Examples that explicitly request execution/continuation and therefore may open a typed blocking gap if Raku cannot proceed:
+
+- `Remove token A now.`
+- `Pick one now.`
+- `Continue.`
+- `Your turn.`
+- a physical world interaction event
+
+r4 derives this boundary directly from the current raw query inside node 1540, instead of depending on an upstream semantic summary. The decision is exposed in `debug.action_plan._validation.runtime_request_expected` and the exact selector version is exposed as `decision_version`.
+
+## Learner experience
+
+### Raku teaches first
+
+Raku proposes Tic-Tac-Toe, asks learner familiarity, and introduces **Goal / Start / Turn / Ending** adaptively. Learners may skip parts they already know. The learner then actually plays before roles reverse.
+
+### Child teaches Raku
+
+The child teaches naturally. A persistent Game Teaching Guide shows **Goal / Start / Turn / Special rules / Ending** as a thinking frame, not a checklist.
+
+A genuine blocking gap earns the teach/repair moment. Repair must change executable reality and play continues in the same world.
+
+### Scaffold fade
+
+The full guide is visible during initial teaching, becomes compact after repair, and fades during successful continued play. It remains available as an optional reminder. Action count changes only guide presentation; it does not determine mastery or lesson completion.
+
+### Completion
+
+`game_complete` requires a child-taught ending plus grounded world evidence. The game ending leads directly to a short transfer prompt. `lesson_complete` is separate and requires a substantive transfer response.
 
 ## Run locally
 
@@ -95,23 +97,32 @@ set +a
 npx vercel dev
 ```
 
-Dify workflow exports remain deployment artifacts and are intentionally not committed to the repository.
-
 ## Validation
 
-After importing and publishing the continuous-play v11 DSL:
+After importing and publishing the current r4 DSL:
 
 ```bash
-export DIFY_TEST_VERSION='v11-continuous-play'
+export DIFY_TEST_VERSION='v11-continuous-r4'
 export DIFY_EXPECT_DSL_VERSION='v11'
-export DIFY_EXPECT_BUILD_ID='v11-runtime-first-continuous-play-r2-20260823'
+export DIFY_EXPECT_BUILD_ID='v11-runtime-first-continuous-play-r4-20260823'
 
 node tests/e2e/run-v11-lesson-contract.mjs --verbose
+```
+
+The lesson runner also requires:
+
+```text
+debug.action_plan._validation.decision_version = 1540-r4-direct-query
+```
+
+so a stale 1540 node cannot masquerade as a new build merely because the packer build id changed.
+
+After that passes, run the active v11-only scenario catalog:
+
+```bash
 node tests/e2e/run-dify.mjs --version v11 --scenario golden-path-learning-loop
 node tests/e2e/run-dify.mjs --version v11 --scenario faithful-listener-not-answer-key
 node tests/e2e/run-dify.mjs --version v11 --scenario smart-listener-not-pedantic
 ```
 
-`run-v11-lesson-contract.mjs` is the authoritative v11 lesson gate. It verifies continuous state, scaffold fade, no fresh-listener reset, grounded game completion, transfer retry, and lesson completion.
-
-`run-ai-full-game.mjs` is still useful as broad architecture evidence, but its current v10-shaped stop condition should not be reported as a v11 full-lesson pass until it is updated for the new transfer semantics.
+`tests/e2e/scenarios.json` intentionally contains only active v11 scenarios; abandoned fresh-listener and staged migration-only tests remain available through Git history rather than the executable catalog.
