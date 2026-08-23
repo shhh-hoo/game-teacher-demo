@@ -1,0 +1,12 @@
+{
+  "name": "game-teacher-demo",
+  "private": true,
+  "scripts": {
+    "test:browser": "playwright test --config=tests/browser/playwright.config.mjs tests/browser/ui-contract.spec.mjs",
+    "test:browser:live": "DIFY_BROWSER_LIVE=1 playwright test --config=tests/browser/playwright.config.mjs tests/browser/live-walkthrough.spec.mjs",
+    "test:browser:headed": "HEADED=1 DIFY_BROWSER_LIVE=1 playwright test --config=tests/browser/playwright.config.mjs tests/browser/live-walkthrough.spec.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}
