@@ -1,6 +1,6 @@
-# Dify workflow — V12 three-stage lesson contract
+# Dify workflow - V12 lesson contract
 
-The V12 product has two short foundation tasks followed by the learner-authored game runtime:
+The final V12 lesson has two short foundation tasks followed by the learner-authored game runtime:
 
 ```text
 Follow
@@ -19,67 +19,66 @@ Expected runtime marker:
 
 ```text
 debug.dsl_version = v12
-debug.build_id = v12-listener-reconstruction-game-r7-20260823
+debug.build_id = v12-listener-reconstruction-game-r24-final-20260824
 ```
 
-The exported Dify YAML is a deployment artifact and is not committed to the repository.
+Final model allocation:
 
-## Stage 1 — Follow
+- `AI · Raku Listener Interpreter` -> `deepseek-v4-pro`
+- `AI · Executable Rule Compiler` -> `deepseek-v4-pro`
+- all other LLM nodes -> `deepseek-v4-flash`
+- Thinking disabled everywhere
 
-This stage is fully authored and deterministic. Raku owns a hidden target arrangement. The learner sees movable shapes and six possible positions.
+The exported Dify YAML is a deployment/submission artifact and is not committed to the repository.
 
-Raku gives only the next instruction needed. The first direction is intentionally compatible with multiple reasonable actions. If the learner chooses a different reasonable position from the hidden target, Raku acknowledges that the action was reasonable from the words and adds only the missing detail. Later steps use clear relational instructions.
+## Stage 1 - Follow
 
-The stage ends by revealing the target. No LLM is needed because Raku owns both the target and the instructional sequence.
+This stage is authored and deterministic. Raku owns a hidden target arrangement. The learner sees movable shapes and possible positions.
 
-## Stage 2 — Guide
+Raku gives only the next instruction needed. The first direction is intentionally compatible with more than one reasonable action. If the learner chooses a different reasonable position from the hidden target, Raku acknowledges that the action was reasonable from the words and adds only the missing detail.
+
+The stage ends by revealing the target. No LLM is required because Raku owns both the target and the instructional sequence.
+
+## Stage 2 - Guide
 
 The learner sees a new target arrangement; Raku does not.
 
 ### AI · Raku Reconstruction Listener
 
-The LLM receives:
-
-- the learner's current utterance;
-- Raku's current board state and recent placement history;
-- the fixed vocabulary of shapes and board positions.
-
-It does **not** receive the hidden target.
+The LLM receives the learner's current utterance plus Raku's current board state and recent placement history. It does **not** receive the hidden target.
 
 The interpreter returns grounded placement semantics such as shape, explicit slot, row-only information, or a spatial relation.
 
 ### Deterministic Reconstruction Controller
 
-The controller converts those semantics into one visible placement. When language supports multiple positions but does not block action, the controller makes a deterministic reasonable choice rather than turning the moment into a tutoring question.
+The controller converts those semantics into one visible placement. When language supports multiple positions but does not block action, the controller makes one reasonable choice rather than turning the moment into a tutoring question.
 
-The hidden target is used only here to determine whether the reconstruction task is complete. A mismatch is visible to the learner; when the learner corrects Raku, the same shape is moved immediately. A vague rejection produces a locate prompt rather than a guessed correction.
+The hidden target is used only to determine whether the reconstruction task is complete. A mismatch is visible to the learner; a specific correction moves the shape immediately.
 
 ## Game selection
 
-After the Guide target is genuinely reproduced, the learner chooses a familiar game. The workflow stores only the game label. It resets to a blank learner-authored world and shows the Game Guide.
+After the Guide target is reproduced, the learner chooses a familiar game. The workflow stores only the game label, resets to a blank learner-authored world, and shows the Game Guide.
 
-The game label is never a source of rules.
+The game label is context only. It never supplies rules.
 
-## Stage 3 — learner-authored game runtime
-
-The semantic-core responsibilities remain:
+## Stage 3 - learner-authored game runtime
 
 ```text
 Learner message / game event
         ↓
-Listener Interpreter
+AI · Listener Interpreter
         ↓
 Grounded listener memory + student evidence
         ↓
-World Builder
+AI · World Builder
         ↓
-World Grounding Guard
+Deterministic World Grounding Guard
         ↓
-Executable Rule Compiler / Rule IR
+AI · Executable Rule Compiler / Rule IR
         ↓
 Deterministic Runtime Primary
         ↓
-Bounded Semantic Resolver only when needed
+AI · Bounded Semantic Resolver when needed
         ↓
 Gap Evaluator
         ↓
@@ -90,56 +89,48 @@ Raku response + response guard
 Frontend JSON
 ```
 
-### Authority boundary
+### Product truth / authority boundary
 
-The learner owns gameplay semantics. The selected game label may resolve ordinary nouns or references, but it cannot supply omitted gameplay state, legal moves, consequences, scores, turn structure, goals, repetition, or endings.
+**The child's utterances are the game.**
 
-Presentation inference may choose visual labels, symbols, layout, and small representative quantities where quantity is not itself gameplay. It may not invent gameplay semantics.
+Truth order:
 
-### Generalization discipline
+1. current explicit learner correction;
+2. current explicit learner statement;
+3. prior learner-taught evidence;
+4. AI interpretation, presentation inference, and defaults.
 
-Regression scenarios are acceptance evidence, not a source of implementation examples. LLM prompts must express domain-level contracts rather than quote regression phrases or expected branches. Deterministic fallbacks must ground general semantics such as:
-
-- explicit initial-state assignment → world state;
-- explicit delegated atomic action + count → eligible observable targets;
-- explicit observable condition + learner-stated consequence → current-state effect;
-- missing later consequence → post-action gap.
-
-A regression is meaningful only when those general contracts are validated against the unchanged scenario.
+AI-inferred world state is provisional. A mismatch between a clear learner statement and an older AI guess is a model-reconciliation problem, not a learner communication failure.
 
 ### Listener memory and corrections
 
-The Listener Interpreter stores only current learner-grounded meaning. Corrections supersede conflicting active instructions. Previously taught procedures remain available later in the game.
+The listener model stores only learner-grounded meaning. Corrections supersede conflicting earlier evidence. Raku must not import canonical rules from a familiar game name.
 
-### Runtime and gaps
+### Runtime and player agency
 
-Raku acts as soon as the current taught rules and world state support an action. A temporary execution boundary is not automatically a communication gap. A real gap is opened only when the next move genuinely requires an untaught transition.
+Raku acts as soon as current taught rules and world state support an action. Multiple legal choices are not automatically communication gaps: if the learner has delegated a choice to Raku, Raku chooses.
 
-Ordinary delegated choices remain Raku's player agency. Hidden object identity is unavailable while hidden.
+A real gap opens only when the next transition genuinely requires information the learner has not supplied.
 
-### Game Guide and repair
+### Game Guide and scaffold fade
 
 The initial Game Guide exposes five light prompts:
 
 `Goal / Start / Turn / Special / Ending`
 
-They are attention support, not a required checklist. The learner may explain in any natural order and may begin play before all five have been covered. After successful play/repair the guide compacts and fades.
+They are attention support, not a required checklist. The learner may explain in any natural order and play may begin before all five have been covered. After successful play/repair the guide compacts and fades.
 
-The first earned repair may connect briefly to the listener idea practiced in Follow/Guide. Later repairs stay local to the current game.
+### World reconciliation
 
-### Grounded completion and transfer
+Presentation inference may choose visual labels, symbols, or layout, but these choices are provisional. Explicit learner setup, position, state, vacancy, or correction can revise the rendered world. Deterministic validation must not protect an older AI guess against newer learner evidence.
 
-`game_complete=true` requires:
+### Grounded completion
 
-1. a learner-taught ending condition;
-2. a world state that actually satisfies it; and
-3. non-empty grounded completion evidence.
-
-After grounded game completion, the lesson enters `transfer`. Raku asks one short question tied to the just-completed experience. A substantive learner response advances to `complete`.
+`game_complete=true` requires a learner-taught ending condition, a visible state that satisfies it, and non-empty learner-grounded evidence. Completion then advances to one short transfer question and `complete`.
 
 ## Frontend protocol
 
-Supported atomic actions remain:
+Supported atomic actions include:
 
 - `update_object`
 - `reveal_object`
@@ -153,11 +144,8 @@ Supported atomic actions remain:
 
 The browser applies `world_patch` first, then `ui_action`.
 
-New V12 support payloads used before the game runtime:
+V12 support payloads include `listener_task`, `reconstruction_result`, `reconstruction_task`, `game_picker`, `game_guide`, `repair_coaching`, and `locate_step`.
 
-- `listener_task`
-- `reconstruction_result`
-- `reconstruction_task`
-- `game_picker`
+## Validation policy
 
-Game-stage payloads remain `game_guide`, `repair_coaching`, and `locate_step`.
+Fixed learner-facing E2E/browser probes were used throughout development. The unscripted AI full-game runner remains available as high-cost diagnostic fuzzing, but is intentionally not a submission/freeze gate: it repeatedly invokes the full semantic pipeline with growing context and tests beyond the bounded core Lesson Card path.
